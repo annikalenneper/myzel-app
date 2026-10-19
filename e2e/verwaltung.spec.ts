@@ -1,0 +1,179 @@
+// S-50 bis S-52 · WF-PRO-01, WF-ADM-01 bis -05
+import { expect, test } from '@playwright/test';
+import { login, openTask } from './helpers';
+
+test('WF-PRO-01: Name ändern speichert beim Verlassen des Feldes', async ({ page }) => {
+  await login(page);
+  await page.goto('/profil');
+  await page.getByRole('button', { name: 'Name ändern' }).click();
+  await page.getByLabel('Name', { exact: true }).fill('Mo K.');
+  await page.getByLabel('Name', { exact: true }).blur();
+  await expect(page.getByRole('heading', { name: 'Mo K.' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Mo K.' })).toBeVisible();
+});
+
+test('Verwaltung sehen und öffnen nur Admins', async ({ page }) => {
+  await login(page, 'Jule');
+  await page.goto('/profil');
+  await expect(page.getByRole('heading', { name: 'Jule' })).toBeVisible();
+  await expect(page.getByText('Verwaltung (Admin)')).toHaveCount(0);
+  await page.goto('/profil/mitglieder');
+  await expect(page.getByRole('heading', { name: 'Mitglieder' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Jule' })).toBeVisible();
+});
+
+test('WF-ADM-01 / -02: Mitglied anlegen, Kürzel-Vorschlag, eindeutige Angaben, danach anmeldbar', async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto('/profil/mitglieder');
+  await expect(page.getByText('Aktiv · 11')).toBeVisible();
+  await page.getByRole('button', { name: '+ Mitglied' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Neues Mitglied' });
+  await sheet.getByLabel('Name *').fill('Leon');
+  // LE ist vergeben – der Vorschlag weicht aus
+  await expect(sheet.getByLabel('Kürzel *')).toHaveValue('LO');
+  await sheet.getByLabel('Kürzel *').fill('le');
+  await sheet.getByLabel('Google-Mail *').fill('leon@example.org');
+  await sheet.getByRole('button', { name: 'Anlegen' }).click();
+  await expect(sheet.getByRole('alert')).toHaveText('Das Kürzel LE ist schon vergeben.');
+  await sheet.getByLabel('Kürzel *').fill('LN');
+  await sheet.getByRole('button', { name: 'Anlegen' }).click();
+  await expect(page.getByText('Angelegt – kann sich jetzt anmelden.')).toBeVisible();
+  await expect(page.getByText('Aktiv · 12')).toBeVisible();
+
+  await page.goto('/profil');
+  await page.getByTestId('WF-LOG-03').click();
+  await page.getByLabel('E-Mail-Adresse').fill('leon@example.org');
+  await page.getByTestId('WF-LOG-02').click();
+  await page.locator('[data-demo="magic-link"]').click();
+  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+});
+
+test('WF-ADM-03 / -04: Deaktivieren zeigt die Folgen, trägt überall aus; Reaktivieren stellt nichts wieder her', async ({
+  page,
+}) => {
+  await login(page, 'Jule');
+  await openTask(page, 'Getränke bei der Brauerei bestellen');
+  await page.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'In Arbeit' }).click();
+  await expect(page.getByTestId('WF-ALL-02')).toContainText('Status: In Arbeit');
+  await page.goto('/profil');
+  await page.getByTestId('WF-LOG-03').click();
+  await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
+
+  await login(page);
+  await page.goto('/profil/mitglieder');
+  await page.getByRole('button', { name: /Jule/ }).click();
+  await page.getByRole('button', { name: 'Deaktivieren …' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Jule deaktivieren?' });
+  await expect(sheet).toContainText(/2 Aufgaben ohne Bearbeitende danach/i);
+  await expect(sheet).toContainText('Getränke bei der Brauerei bestellen · In Arbeit → Geplant');
+  await expect(sheet).toContainText('Kasse für Winterrave besorgen · Geplant');
+  await expect(sheet).toContainText('0 Aufgaben mit weiteren Bearbeitenden – unkritisch');
+  await sheet.getByRole('button', { name: 'Jule deaktivieren' }).click();
+  await expect(
+    page.getByText('Deaktiviert – 1 Aufgabe ohne Bearbeitende steht jetzt auf Geplant.'),
+  ).toBeVisible();
+  await expect(page.getByText('Deaktiviert · 2')).toBeVisible();
+
+  await openTask(page, 'Getränke bei der Brauerei bestellen');
+  await expect(
+    page.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'Geplant' }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: /entfernen: Jule/ })).toHaveCount(0);
+  await page.getByRole('tab', { name: 'VERLAUF' }).click();
+  await expect(
+    page.getByText(
+      /Mo hat Jule deaktiviert – Jule wurde ausgetragen\. Der Status ging von In Arbeit zurück auf Geplant/,
+    ),
+  ).toBeVisible();
+
+  await page.goto('/profil/mitglieder');
+  await page.getByRole('button', { name: 'Reaktivieren' }).first().click();
+  await expect(
+    page.getByText('Jule ist wieder aktiv – frühere Einträge wurden nicht wiederhergestellt.'),
+  ).toBeVisible();
+  await openTask(page, 'Getränke bei der Brauerei bestellen');
+  await expect(page.getByRole('button', { name: /entfernen: Jule/ })).toHaveCount(0);
+});
+
+test('WF-ADM-02 / -03: die letzte Person mit Admin-Rechten bleibt', async ({ page }) => {
+  await login(page);
+  await page.goto('/profil/mitglieder');
+  await page.getByRole('button', { name: /Lea/ }).click();
+  const lea = page.getByRole('dialog', { name: 'Lea bearbeiten' });
+  await lea.getByRole('checkbox', { name: 'Admin-Rechte' }).click();
+  await lea.getByRole('button', { name: 'Speichern' }).click();
+  await expect(lea).toBeHidden();
+
+  await page.getByRole('button', { name: /^MO Mo/ }).click();
+  const mo = page.getByRole('dialog', { name: 'Mo bearbeiten' });
+  await expect(mo).toContainText('Letzte Person mit Admin-Rechten – kann nicht deaktiviert werden.');
+  await expect(mo.getByRole('button', { name: 'Deaktivieren …' })).toHaveCount(0);
+  await mo.getByRole('checkbox', { name: 'Admin-Rechte' }).click();
+  await expect(mo.getByRole('checkbox', { name: 'Admin-Rechte' })).toBeChecked();
+});
+
+test('WF-ADM-05: Themen anlegen, umbenennen, löschen (unbenutzt), archivieren und wiederherstellen', async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto('/profil/themen');
+  await page.getByRole('button', { name: '+ Thema' }).click();
+  const create = page.getByRole('dialog', { name: 'Neues Thema' });
+  await create.getByLabel('Name *').fill('Awareness');
+  await create.getByRole('button', { name: 'Verein', exact: true }).click();
+  await create.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.getByRole('button', { name: /Awareness Unbenutzt/i })).toBeVisible();
+
+  await page.getByRole('button', { name: /Awareness/ }).click();
+  const edit = page.getByRole('dialog', { name: 'Thema bearbeiten' });
+  await edit.getByLabel('Name *').fill('Awareness & Schutz');
+  await edit.getByRole('button', { name: 'Speichern' }).click();
+  await page.getByRole('button', { name: /Awareness & Schutz/ }).click();
+  await expect(edit).toContainText('Noch nirgends benutzt.');
+  await edit.getByRole('button', { name: 'Löschen' }).click();
+  await expect(page.getByRole('button', { name: /Awareness/ })).toHaveCount(0);
+
+  // ein Thema mit aktiven Aufgaben lässt sich nicht archivieren (3.2)
+  await page.getByRole('button', { name: /Lager & Material/ }).click();
+  await expect(edit.getByRole('button', { name: 'Archivieren' })).toBeDisabled();
+  await expect(edit).toContainText('Hat noch 4 aktive Aufgaben');
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: /Alte Location/ }).click();
+  await edit.getByRole('button', { name: 'Wiederherstellen' }).click();
+  await page.getByRole('button', { name: /Alte Location 1 Aufgabe/i }).click();
+  await expect(edit).toContainText('Wird benutzt – deshalb nur archivierbar.');
+  await edit.getByRole('button', { name: 'Archivieren' }).click();
+  await expect(page.getByRole('button', { name: /Alte Location Archiviert/i })).toBeVisible();
+});
+
+test('WF-ALL-01: Mitglied in zwei Tabs bearbeitet – Konflikt, danach frischer Stand im Formular', async ({
+  page,
+  context,
+}) => {
+  await login(page);
+  await page.goto('/profil/mitglieder');
+  await page.getByRole('button', { name: /Sam/ }).click();
+  const sheet = page.getByRole('dialog', { name: 'Sam bearbeiten' });
+  await sheet.getByLabel('Name *').fill('Sammy');
+
+  const other = await context.newPage();
+  await other.goto('/profil/mitglieder');
+  await other.getByRole('button', { name: /Sam/ }).click();
+  await other.getByLabel('Google-Mail *').fill('sam.neu@example.org');
+  await other.getByRole('button', { name: 'Speichern' }).click();
+  await expect(other.getByText('sam.neu@example.org')).toBeVisible();
+  await other.close();
+
+  await sheet.getByRole('button', { name: 'Speichern' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Inzwischen geändert' });
+  await expect(dialog).toContainText('Sammy');
+  await dialog.getByRole('button', { name: 'Neu laden' }).click();
+  await expect(sheet.getByLabel('Google-Mail *')).toHaveValue('sam.neu@example.org');
+  await sheet.getByLabel('Name *').fill('Sammy');
+  await sheet.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.getByRole('button', { name: /Sammy/ })).toContainText('sam.neu@example.org');
+});

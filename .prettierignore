@@ -1,0 +1,14 @@
+node_modules
+dist
+dev-dist
+test-results
+playwright-report
+package-lock.json
+docs/prototype
+docs/ANFORDERUNGEN.md
+.claude
+.review
+# wird aus dem zod-Schema erzeugt (npm run schema:templates)
+src/shared/seed/event-templates.schema.json
+# wird aus dem zod-Schema erzeugt (npm run schema:export)
+src/shared/export.schema.json

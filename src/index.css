@@ -1,0 +1,151 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/600.css';
+
+/* Stil D · Nachtschicht Mono (ANFORDERUNGEN 8.1) */
+@theme {
+  --font-sans: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-grund: #0c0a12;
+  --color-flaeche: #17141f;
+  --color-erhoeht: #221e2e;
+  --color-linie: #2e2940;
+  --color-nav: #120f1a;
+  --color-leiste: #2a2538;
+  --color-rand: #3a3450;
+  --color-rand-stark: #4a4360;
+
+  --color-text: #f3effa;
+  --color-weich: #d9d3e6;
+  --color-leise: #a69fb8;
+  --color-matt: #6e6784;
+
+  --color-pink: #f062c0;
+  --color-violett: #9d6ef0;
+  --color-blau: #5b7fff;
+
+  --color-geplant: #e2dcf0;
+  --color-arbeit: #4fd1e0;
+  --color-rot: #ff5d6c;
+  --color-rot-hell: #ff8a95;
+  --color-rot-flaeche: #2a1219;
+  --color-rot-rand: #5a2534;
+  --color-bernstein: #f5b544;
+  --color-gruen: #3dd68c;
+}
+
+@layer base {
+  html {
+    background: var(--color-grund);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    /* Text 15/22 (8.2); html bleibt bei 16 px, damit rem-Maße wie Tippflächen stimmen */
+    font-size: 15px;
+    line-height: 22px;
+    /* lange Wörter ohne Leerzeichen sprengen kein Layout */
+    overflow-wrap: anywhere;
+    min-height: 100dvh;
+  }
+  button,
+  a,
+  summary {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: default;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-violett);
+    outline-offset: 2px;
+  }
+  input,
+  textarea {
+    outline: none;
+  }
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+    border-color: var(--color-violett);
+  }
+  ::placeholder {
+    color: var(--color-leise);
+    opacity: 1;
+  }
+}
+
+/* Verlauf aus dem Logo – nur „+“, Primäraktion, aktiver Menüpunkt, Fortschritt */
+@utility bg-marke {
+  background-image: linear-gradient(135deg, #f062c0, #9d6ef0, #5b7fff);
+}
+@utility bg-marke-quer {
+  background-image: linear-gradient(90deg, #f062c0, #9d6ef0, #5b7fff);
+}
+@utility bg-marke-fortschritt {
+  background-image: linear-gradient(90deg, #f062c0, #9d6ef0);
+}
+@utility bg-marke-strich {
+  background-image: linear-gradient(90deg, #f062c0, #5b7fff);
+}
+
+/* Tippfläche mindestens 44 px, auch wenn das sichtbare Element kleiner ist (8.2) */
+@utility hit {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 100%;
+    height: 100%;
+    min-width: 44px;
+    min-height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@utility label-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-leise);
+  text-transform: uppercase;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Der Hintergrund scrollt nicht mit, solange ein Sheet offen ist */
+html[data-sheet] {
+  overflow: hidden;
+}
+/* Ist ein Sheet offen, steht die Leiste oben – sie verdeckt sonst dessen Aktionen */
+html[data-sheet] .feedback-bar {
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  bottom: auto;
+}
+.feedback-bar {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--bar-offset, 24px) + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+}
+@media (min-width: 1024px) {
+  .feedback-bar {
+    left: 244px;
+    right: auto;
+    width: 388px;
+    bottom: 24px;
+  }
+}

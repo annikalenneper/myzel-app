@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dev-dist/
+test-results/
+playwright-report/
+.env
+.env.*
+!.env.example
+.netlify/
+*.local
+.claude/worktrees/
+.review/
+*.tsbuildinfo
+
+# Anforderungen und Prototyp nur lokal: beschreiben das Kollektiv; der Prototyp enthält echt aussehende Mail-Adressen
+docs/ANFORDERUNGEN.md
+docs/prototype/

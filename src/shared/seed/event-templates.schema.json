@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "templates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "party",
+              "konzert",
+              "workshop",
+              "soli",
+              "sonstiges"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "block": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "offset_days": {
+                  "type": "integer",
+                  "minimum": -365,
+                  "maximum": 365
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "hoch",
+                    "mittel",
+                    "niedrig"
+                  ]
+                },
+                "topic": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "block",
+                "title",
+                "offset_days",
+                "topic"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "event_type",
+          "name",
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "templates"
+  ],
+  "additionalProperties": false
+}

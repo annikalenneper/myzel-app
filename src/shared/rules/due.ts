@@ -1,0 +1,48 @@
+// Fristberechnung (F-AUF-02): rot überfällig, bernstein ≤ 3 Tage
+import type { TaskStatus } from '../schema';
+import { isActiveTaskStatus } from './taskStatus';
+
+export const DUE_SOON_DAYS = 3;
+
+export type DueState = 'none' | 'overdue' | 'soon' | 'normal';
+
+/** Lokales Kalenderdatum als YYYY-MM-DD. */
+export function toIsoDate(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+export function addDays(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
+  return toIsoDate(new Date(y, m - 1, d + days));
+}
+
+/** Ganze Tage von `today` bis `dueDate` (negativ = überfällig). */
+export function daysUntil(dueDate: string, today: string): number {
+  const utc = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((utc(dueDate) - utc(today)) / 86_400_000);
+}
+
+/** Fristen zählen nur bei aktiven Aufgaben; erledigte und verworfene sind nie überfällig. */
+export function dueState(dueDate: string | null, status: TaskStatus, today: string): DueState {
+  if (!dueDate) return 'none';
+  if (!isActiveTaskStatus(status)) return 'normal';
+  const days = daysUntil(dueDate, today);
+  if (days < 0) return 'overdue';
+  if (days <= DUE_SOON_DAYS) return 'soon';
+  return 'normal';
+}
+
+export function isOverdue(dueDate: string | null, status: TaskStatus, today: string): boolean {
+  return dueState(dueDate, status, today) === 'overdue';
+}
+
+/** Fristen liegen zwischen 2000 und 2100 – fängt Tippfehler und halb eingegebene Jahre ab. */
+export function isPlausibleDate(isoDate: string): boolean {
+  const year = Number(isoDate.slice(0, 4));
+  return /^\d{4}-\d{2}-\d{2}$/.test(isoDate) && year >= 2000 && year <= 2100;
+}

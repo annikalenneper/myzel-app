@@ -1,0 +1,141 @@
+# Startinhalt der Veranstaltungsvorlagen (ANFORDERUNGEN 3.12, F-VER-06) – geprüft gegen
+# event-templates.schema.json. Je Veranstaltungsart eine Vorlage; jede Aufgabe gehört zu einem Baustein.
+# offset_days: Abstand der Frist zum Beginn der Veranstaltung in Tagen (negativ = vorher).
+# topic: Name eines Themas aus 3.2.
+templates:
+  - event_type: party
+    name: Party
+    items:
+      - block: Location
+        title: Location anfragen
+        offset_days: -60
+        priority: hoch
+        topic: Veranstaltungen
+      - block: Location
+        title: Vertrag mit der Location klären
+        offset_days: -45
+        topic: Veranstaltungen
+      - block: Booking
+        title: Line-up festlegen
+        offset_days: -50
+        priority: hoch
+        topic: Veranstaltungen
+      - block: Booking
+        title: Technik-Rider der Acts einsammeln
+        offset_days: -21
+        topic: Veranstaltungen
+      - block: Bar
+        title: Getränke bestellen
+        offset_days: -14
+        topic: Veranstaltungen
+      - block: Bar
+        title: Barschichten besetzen
+        offset_days: -7
+        topic: Veranstaltungen
+      - block: Eintritt
+        title: Kasse und Wechselgeld organisieren
+        offset_days: -3
+        topic: Finanzen & Förderung
+      - block: Awareness
+        title: Awareness-Team zusammenstellen
+        offset_days: -21
+        priority: hoch
+        topic: Veranstaltungen
+      - block: Awareness
+        title: Awareness-Briefing vorbereiten
+        offset_days: -2
+        topic: Veranstaltungen
+      - block: Rahmen
+        title: GEMA anmelden
+        offset_days: -14
+        topic: Versicherung & Recht
+      - block: Kommunikation
+        title: Flyer gestalten und drucken
+        offset_days: -28
+        topic: Öffentlichkeitsarbeit
+      - block: Kommunikation
+        title: Veranstaltung ankündigen
+        offset_days: -21
+        topic: Öffentlichkeitsarbeit
+      - block: Nachbereitung
+        title: Abrechnung machen
+        offset_days: 7
+        topic: Finanzen & Förderung
+  - event_type: konzert
+    name: Konzert
+    items:
+      - block: Booking
+        title: Band anfragen
+        offset_days: -60
+        priority: hoch
+        topic: Veranstaltungen
+      - block: Booking
+        title: Technik-Rider klären
+        offset_days: -21
+        topic: Veranstaltungen
+      - block: Bar
+        title: Getränke bestellen
+        offset_days: -14
+        topic: Veranstaltungen
+      - block: Rahmen
+        title: GEMA anmelden
+        offset_days: -14
+        topic: Versicherung & Recht
+      - block: Kommunikation
+        title: Konzert ankündigen
+        offset_days: -21
+        topic: Öffentlichkeitsarbeit
+      - block: Nachbereitung
+        title: Abrechnung machen
+        offset_days: 7
+        topic: Finanzen & Förderung
+  - event_type: workshop
+    name: Workshop
+    items:
+      - block: Vorbereitung
+        title: Material besorgen
+        offset_days: -7
+        topic: Lager & Material
+      - block: Vorbereitung
+        title: Anmeldungen sammeln
+        offset_days: -3
+        topic: Organisatorisches
+      - block: Kommunikation
+        title: Workshop ankündigen
+        offset_days: -21
+        topic: Öffentlichkeitsarbeit
+      - block: Nachbereitung
+        title: Rückmeldungen auswerten
+        offset_days: 7
+        topic: Organisatorisches
+  - event_type: soli
+    name: Soli-Event
+    items:
+      - block: Absprache
+        title: Mit den Unterstützten absprechen
+        offset_days: -30
+        priority: hoch
+        topic: Veranstaltungen
+      - block: Bar
+        title: Getränke bestellen
+        offset_days: -10
+        topic: Veranstaltungen
+      - block: Kommunikation
+        title: Soli-Event ankündigen
+        offset_days: -14
+        topic: Öffentlichkeitsarbeit
+      - block: Nachbereitung
+        title: Erlös übergeben
+        offset_days: 14
+        topic: Finanzen & Förderung
+  - event_type: sonstiges
+    name: Sonstiges
+    items:
+      - block: Vorbereitung
+        title: Ablauf planen
+        offset_days: -14
+        topic: Organisatorisches
+      - block: Nachbereitung
+        title: Nachbereitung besprechen
+        offset_days: 7
+        topic: Organisatorisches
