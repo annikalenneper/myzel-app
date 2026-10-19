@@ -223,18 +223,18 @@ Zur Durchsicht (Schritt B); geklärt sein müssen sie vor Schritt C.
 
 ### Aus 11.1
 
-| Nr. | Datum      | Frage                                                                               | Stand   | Antwort                                                                                |
-| --- | ---------- | ----------------------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------- |
-| 1   | 11.10.2026 | Technischer Stack (2.1) so in Ordnung?                                              | geklärt | Ja, wie in 2.1 (11.10.2026)                                                            |
-| 2   | 11.10.2026 | Wo liegt das Repo (GitHub-Account/Organisation)? Name der Netlify-Site oder Domain? | teils   | Repo: github.com/annikalenneper/myzel-app (öffentlich, 19.10.2026); Netlify-Site offen |
-| 3   | 11.10.2026 | Wem gehört das Supabase-Projekt? Zweite Person mit Zugang?                          | offen   |                                                                                        |
-| 4   | 11.10.2026 | Mitgliederliste (Name + Google-Mail) und wer Admin ist                              | offen   |                                                                                        |
-| 5   | 11.10.2026 | Veranstaltungsarten: Party, Konzert, Workshop, Soli-Event, Sonstiges?               | offen   |                                                                                        |
-| 6   | 11.10.2026 | Unterkategorien „Verein“ bestätigen (3.2)                                           | offen   |                                                                                        |
-| 7   | 11.10.2026 | Uhrzeit für tägliche Fristerinnerungen ab P2 (Vorschlag 9:00 Uhr)                   | offen   |                                                                                        |
-| 8   | 11.10.2026 | Backup bis Phase 6: wöchentlicher Dump nötig?                                       | offen   |                                                                                        |
-| 9   | 11.10.2026 | Ortsangabe des Lagers für den Bautag; übliches Format des Plenums                   | offen   |                                                                                        |
-| 10  | 11.10.2026 | Braucht es einen Hell-Modus?                                                        | offen   |                                                                                        |
+| Nr. | Datum      | Frage                                                                               | Stand   | Antwort                                                                                                                     |
+| --- | ---------- | ----------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 11.10.2026 | Technischer Stack (2.1) so in Ordnung?                                              | geklärt | Ja, wie in 2.1 (11.10.2026)                                                                                                 |
+| 2   | 11.10.2026 | Wo liegt das Repo (GitHub-Account/Organisation)? Name der Netlify-Site oder Domain? | geklärt | Repo: github.com/annikalenneper/myzel-app (öffentlich); Netlify-Site myzel-app, https://myzel-app.netlify.app/ (19.10.2026) |
+| 3   | 11.10.2026 | Wem gehört das Supabase-Projekt? Zweite Person mit Zugang?                          | offen   |                                                                                                                             |
+| 4   | 11.10.2026 | Mitgliederliste (Name + Google-Mail) und wer Admin ist                              | offen   |                                                                                                                             |
+| 5   | 11.10.2026 | Veranstaltungsarten: Party, Konzert, Workshop, Soli-Event, Sonstiges?               | offen   |                                                                                                                             |
+| 6   | 11.10.2026 | Unterkategorien „Verein“ bestätigen (3.2)                                           | offen   |                                                                                                                             |
+| 7   | 11.10.2026 | Uhrzeit für tägliche Fristerinnerungen ab P2 (Vorschlag 9:00 Uhr)                   | offen   |                                                                                                                             |
+| 8   | 11.10.2026 | Backup bis Phase 6: wöchentlicher Dump nötig?                                       | offen   |                                                                                                                             |
+| 9   | 11.10.2026 | Ortsangabe des Lagers für den Bautag; übliches Format des Plenums                   | offen   |                                                                                                                             |
+| 10  | 11.10.2026 | Braucht es einen Hell-Modus?                                                        | offen   |                                                                                                                             |
 
 ### Aus Schritt A (Widersprüche und Annahmen, nach denen gebaut wurde)
 
