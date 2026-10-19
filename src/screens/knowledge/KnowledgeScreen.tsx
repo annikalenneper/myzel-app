@@ -23,7 +23,8 @@ import { DecisionSheet, QuestionSheet } from './KnowledgeSheets';
 import { QuestionDetail } from './QuestionDetail';
 
 /** Link „Finanzen in MeinVerein“ – URL konfigurierbar (F-WIS-07) */
-const MEINVEREIN_URL: string = import.meta.env.VITE_MEINVEREIN_URL ?? 'https://www.meinverein.de/';
+// eine leer angelegte Variable gilt wie eine fehlende
+const MEINVEREIN_URL: string = import.meta.env.VITE_MEINVEREIN_URL?.trim() || 'https://www.meinverein.de/';
 
 export type KnowledgeTab = 'beschluesse' | 'fragen' | 'dokumente' | 'drive';
 const TABS: [KnowledgeTab, string][] = [
