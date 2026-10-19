@@ -243,7 +243,7 @@ export function seedDb(now: Date): Db {
     1,
   );
   const soli = addEvent('Soli-Tresen Sporenflug', 'soli', -21, '19:00', 5, null, 3);
-  const hoffest = addEvent('Hoffest', 'konzert', -63, '15:00', 8, null, 4);
+  const hoffest = addEvent('Hoffest', 'sonstiges', -63, '15:00', 8, null, 4);
 
   interface TaskSeed {
     title: string;

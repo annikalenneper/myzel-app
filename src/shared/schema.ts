@@ -18,7 +18,8 @@ export const PRIORITIES = ['hoch', 'mittel', 'niedrig'] as const;
 export const prioritySchema = z.enum(PRIORITIES);
 export type Priority = z.infer<typeof prioritySchema>;
 
-export const EVENT_TYPES = ['party', 'konzert', 'workshop', 'soli', 'sonstiges'] as const;
+/** Frage 5, von der Nutzerin bestätigt (20.10.2026) */
+export const EVENT_TYPES = ['party', 'workshop', 'soli', 'sonstiges'] as const;
 export const eventTypeSchema = z.enum(EVENT_TYPES);
 export type EventType = z.infer<typeof eventTypeSchema>;
 

@@ -26,7 +26,7 @@ const expectError = async (promise: Promise<unknown>, code: AppError['code']) =>
 };
 const eventId = async (title: string) => (await api.listEvents()).find((e) => e.title === title)!.id;
 const rawDb = () =>
-  JSON.parse(storage.getItem('myzel:mock:db:v9')!) as {
+  JSON.parse(storage.getItem('myzel:mock:db:v10')!) as {
     drive_remote: {
       items: { file_id: string; name: string; web_url: string; trashed: boolean }[];
       changes: unknown[];
@@ -40,7 +40,7 @@ const trashRemote = (fileId: string) => {
   raw.drive_remote.items.find((i) => i.file_id === fileId)!.trashed = true;
   raw.drive_remote.seq += 1;
   raw.drive_remote.changes.push({ seq: raw.drive_remote.seq, file_id: fileId });
-  storage.setItem('myzel:mock:db:v9', JSON.stringify(raw));
+  storage.setItem('myzel:mock:db:v10', JSON.stringify(raw));
 };
 const winterrave = async () => (await api.searchDrive('Winterrave')).find((e) => e.kind === 'ordner')!;
 
@@ -134,13 +134,13 @@ describe('Abgleich (3.13)', () => {
   });
 
   it('nimmt mit einem gelöschten Ordner auch seinen Inhalt aus dem Verzeichnis', async () => {
-    const raw = JSON.parse(storage.getItem('myzel:mock:db:v9')!) as {
+    const raw = JSON.parse(storage.getItem('myzel:mock:db:v10')!) as {
       drive_remote: { items: { file_id: string; trashed: boolean }[]; changes: unknown[]; seq: number };
     };
     raw.drive_remote.items.find((i) => i.file_id === 'drive-rave-flyer')!.trashed = true;
     raw.drive_remote.seq += 1;
     raw.drive_remote.changes.push({ seq: raw.drive_remote.seq, file_id: 'drive-rave-flyer' });
-    storage.setItem('myzel:mock:db:v9', JSON.stringify(raw));
+    storage.setItem('myzel:mock:db:v10', JSON.stringify(raw));
     await api.syncDrive();
     expect(await api.searchDrive('Flyer_Winterrave')).toEqual([]);
     expect((await api.recentDrive()).map((e) => e.name)).not.toContain('Insta-Story Winterrave.png');
@@ -162,12 +162,12 @@ describe('Abgleich (3.13)', () => {
   });
 
   it('baut bei ungültigem Token vollständig neu auf', async () => {
-    const raw = JSON.parse(storage.getItem('myzel:mock:db:v9')!) as {
+    const raw = JSON.parse(storage.getItem('myzel:mock:db:v10')!) as {
       drive_sync_state: { changes_page_token: string | null; last_full_sync_at: string };
     };
     const fullBefore = raw.drive_sync_state.last_full_sync_at;
     raw.drive_sync_state.changes_page_token = 'abgelaufen';
-    storage.setItem('myzel:mock:db:v9', JSON.stringify(raw));
+    storage.setItem('myzel:mock:db:v10', JSON.stringify(raw));
     await api.demo!.driveAddFile();
     expect((await api.syncDrive()).changed).toBe(1);
     const sync = (await api.getDriveFolder(null)).sync;
@@ -256,7 +256,7 @@ describe('Datei aus dem Verzeichnis verknüpfen (F-WIS-05, WF-WIS-09)', () => {
     // der Abgleich lief gerade erst: die neue Datei steht noch nicht im Cache
     await api.syncDrive();
     const second = await api.demo!.driveAddFile();
-    const raw = JSON.parse(storage.getItem('myzel:mock:db:v9')!) as {
+    const raw = JSON.parse(storage.getItem('myzel:mock:db:v10')!) as {
       drive_remote: { items: { file_id: string; name: string; web_url: string }[] };
     };
     const remote = raw.drive_remote.items.find((i) => i.name === second)!;
@@ -348,14 +348,14 @@ describe('Drive-Ordner der Veranstaltung (F-VER-03, WF-VER-14)', () => {
     const [file] = await api.searchDrive('Getränkeliste');
     await expectError(api.setEventDriveFolder(id, file!.file_id, rave.version), 'validation');
 
-    const raw = JSON.parse(storage.getItem('myzel:mock:db:v9')!) as {
+    const raw = JSON.parse(storage.getItem('myzel:mock:db:v10')!) as {
       drive_remote: { items: { file_id: string; trashed: boolean }[]; changes: unknown[]; seq: number };
     };
     const folder = raw.drive_remote.items.find((i) => i.file_id === rave.drive_folder!.file_id)!;
     folder.trashed = true;
     raw.drive_remote.seq += 1;
     raw.drive_remote.changes.push({ seq: raw.drive_remote.seq, file_id: folder.file_id });
-    storage.setItem('myzel:mock:db:v9', JSON.stringify(raw));
+    storage.setItem('myzel:mock:db:v10', JSON.stringify(raw));
     await api.syncDrive();
     const after = await api.getEventDetail(id);
     expect(after.drive_folder).toMatchObject({ name: '2026-12 Winterrave', missing: true, entries: [] });

@@ -430,7 +430,7 @@ describe('Veranstaltungen (WF-VER-02 bis -04)', () => {
 
   it('bearbeitet Basisfelder mit Versionsprüfung und lehnt ein Ende vor dem Beginn ab', async () => {
     const { id } = await api.createEvent({ title: 'Frühlingsfest', type: 'party', starts_at: start });
-    const fields = { title: 'Frühlingsfest im Hof', type: 'konzert' as const, starts_at: start };
+    const fields = { title: 'Frühlingsfest im Hof', type: 'workshop' as const, starts_at: start };
     await expectError(
       api.updateEvent(id, { ...fields, ends_at: '2027-03-20T18:00:00.000Z', version: 1 }),
       'validation',
@@ -438,7 +438,7 @@ describe('Veranstaltungen (WF-VER-02 bis -04)', () => {
     );
     await api.updateEvent(id, { ...fields, version: 1 });
     const event = await api.getEvent(id);
-    expect([event.title, event.type, event.version]).toEqual(['Frühlingsfest im Hof', 'konzert', 2]);
+    expect([event.title, event.type, event.version]).toEqual(['Frühlingsfest im Hof', 'workshop', 2]);
     // veraltete version: nichts wird überschrieben
     await expectError(api.updateEvent(id, { ...fields, title: 'Alt', version: 1 }), 'conflict');
     await expectError(api.setEventStatus(id, 'in_planung', 1), 'conflict');

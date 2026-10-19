@@ -28,7 +28,6 @@ export const PRIORITY_BARS: Record<Priority, number> = { hoch: 3, mittel: 2, nie
 
 export const EVENT_TYPE_LABEL: Record<EventType, string> = {
   party: 'Party',
-  konzert: 'Konzert',
   workshop: 'Workshop',
   soli: 'Soli',
   sonstiges: 'Sonstiges',

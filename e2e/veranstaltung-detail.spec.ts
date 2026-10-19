@@ -163,13 +163,13 @@ test('WF-VER-07: am Tag danach schlägt die App „In Nachbereitung“ vor', asy
   const d = new Date(Date.now() - 3 * 86_400_000);
   const pad = (n: number) => String(n).padStart(2, '0');
   await sheet.getByLabel('Titel *').fill('Hofkonzert');
-  await sheet.getByRole('button', { name: 'Konzert' }).click();
+  await sheet.getByRole('button', { name: 'Workshop' }).click();
   await sheet
     .getByLabel('Beginn *')
     .fill(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T19:00`);
   await sheet.locator('button[type=submit]').click();
   await page
-    .getByRole('dialog', { name: 'Vorlage „Konzert“' })
+    .getByRole('dialog', { name: 'Vorlage „Workshop“' })
     .getByRole('button', { name: 'Überspringen' })
     .click();
   await page.getByRole('tab', { name: /vergangen/i }).click();

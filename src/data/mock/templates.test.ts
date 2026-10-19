@@ -28,7 +28,7 @@ const expectError = async (promise: Promise<unknown>, code: AppError['code'], fi
   expect(error?.code).toBe(code);
   if (field) expect(error?.field).toBe(field);
 };
-const newEvent = async (type: 'party' | 'konzert' = 'party', daysAhead = 70) => {
+const newEvent = async (type: 'party' | 'workshop' = 'party', daysAhead = 70) => {
   const starts = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysAhead, 22);
   return (await api.createEvent({ title: 'Frühlingsrave', type, starts_at: starts.toISOString() })).id;
 };
@@ -43,13 +43,7 @@ beforeEach(async () => {
 describe('Startinhalt (3.12)', () => {
   it('die YAML-Datei passt zum Schema; das JSON-Schema ist aktuell (npm run schema:templates)', async () => {
     const seed = loadTemplateSeed();
-    expect(seed.templates.map((t) => t.event_type)).toEqual([
-      'party',
-      'konzert',
-      'workshop',
-      'soli',
-      'sonstiges',
-    ]);
+    expect(seed.templates.map((t) => t.event_type)).toEqual(['party', 'workshop', 'soli', 'sonstiges']);
     await expect(`${JSON.stringify(z.toJSONSchema(templateSeedFileSchema), null, 2)}\n`).toMatchFileSnapshot(
       '../../shared/seed/event-templates.schema.json',
     );

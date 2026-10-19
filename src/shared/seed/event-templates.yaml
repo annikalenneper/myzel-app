@@ -61,34 +61,6 @@ templates:
         title: Abrechnung machen
         offset_days: 7
         topic: Finanzen & Förderung
-  - event_type: konzert
-    name: Konzert
-    items:
-      - block: Booking
-        title: Band anfragen
-        offset_days: -60
-        priority: hoch
-        topic: Veranstaltungen
-      - block: Booking
-        title: Technik-Rider klären
-        offset_days: -21
-        topic: Veranstaltungen
-      - block: Bar
-        title: Getränke bestellen
-        offset_days: -14
-        topic: Veranstaltungen
-      - block: Rahmen
-        title: GEMA anmelden
-        offset_days: -14
-        topic: Versicherung & Recht
-      - block: Kommunikation
-        title: Konzert ankündigen
-        offset_days: -21
-        topic: Öffentlichkeitsarbeit
-      - block: Nachbereitung
-        title: Abrechnung machen
-        offset_days: 7
-        topic: Finanzen & Förderung
   - event_type: workshop
     name: Workshop
     items:

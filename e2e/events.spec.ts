@@ -35,7 +35,7 @@ test('WF-VER-02 / -03: anlegen als Idee, Ende muss nach dem Beginn liegen, bearb
   const submit = sheet.locator('button[type=submit]');
   await expect(submit).toBeDisabled();
   await sheet.getByLabel('Titel *').fill('Frühlingsfest');
-  await sheet.getByRole('button', { name: 'Konzert' }).click();
+  await sheet.getByRole('button', { name: 'Workshop' }).click();
   await sheet.getByLabel('Beginn *').fill('2027-03-20T20:00');
   await sheet.getByLabel('Ende').fill('2027-03-20T18:00');
   await expect(sheet.getByRole('alert')).toHaveText('Das Ende muss nach dem Beginn liegen.');
@@ -43,7 +43,7 @@ test('WF-VER-02 / -03: anlegen als Idee, Ende muss nach dem Beginn liegen, bearb
   await sheet.getByLabel('Ende').fill('2027-03-21T02:00');
   await submit.click();
   // ab P4 öffnet sich danach der Vorlagen-Dialog (S-23) – überspringbar
-  const template = page.getByRole('dialog', { name: 'Vorlage „Konzert“' });
+  const template = page.getByRole('dialog', { name: 'Vorlage „Workshop“' });
   await expect(template).toBeVisible();
   await template.getByRole('button', { name: 'Überspringen' }).click();
 

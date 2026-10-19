@@ -624,7 +624,6 @@
             "type": "string",
             "enum": [
               "party",
-              "konzert",
               "workshop",
               "soli",
               "sonstiges"
@@ -1320,7 +1319,6 @@
             "type": "string",
             "enum": [
               "party",
-              "konzert",
               "workshop",
               "soli",
               "sonstiges"
