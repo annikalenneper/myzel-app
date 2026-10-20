@@ -14,7 +14,8 @@ Durchsicht (B), Daten und Server (C), Deploy am Ende (D).
 
 - [x] Stack (2.1) bestätigt (11.10.2026); übrige Fragen aus 11.1 unten gesammelt
 - [x] Repo-Gerüst: Vite/React/TS, Tailwind, PWA, ESLint/Prettier, Vitest, Playwright
-- [ ] Supabase-Projekt (EU) + lokale Entwicklung; Netlify-Site; Umgebungsvariablen; .env.example – zu Schritt C
+- [ ] Supabase-Projekt (EU, angelegt) + lokale Entwicklung (Docker oder PGlite offen); Netlify-Site (angelegt);
+      .env.example (angelegt 20.10.2026); Werte in .env und Netlify – zu Schritt C
 - [ ] `npm run check` lauffähig (Schritt A: Lint, Typecheck, Unit, E2E – DB-Tests, check:integrity und
       YAML-Validierung kommen mit Schritt C); GitHub Actions CI angelegt, läuft, sobald das Repo auf GitHub liegt;
       kein wöchentlicher Dump (Frage 8)
