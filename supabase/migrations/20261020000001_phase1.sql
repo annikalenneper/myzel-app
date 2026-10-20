@@ -38,8 +38,9 @@ create table public.topics (
   version integer not null default 1 check (version >= 1),
   constraint topics_not_own_parent check (parent_id is distinct from id)
 );
--- gleicher Name nur einmal je Ebene
-create unique index topics_name_unique on public.topics (coalesce(parent_id, '00000000-0000-0000-0000-000000000000'), lower(name));
+-- gleicher Name nur einmal je Ebene unter den nicht archivierten (wie assertTopicPlacement)
+create unique index topics_name_unique on public.topics (coalesce(parent_id, '00000000-0000-0000-0000-000000000000'), lower(name))
+  where archived_at is null;
 
 -- ── Veranstaltungen, schlank (3.4 Basis) ────────────────────────────────────
 create table public.events (

@@ -1,11 +1,11 @@
 // Lokale Datenbank ohne Docker (Entscheidung 20.10.2026): PGlite mit nachgebildetem Supabase-Auth-Schema, darauf
 // alle Migrationen aus supabase/migrations in Reihenfolge. Für Tests und lokale Entwicklung der Server-Funktionen.
-import { PGlite, types } from '@electric-sql/pglite';
+import { PGlite } from '@electric-sql/pglite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Kysely } from 'kysely';
 import type { Database } from './types';
-import { PGliteDialect } from './pgliteDialect';
+import { PGLITE_PARSERS, PGliteDialect } from './pgliteDialect';
 
 const MIGRATIONS = join(import.meta.dirname, '..', '..', 'supabase', 'migrations');
 
@@ -41,12 +41,7 @@ export interface LocalDb {
 
 export async function createLocalDb(): Promise<LocalDb> {
   // wie in Betrieb (server/db/connection.ts): Zeitstempel als ISO-Text, Datumsfelder als YYYY-MM-DD
-  const pg = new PGlite({
-    parsers: {
-      [types.TIMESTAMPTZ]: (v: string) => new Date(v).toISOString(),
-      [types.DATE]: (v: string) => v,
-    },
-  });
+  const pg = new PGlite({ parsers: PGLITE_PARSERS });
   await pg.exec(SUPABASE_STUB);
   for (const file of migrationFiles()) {
     try {

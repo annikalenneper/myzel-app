@@ -30,7 +30,14 @@ export default defineConfig({
     }),
   ],
   test: {
-    include: ['src/**/*.test.ts', 'server/**/*.test.ts'],
     environment: 'node',
+    projects: [
+      { extends: true, test: { name: 'app', include: ['src/**/*.test.ts', 'server/**/*.test.ts'] } },
+      // dieselben Phase-1-Tests gegen die Server-Funktionen (Schritt C)
+      {
+        extends: true,
+        test: { name: 'server', include: ['src/data/mock/mockApi.test.ts'], env: { MYZEL_API: 'server' } },
+      },
+    ],
   },
 });

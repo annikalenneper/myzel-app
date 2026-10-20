@@ -1,6 +1,6 @@
 // Kysely-Anbindung an PGlite (eingebettetes Postgres, ohne Docker) für lokale Entwicklung und Tests.
 // In Betrieb läuft dieselbe Kysely-Schicht über den PostgresDialect gegen den Supabase-Pooler.
-import type { PGlite } from '@electric-sql/pglite';
+import { types, type PGliteInterface as PGlite } from '@electric-sql/pglite';
 import {
   CompiledQuery,
   PostgresAdapter,
@@ -13,11 +13,20 @@ import {
   type QueryResult,
 } from 'kysely';
 
+/** wie in Betrieb (connection.ts): Zeitstempel als ISO-Text, Datumsfelder als YYYY-MM-DD – je Abfrage, weil
+ * geklonte Datenbanken die Einstellungen der Vorlage nicht übernehmen */
+export const PGLITE_PARSERS = {
+  [types.TIMESTAMPTZ]: (v: string) => new Date(v).toISOString(),
+  [types.DATE]: (v: string) => v,
+};
+
 class PGliteConnection implements DatabaseConnection {
   constructor(private readonly db: PGlite) {}
 
   async executeQuery<R>(query: CompiledQuery): Promise<QueryResult<R>> {
-    const result = await this.db.query<R>(query.sql, query.parameters as unknown[]);
+    const result = await this.db.query<R>(query.sql, query.parameters as unknown[], {
+      parsers: PGLITE_PARSERS,
+    });
     return {
       rows: result.rows,
       numAffectedRows: result.affectedRows === undefined ? undefined : BigInt(result.affectedRows),

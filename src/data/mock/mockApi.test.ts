@@ -1,5 +1,8 @@
 // Die Testdaten-Schicht wendet die Regeln wirklich an (Abschnitt 10, Schritt A):
 // Pflichtfelder, verbotene Übergänge, Rückgängig, Versionskonflikt, Aufräumen beim Deaktivieren.
+// Mit MYZEL_API=server laufen dieselben Tests gegen die echten Server-Funktionen auf PGlite (Schritt C, Phase 1) –
+// so verhalten sich beide Schichten nachweislich gleich. Nur was es allein in der Testdaten-Schicht gibt
+// (Speicher im Browser, zweiter Tab), läuft dann nicht.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../shared/errors';
 import { taskHistorySentence } from '../../shared/historyText';
@@ -15,6 +18,8 @@ function memoryStorage(): KeyValueStorage {
   };
 }
 
+const SERVER = process.env.MYZEL_API === 'server';
+const onlyMock = it.skipIf(SERVER);
 let api: MyzelApi;
 let clock: Date;
 let storage: KeyValueStorage;
@@ -60,7 +65,9 @@ async function newTask(overrides: Record<string, unknown> = {}): Promise<TaskDet
 beforeEach(async () => {
   clock = new Date(2026, 9, 11, 12, 0, 0);
   storage = memoryStorage();
-  api = createMockApi({ storage, now: () => clock });
+  api = SERVER
+    ? await (await import('../../../server/api/serverApi')).createServerApi({ now: () => clock })
+    : createMockApi({ storage, now: () => clock });
   await login('mo');
 });
 
@@ -77,7 +84,7 @@ describe('Anmeldung (WF-LOG-01 bis -03)', () => {
     await expectError(api.createTask({ title: 'x', topic_id: crypto.randomUUID() }), 'unauthenticated');
   });
 
-  it('behält die Sitzung über einen Neustart und beendet sie beim Abmelden', async () => {
+  onlyMock('behält die Sitzung über einen Neustart und beendet sie beim Abmelden', async () => {
     const reopened = createMockApi({ storage, now: () => clock });
     expect((await reopened.getSession()).state).toBe('member');
     await reopened.signOut();
@@ -455,7 +462,7 @@ describe('Veranstaltungen (WF-VER-02 bis -04)', () => {
     expect((await api.getEvent(id)).status).toBe('in_planung');
   });
 
-  it('teilt den Stand mit einem zweiten Tab und erkennt dessen Änderungen', async () => {
+  onlyMock('teilt den Stand mit einem zweiten Tab und erkennt dessen Änderungen', async () => {
     const { id } = await api.createEvent({ title: 'Frühlingsfest', type: 'party', starts_at: start });
     const otherTab = createMockApi({ storage, now: () => clock });
     await otherTab.updateEvent(id, { title: 'Umbenannt', type: 'party', starts_at: start, version: 1 });
