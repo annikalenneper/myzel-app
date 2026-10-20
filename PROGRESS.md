@@ -4,9 +4,9 @@ Geführt vom Agenten. Quelle der Anforderungen: docs/ANFORDERUNGEN.md.
 
 ## Status
 
-**Aktuell: Schritt A (Oberfläche mit Testdaten) für alle Phasen P1 bis P6 fertig und geprüft (Phase 1 am
-12.10.2026, Phase 2 bis 4 am 18.10.2026, Phase 5 und 6 am 19.10.2026). Als Nächstes Schritt B: Durchsicht durch
-die Nutzerin mit den offenen Fragen und Annahmen unten.**
+**Aktuell: Schritt C für Phase 1 (Daten und Server). Schritt A für P1 bis P6 fertig (bis 19.10.2026),
+Schritt B durchgesehen (20.10.2026). Migration der Phase 1 im Entwicklungsprojekt eingespielt, erste Admin-Person
+angelegt (21.10.2026); als Nächstes der erste echte Login.**
 Reihenfolge seit 12.10.2026: erst das ganze Frontend (Schritt A für P1 bis P6), dann
 Durchsicht (B), Daten und Server (C), Deploy am Ende (D).
 
@@ -42,15 +42,16 @@ Schritt A – Oberfläche mit Testdaten:
 
 Schritt B:
 
-- [ ] Durchsicht durch die Nutzerin; Fragen aus 11.1 und aus Schritt A klären
+- [x] Durchsicht durch die Nutzerin (20.10.2026); offen nur noch Frage 4 und 6
 
 Schritt C – Daten und Server (Checkliste 10.1):
 
-- [ ] Datenmodell als Migrationen: members (inkl. short und Systemeintrag), topics (+Seed), tasks mit
+- [x] Datenmodell als Migrationen: members (inkl. short und Systemeintrag), topics (+Seed), tasks mit
       task_assignees, task_followers, task_blockers, comments; plenum_marks; events schlank; history
-- [ ] Server-Funktionen: Statusübergänge (4.1), Pflichtregeln, Rechte, Optimistic Locking, Historie,
+- [x] Server-Funktionen: Statusübergänge (4.1), Pflichtregeln, Rechte, Optimistic Locking, Historie,
       „Mitglied deaktivieren“ für Aufgaben
-- [ ] Login mit Google und E-Mail-Link, Mitgliederprüfung (F-LOG-01, -02)
+- [ ] Login mit Google und E-Mail-Link, Mitgliederprüfung (F-LOG-01, -02) – Code und Tests fertig; erste
+      Admin-Person per `npm run db:first-admin`; offen: Test am echten Projekt, Google-Anbieter einrichten
 - [ ] Admin-Bereich Mitglieder und Themen (F-LOG-03, F-PRO-04); Profil mit Name und Abmelden (F-LOG-04)
 - [ ] App-Gerüst, Aufgaben (F-AUF-01 bis -07, -09), Veranstaltungen schlank (F-VER-01 bis -03) am echten Backend
 - [ ] Datenschutzhinweis in der App; check:integrity; E2E-Smoke-Tests

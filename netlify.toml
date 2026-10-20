@@ -11,3 +11,13 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# lokal mit echtem Backend: `npx netlify dev` startet Vite und die Functions zusammen auf http://localhost:8888;
+# `npm run dev` allein bleibt die Vorschau mit Testdaten
+[dev]
+  command = "npm run dev"
+  targetPort = 5173
+  port = 8888
+
+[context.dev.environment]
+  VITE_MYZEL_BACKEND = "supabase"

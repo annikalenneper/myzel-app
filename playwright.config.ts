@@ -24,6 +24,8 @@ export default defineConfig({
   webServer: {
     command: `npm run build && npx vite preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
+    // immer die Testdaten-Schicht, egal was in der .env steht
+    env: { VITE_MYZEL_BACKEND: 'mock' },
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
   },

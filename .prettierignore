@@ -12,3 +12,5 @@ docs/ANFORDERUNGEN.md
 src/shared/seed/event-templates.schema.json
 # wird aus dem zod-Schema erzeugt (npm run schema:export)
 src/shared/export.schema.json
+supabase/.temp
+.netlify
