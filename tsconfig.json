@@ -15,5 +15,5 @@
     "noEmit": true,
     "types": ["vite/client", "vite-plugin-pwa/client", "node"]
   },
-  "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "server", "netlify", "e2e", "vite.config.ts", "playwright.config.ts"]
 }
