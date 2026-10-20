@@ -7,7 +7,8 @@ Geführt vom Agenten. Quelle der Anforderungen: docs/ANFORDERUNGEN.md.
 **Aktuell: Schritt C für Phase 1 (Daten und Server). Schritt A für P1 bis P6 fertig (bis 19.10.2026),
 Schritt B durchgesehen (20.10.2026). Migration der Phase 1 im Entwicklungsprojekt eingespielt, erste Admin-Person
 angelegt, erster echter Login mit Google und Durchklicken der Phase 1 durch die Nutzerin ohne Befund
-(21.10.2026). Als Nächstes: Mail-Link am echten Projekt, Datenschutzhinweis, check:integrity, Agent-Review.**
+(21.10.2026); check:integrity und Smoke-Tests gegen das echte Backend stehen. Als Nächstes: Agent-Review
+Schritt C Phase 1, Mail-Link am echten Projekt.**
 Reihenfolge seit 12.10.2026: erst das ganze Frontend (Schritt A für P1 bis P6), dann
 Durchsicht (B), Daten und Server (C), Deploy am Ende (D).
 
@@ -58,7 +59,11 @@ Schritt C – Daten und Server (Checkliste 10.1):
 - [ ] App-Gerüst, Aufgaben (F-AUF-01 bis -07, -09), Veranstaltungen schlank (F-VER-01 bis -03) am echten Backend
       – lokal mit `npx netlify dev` von der Nutzerin durchgeklickt (21.10.2026); Bereiche späterer Phasen melden
       „Das kommt mit einer späteren Phase“, Lesen späterer Felder liefert leere Werte
-- [ ] Datenschutzhinweis in der App; check:integrity; E2E-Smoke-Tests
+- [x] Datenschutzhinweis in der App (Region Irland, Server-Funktionen bei Netlify, Google-Login); `npm run
+    check:integrity` (nur lesend, auch gegen Produktion; gegen das Entwicklungsprojekt ohne Befund);
+      `npm run test:smoke`: Playwright gegen App im Modus „backend“, dieselbe HTTP-Schicht und Postgres (PGlite),
+      nur der Supabase-Login nachgestellt – Teil von `npm run check`
+      (Verträge zur Auftragsverarbeitung mit Supabase und Netlify schließt die Nutzerin vor Schritt D ab)
 
 Schritt D:
 

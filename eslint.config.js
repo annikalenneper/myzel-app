@@ -8,6 +8,7 @@ export default tseslint.config(
     ignores: [
       'dist',
       'dev-dist',
+      'dist-smoke',
       'docs',
       'test-results',
       'playwright-report',

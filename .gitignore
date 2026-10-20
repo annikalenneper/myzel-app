@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dev-dist/
+dist-smoke/
 test-results/
 playwright-report/
 .env

@@ -18,7 +18,7 @@ const SECTIONS: [title: string, text: string][] = [
   ],
   [
     'Wo die Daten liegen',
-    'Die Datenbank liegt bei Supabase in der EU (Frankfurt), die App wird über Netlify ausgeliefert. Mit beiden Anbietern besteht ein Vertrag zur Auftragsverarbeitung. Die Anmeldung läuft über dein Google-Konto oder einen Link per Mail.',
+    'Die Datenbank liegt bei Supabase in der EU (Irland), die App und ihre Server-Funktionen laufen bei Netlify. Mit beiden Anbietern besteht ein Vertrag zur Auftragsverarbeitung. Die Anmeldung läuft über dein Google-Konto oder einen Link per Mail. Meldest du dich mit Google an, sieht Google diese Anmeldung.',
   ],
   [
     'Benachrichtigungen',
