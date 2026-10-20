@@ -12,6 +12,9 @@ test.beforeEach(async ({ page }) => {
     .last()
     .getByRole('link', { name: 'Events' })
     .click();
+  // erst weiter, wenn die Veranstaltungen geladen sind – sonst trifft ein Klick noch die Aufgabenliste
+  await expect(page.getByRole('tabpanel').getByRole('link').first()).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'KOMMEND' })).toBeVisible();
 });
 
 test('WF-VER-01: kommend und vergangen nach Datum, mit Status und Fortschritt', async ({ page }) => {

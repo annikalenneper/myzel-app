@@ -13,6 +13,8 @@ const P1_ACTIONS = [
   'getTask',
   'listEvents',
   'getEvent',
+  'getEventDetail',
+  'listLinkedDocuments',
   'createTask',
   'updateTaskFields',
   'updateTaskDescription',
@@ -44,14 +46,17 @@ const P1_ACTIONS = [
   'restoreTopic',
   'deleteTopic',
 ] as const;
-/** schreibende Aktionen melden sich danach bei allen Ansichten (subscribe) */
+/** schreibende Aktionen melden sich danach bei allen Ansichten (subscribe); Lesen nie – sonst lädt die Ansicht endlos */
 const READS = new Set([
+  'getSession',
   'listMembers',
   'listTopics',
   'listTasks',
   'getTask',
   'listEvents',
   'getEvent',
+  'getEventDetail',
+  'listLinkedDocuments',
   'getDeactivationImpact',
 ]);
 
@@ -64,7 +69,9 @@ export interface RemoteOptions {
 
 export function createRemoteApi(options: RemoteOptions): MyzelApi {
   const supabase: SupabaseClient = createClient(options.supabaseUrl, options.anonKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
+    // „implicit“: der Mail-Link funktioniert auch, wenn er in einem anderen Browser aufgeht als dem, in dem er
+    // angefordert wurde (z. B. aus der Mail-App am Handy); PKCE bräuchte denselben Browser
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' },
   });
   const apiBase = options.apiBase ?? '/api';
   const listeners = new Set<() => void>();

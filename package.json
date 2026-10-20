@@ -15,7 +15,8 @@
     "schema:templates": "vitest run -u src/data/mock/templates.test.ts",
     "schema:export": "vitest run -u src/shared/export.test.ts",
     "check": "npm run lint && npm run typecheck && npm run test && npm run test:e2e",
-    "db:first-admin": "tsx --env-file=.env server/db/firstAdmin.ts"
+    "db:first-admin": "tsx --env-file=.env server/db/firstAdmin.ts",
+    "dev:backend": "vite --mode backend"
   },
   "dependencies": {
     "@fontsource-variable/space-grotesk": "^5.3.0",

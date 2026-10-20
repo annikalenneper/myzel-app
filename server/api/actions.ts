@@ -23,6 +23,8 @@ export const READ_ACTIONS: Record<string, (db: Kysely<Database>, args: Args, now
     getTask: (db, [id]) => reads.getTask(db, s(id)),
     listEvents: (db, _, now) => reads.listEvents(db, now),
     getEvent: (db, [id], now) => reads.getEvent(db, s(id), now),
+    getEventDetail: (db, [id], now) => reads.getEventDetail(db, s(id), now),
+    listLinkedDocuments: () => reads.listLinkedDocuments(),
   };
 
 export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unknown>> = {

@@ -1,7 +1,15 @@
 // Lesen, Phase 1 (F-AUF-01 bis -03, F-AUF-05, F-VER-01, F-VER-03): dieselben Formen wie die Testdaten-Schicht.
 // Felder späterer Phasen liefern hier ihren leeren Wert, bis deren Migrationen kommen.
 import { sql, type Kysely } from 'kysely';
-import type { EventListItem, TaskDetail, TaskListItem, TopicWithUsage } from '../../src/data/api';
+import type {
+  DocumentListItem,
+  EventDetail,
+  EventListItem,
+  TaskDetail,
+  TaskListItem,
+  TopicWithUsage,
+} from '../../src/data/api';
+import { emptyEventDetails, sectionSummaries, suggestsFollowUp } from '../../src/shared/rules/eventDetails';
 import { isOverdue, toIsoDate } from '../../src/shared/rules/due';
 import { isActiveTaskStatus } from '../../src/shared/rules/taskStatus';
 import type { EventRow, HistoryEntry, Member, Task, Topic } from '../../src/shared/schema';
@@ -191,4 +199,26 @@ export async function getEvent(db: Db, id: string, now: Date): Promise<EventList
   const event = await db.selectFrom('events').selectAll().where('id', '=', id).executeTakeFirst();
   if (!event) throw notFound('Diese Veranstaltung');
   return (await eventItems(db, [event], now))[0]!;
+}
+
+/** Detailansicht einer Veranstaltung (F-VER-03); Detailbereiche, Booking und Partner bleiben bis Phase 4 leer */
+export async function getEventDetail(db: Db, id: string, now: Date): Promise<EventDetail> {
+  const event = await getEvent(db, id, now);
+  const details = emptyEventDetails(id);
+  return {
+    ...event,
+    details,
+    bookings: [],
+    lead_ids: [],
+    shift_plan_document: null,
+    summaries: sectionSummaries(details, []),
+    suggests_follow_up: suggestsFollowUp(event, now),
+    drive_folder: null,
+    partners: [],
+  };
+}
+
+/** Verknüpfte Dokumente kommen mit Phase 5 – bis dahin gibt es keine */
+export async function listLinkedDocuments(): Promise<DocumentListItem[]> {
+  return [];
 }

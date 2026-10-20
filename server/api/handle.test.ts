@@ -68,6 +68,14 @@ describe('Anmeldung über Supabase (F-LOG-01, -02)', () => {
     expect(other.state).toBe('no_access');
   });
 
+  it('gleichzeitige Anfragen beim ersten Login bekommen alle Zugriff', async () => {
+    const login = { authUserId: LEA_AUTH, email: 'lea@example.org' };
+    const sessions = (await Promise.all(
+      [1, 2, 3].map(() => handleAction(local.db, login, 'getSession', [], now)),
+    )) as { state: string }[];
+    expect(sessions.map((s) => s.state)).toEqual(['member', 'member', 'member']);
+  });
+
   it('wer nicht auf der Liste steht, bekommt keinen Zugriff; ohne bestätigte Mail verknüpft nichts', async () => {
     expect(
       await handleAction(
@@ -103,6 +111,24 @@ describe('Aktionen', () => {
     };
     const history = await local.db.selectFrom('history').selectAll().where('entity_id', '=', id).execute();
     expect(history[0]?.actor_member_id).toBe('a0000000-0000-4000-8000-000000000001');
+  });
+
+  it('Detailansicht einer Veranstaltung: Bereiche späterer Phasen kommen leer', async () => {
+    await handleAction(local.db, lea, 'getSession', [], now);
+    await local.pg.exec(`
+      insert into events (id, title, type, starts_at, created_by)
+      values ('e0000000-0000-4000-8000-000000000001', 'Soli-Abend', 'soli', '2026-11-01T18:00:00Z',
+              'a0000000-0000-4000-8000-000000000001');
+    `);
+    const detail = (await handleAction(
+      local.db,
+      lea,
+      'getEventDetail',
+      ['e0000000-0000-4000-8000-000000000001'],
+      now,
+    )) as { title: string; bookings: unknown[]; partners: unknown[]; drive_folder: unknown };
+    expect(detail).toMatchObject({ title: 'Soli-Abend', bookings: [], partners: [], drive_folder: null });
+    expect(await handleAction(local.db, lea, 'listLinkedDocuments', ['task', 'x'], now)).toEqual([]);
   });
 
   it('unbekannte und eingeschleuste Aktionsnamen werden abgewiesen', async () => {

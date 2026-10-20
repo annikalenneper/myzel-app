@@ -24,12 +24,13 @@ export async function sessionFor(
       ? { state: 'member', member: toMember(linked) }
       : { state: 'no_access', email: linked.email ?? '' };
   if (!login.email) return { state: 'no_access', email: '' };
-  // erster Login: Mitglied mit dieser Mail, das noch mit keinem Login verknüpft ist
+  // erster Login: Mitglied mit dieser Mail, das noch mit keinem Login verknüpft ist – oder gerade eben von einer
+  // gleichzeitigen Anfrage desselben Logins verknüpft wurde (die App fragt beim Start mehrfach parallel)
   const byEmail = await db
     .updateTable('members')
     .set({ auth_user_id: login.authUserId })
     .where((eb) => eb(eb.fn('lower', ['email']), '=', login.email!.toLowerCase()))
-    .where('auth_user_id', 'is', null)
+    .where((eb) => eb.or([eb('auth_user_id', 'is', null), eb('auth_user_id', '=', login.authUserId)]))
     .where('is_system', '=', false)
     .returningAll()
     .executeTakeFirst();
