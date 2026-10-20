@@ -136,6 +136,8 @@ create table public.plenum_marks (
 -- ── Historie (3.10): nicht änder- oder löschbar ──────────────────────────────
 create table public.history (
   id uuid primary key default gen_random_uuid(),
+  -- Reihenfolge des Eintragens: eine Aktion schreibt oft mehrere Einträge mit demselben Zeitstempel
+  seq bigint generated always as identity,
   entity_type text not null check (entity_type in ('task', 'event', 'member', 'topic')),
   entity_id uuid not null,
   actor_member_id uuid not null references public.members (id) on delete restrict,
@@ -143,7 +145,7 @@ create table public.history (
   changes jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
-create index history_entity on public.history (entity_type, entity_id, created_at);
+create index history_entity on public.history (entity_type, entity_id, created_at, seq);
 
 create function public.history_is_append_only() returns trigger
 language plpgsql as $$

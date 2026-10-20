@@ -1,10 +1,10 @@
 // Tabellen-Typen für Kysely, passend zu supabase/migrations. Spaltennamen wie im Datenvertrag (src/shared/schema.ts);
-// Zeitstempel kommen als Date aus der Datenbank, Datumsfelder als Text (YYYY-MM-DD).
+// Zeitstempel kommen als ISO-Text aus der Datenbank, Datumsfelder als YYYY-MM-DD (siehe connection.ts).
 import type { ColumnType, Generated, Insertable, Selectable, Updateable } from 'kysely';
 import type { EventStatus, EventType, HistoryChanges, Priority, TaskStatus } from '../../src/shared/schema';
 
-type Timestamp = ColumnType<Date, Date | string, Date | string>;
-type CreatedAt = ColumnType<Date, Date | string | undefined, never>;
+type Timestamp = ColumnType<string, string, string>;
+type CreatedAt = ColumnType<string, string | undefined, never>;
 
 export interface MembersTable {
   id: Generated<string>;
@@ -105,6 +105,7 @@ export interface PlenumMarksTable {
 
 export interface HistoryTable {
   id: Generated<string>;
+  seq: Generated<string>;
   entity_type: 'task' | 'event' | 'member' | 'topic';
   entity_id: string;
   actor_member_id: string;
