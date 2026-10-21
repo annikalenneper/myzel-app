@@ -4,11 +4,9 @@ Geführt vom Agenten. Quelle der Anforderungen: docs/ANFORDERUNGEN.md.
 
 ## Status
 
-**Aktuell: Schritt C für Phase 1 (Daten und Server). Schritt A für P1 bis P6 fertig (bis 19.10.2026),
-Schritt B durchgesehen (20.10.2026). Migration der Phase 1 im Entwicklungsprojekt eingespielt, erste Admin-Person
-angelegt, erster echter Login mit Google und Durchklicken der Phase 1 durch die Nutzerin ohne Befund
-(21.10.2026); check:integrity und Smoke-Tests gegen das echte Backend stehen. Als Nächstes: Agent-Review
-Schritt C Phase 1 eingearbeitet (21.10.2026); offen: Mail-Link am echten Projekt.**
+**Aktuell: Schritt C für Phase 2 (Erinnerungen). Phase 1 Schritt C fertig mit zwei Review-Runden ohne offene
+Befunde hoher oder mittlerer Schwere (21.10.2026); offen dort nur der Mail-Link-Test der Nutzerin. Phase 2: Server,
+Versand und Functions stehen (22.10.2026); als Nächstes Agent-Review.**
 Reihenfolge seit 12.10.2026: erst das ganze Frontend (Schritt A für P1 bis P6), dann
 Durchsicht (B), Daten und Server (C), Deploy am Ende (D).
 
@@ -88,14 +86,33 @@ Schritt A – Oberfläche mit Testdaten:
 
 Schritt C – Daten und Server (Checkliste 10.2):
 
-- [ ] Datenmodell: push_subscriptions, telegram_links, telegram_link_codes, notification_outbox, job_runs;
-      members.reminder_lead_days
-- [ ] Web-Push: Aktivierung im Profil, iOS-Hinweis, Versand, Aufräumen ungültiger Abos (6.3)
-- [ ] Telegram: Bot, Verknüpfung per Einmal-Code im Profil (F-PRO-03), Nachrichten ohne Buttons
-- [ ] Ereignisse aus 6.2 mit Phase P2, feste Voreinstellungen (6.1)
-- [ ] Job alle 15 Minuten über cron-job.org, Laufprotokoll, Statusanzeige im Admin-Bereich (E-07)
-- [ ] check:integrity (Outbox, Joblauf); Tests
+- [x] Datenmodell: push_subscriptions, telegram_links, telegram_link_codes, notification_outbox, job_runs;
+      members.reminder_lead_days (Migration 20261022000001, im Entwicklungsprojekt eingespielt); personenbezogene
+      Tabellen ohne Lesezugriff über Supabase
+- [x] Server-Logik (server/p2/notify.ts): Outbox mit dedupe_key, Nachrichten bei Zuweisung, Kommentar, Status,
+      Blockade aufgehoben; Fristerinnerungen ab 9 Uhr in Köln; bis zu 3 Versuche; Rückgängig zieht Wartendes zurück;
+      gleichzeitige Jobläufe verschicken nichts doppelt; Deaktivieren entfernt Abos und Verknüpfung. Die
+      Benachrichtigungs-Tests der Testdaten-Schicht laufen auch gegen den Server.
+- [ ] Web-Push: Abo im Browser über den Service Worker (public/push-sw.js), Versand mit VAPID (web-push), ungültige
+      Abos entfernt – Test auf echten Geräten erst mit dem Deploy (in der Entwicklungsansicht gibt es keinen
+      Service Worker)
+- [ ] Telegram: Bot-Webhook /telegram/webhook mit Secret, Verknüpfung per /start-Code, Hinweis für unverknüpfte
+      Chats, Nachrichten mit Link – offen: Bot bei @BotFather anlegen (Nutzerin), Webhook setzen nach dem Deploy
+- [x] Ereignisse aus 6.2 mit Phase P2, feste Voreinstellungen (6.1)
+- [ ] Job alle 15 Minuten: Function /jobs/run mit CRON_SECRET, Laufprotokoll, Statusanzeige – lokal gegen das
+      Entwicklungsprojekt geprüft; offen: cron-job.org einrichten nach dem Deploy (Anleitung unten)
+- [x] check:integrity (alte wartende Nachrichten, Joblauf, Kanäle Deaktivierter); Tests (Server: Versand,
+      Wiederholung, 404/410, 9 Uhr Köln, Telegram-Bot; Smoke: Telegram-Code und Systemstatus)
 - [ ] Phasenabschluss (10.7)
+
+Einrichtung für die Nutzerin (nach dem Deploy):
+
+1. Telegram: bei @BotFather mit /newbot einen Bot anlegen; Token als TELEGRAM_BOT_TOKEN, Namen ohne @ als
+   TELEGRAM_BOT_USERNAME in .env und Netlify; danach `npm run telegram:webhook`.
+2. cron-job.org: Job alle 15 Minuten, POST auf https://myzel-app.netlify.app/jobs/run, Header
+   „Authorization: Bearer <CRON_SECRET>“.
+3. In Netlify eintragen: VITE_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET,
+   TELEGRAM_WEBHOOK_SECRET (Werte aus der .env).
 
 ### 10.3 Phase 3 – Plenum-Zyklus
 

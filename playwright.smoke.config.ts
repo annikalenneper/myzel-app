@@ -22,7 +22,11 @@ export default defineConfig({
     command: 'npm run build:smoke && tsx e2e/smoke/start.ts',
     url: `http://127.0.0.1:${PORT}`,
     // ein Login-Dienst, den es nicht gibt: supabase-js liest nur die abgelegte Sitzung
-    env: { VITE_SUPABASE_URL: `http://127.0.0.1:${PORT}/auth`, VITE_SUPABASE_ANON_KEY: 'smoke' },
+    env: {
+      VITE_SUPABASE_URL: `http://127.0.0.1:${PORT}/auth`,
+      VITE_SUPABASE_ANON_KEY: 'smoke',
+      TELEGRAM_BOT_USERNAME: 'myzel_smoke_bot',
+    },
     reuseExistingServer: false,
     timeout: 180_000,
   },

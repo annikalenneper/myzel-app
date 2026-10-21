@@ -10,7 +10,13 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       // Schriften gehören in den Cache, damit die App ohne Netz gleich aussieht
-      workbox: { globPatterns: ['**/*.{js,css,html,png,woff2}'] },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,png,woff2}'],
+        // Web-Push: Anzeigen und Tippen (public/push-sw.js)
+        importScripts: ['push-sw.js'],
+        // Server-Funktionen nie aus dem Cache beantworten
+        navigateFallbackDenylist: [/^\/api\//, /^\/jobs\//, /^\/telegram\//],
+      },
       includeAssets: ['myzel-logo.png', 'icon-192.png'],
       manifest: {
         name: 'Myzel',

@@ -117,3 +117,24 @@ test('WF-ADM-05: mit Admin-Rechten ein Thema anlegen', async ({ page }) => {
   await page.reload();
   await expect(page.getByRole('button', { name: /Awareness Unbenutzt/i })).toBeVisible();
 });
+
+test('Phase 2: Telegram über den Einmal-Code verknüpfen, Systemstatus für Admins', async ({ page }) => {
+  await signIn(page, authId(1), 'mo@example.org');
+  await page.goto('/profil');
+  const telegram = page.getByRole('button', { name: /^Telegram/ });
+  await expect(telegram).toContainText('Verbunden · Trennen');
+  await telegram.click();
+  await expect(telegram).toContainText('Verknüpfen');
+  await telegram.click();
+  await expect(telegram).toContainText('Warte auf Start …');
+  await expect(page.getByRole('link', { name: 'Telegram öffnen' })).toHaveAttribute(
+    'href',
+    /^https:\/\/t\.me\/myzel_smoke_bot\?start=\w{16}$/,
+  );
+  await page.reload();
+  await expect(telegram).toContainText('Warte auf Start …');
+
+  await page.getByRole('link', { name: /Systemstatus/ }).click();
+  await expect(page.getByText('Push-Abos')).toBeVisible();
+  await expect(page.getByText('7 / 11')).toBeVisible();
+});

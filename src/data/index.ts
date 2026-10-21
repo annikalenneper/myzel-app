@@ -10,7 +10,11 @@ const env = import.meta.env;
 const backend = env.VITE_MYZEL_BACKEND?.trim() === 'supabase' || env.MODE === 'backend';
 
 export const api: MyzelApi = backend
-  ? createRemoteApi({ supabaseUrl: env.VITE_SUPABASE_URL ?? '', anonKey: env.VITE_SUPABASE_ANON_KEY ?? '' })
+  ? createRemoteApi({
+      supabaseUrl: env.VITE_SUPABASE_URL ?? '',
+      anonKey: env.VITE_SUPABASE_ANON_KEY ?? '',
+      vapidPublicKey: env.VITE_VAPID_PUBLIC_KEY || undefined,
+    })
   : createMockApi({ storage: window.localStorage, latency: 80 });
 
 declare global {

@@ -28,6 +28,9 @@ beforeEach(async () => {
   taskA = ((await act('createTask', { title: 'Regal bauen', topic_id: topicId })) as { id: string }).id;
   taskB = ((await act('createTask', { title: 'Holz holen', topic_id: topicId })) as { id: string }).id;
   await act('addBlocker', taskA, taskB);
+  await local.pg.exec(
+    `insert into job_runs (started_at, result, summary) values (now(), 'ok', 'Nichts zu tun')`,
+  );
   await act('createEvent', { title: 'Soli-Abend', type: 'soli', starts_at: '2026-11-01T18:00:00.000Z' });
 });
 afterEach(async () => {
@@ -84,6 +87,26 @@ describe('check:integrity', () => {
     ]);
     expect(found['Markierung „Fürs Plenum“ nur an aktiven Aufgaben']).toEqual(['#2 Holz holen (erledigt)']);
     expect(found['Mindestens eine aktive Person mit Admin-Rechten']).toEqual(['keine aktive Admin-Person']);
+  });
+
+  it('Phase 2: alte wartende Nachrichten, Kanäle Deaktivierter, ausgefallener Joblauf', async () => {
+    await local.pg.exec(`
+      insert into push_subscriptions (member_id, endpoint, p256dh, auth)
+        select id, 'https://push.example.org/x', 'k', 'a' from members where not is_system;
+      insert into notification_outbox (dedupe_key, member_id, event_type, channel, text, link, created_at)
+        select 'alt:push', id, 'zuweisung', 'push', 'Text', '/', now() - interval '25 hours'
+        from members where not is_system;
+      update members set active = false where not is_system;
+      delete from job_runs;
+    `);
+    const found = Object.fromEntries(await failing());
+    expect(found['Keine Nachricht wartet länger als 24 Stunden in der Outbox']![0]).toMatch(
+      /^1 Nachricht, die älteste von/,
+    );
+    expect(found['Deaktivierte haben keine Push-Abos und keine Telegram-Verknüpfung']).toEqual([
+      'Lea (Push)',
+    ]);
+    expect(found['Joblauf in den letzten 2 Stunden']).toEqual(['noch kein Lauf']);
   });
 
   it('läuft nur lesend', async () => {

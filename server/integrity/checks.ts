@@ -72,6 +72,27 @@ export const CHECKS: IntegrityCheck[] = [
         -- Startbestand der Migration (Systemeintrag, Grundthemen) entsteht ohne Historie
         and not (x.typ = 'topic' and exists (select 1 from topics tp where tp.id = x.id and tp.created_by is null))`,
   },
+  // ── Phase 2: Erinnerungen ──
+  {
+    name: 'Keine Nachricht wartet länger als 24 Stunden in der Outbox',
+    level: 'fehler',
+    query: sql`select case when count(*) = 1 then '1 Nachricht' else count(*) || ' Nachrichten' end || ', die älteste von ' || to_char(min(created_at) at time zone 'Europe/Berlin', 'DD.MM. HH24:MI') as label
+      from notification_outbox where status = 'wartet' and created_at < now() - interval '24 hours' having count(*) > 0`,
+  },
+  {
+    name: 'Joblauf in den letzten 2 Stunden',
+    level: 'hinweis',
+    query: sql`select coalesce('letzter Lauf ' || to_char(max(started_at) at time zone 'Europe/Berlin', 'DD.MM. HH24:MI'), 'noch kein Lauf') as label
+      from job_runs having coalesce(max(started_at), '1970-01-01') < now() - interval '2 hours'`,
+  },
+  {
+    name: 'Deaktivierte haben keine Push-Abos und keine Telegram-Verknüpfung',
+    level: 'fehler',
+    query: sql`select m.display_name || ' (' || x.kanal || ')' as label
+      from (select member_id, 'Push' as kanal from push_subscriptions
+            union all select member_id, 'Telegram' from telegram_links) x
+      join members m on m.id = x.member_id where not m.active`,
+  },
   {
     name: 'Abgelaufene Rückgängig-Einträge werden aufgeräumt',
     level: 'hinweis',

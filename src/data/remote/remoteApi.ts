@@ -45,6 +45,10 @@ const P1_ACTIONS = [
   'archiveTopic',
   'restoreTopic',
   'deleteTopic',
+  // [P2] Erinnerungen
+  'startTelegramLink',
+  'unlinkTelegram',
+  'getSystemStatus',
 ] as const;
 /** schreibende Aktionen melden sich danach bei allen Ansichten (subscribe); Lesen nie – sonst lädt die Ansicht endlos */
 const READS = new Set([
@@ -58,6 +62,8 @@ const READS = new Set([
   'getEventDetail',
   'listLinkedDocuments',
   'getDeactivationImpact',
+  'getNotificationSettings',
+  'getSystemStatus',
 ]);
 
 export interface RemoteOptions {
@@ -65,6 +71,29 @@ export interface RemoteOptions {
   anonKey: string;
   /** Basis der Server-Funktionen, Standard: dieselbe Adresse wie die App */
   apiBase?: string;
+  /** [P2] öffentlicher VAPID-Schlüssel für Web-Push */
+  vapidPublicKey?: string;
+}
+
+/** VAPID-Schlüssel (Base64url) als Bytes für pushManager.subscribe */
+function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
+  const base64 = (base64url + '='.repeat((4 - (base64url.length % 4)) % 4))
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const raw = atob(base64);
+  const bytes = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+
+/** Service Worker der App – in der Entwicklungsansicht gibt es keinen */
+async function registration(): Promise<ServiceWorkerRegistration | null> {
+  if (!('serviceWorker' in navigator)) return null;
+  return (await navigator.serviceWorker.getRegistration()) ?? null;
+}
+
+async function currentPush(): Promise<PushSubscription | null> {
+  return (await (await registration())?.pushManager.getSubscription()) ?? null;
 }
 
 export function createRemoteApi(options: RemoteOptions): MyzelApi {
@@ -148,8 +177,46 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
       if (error) authError('Der Link konnte nicht verschickt werden. Bitte versuch es noch einmal.');
     },
     async signOut() {
+      // Abmelden entfernt das Push-Abo dieses Geräts (WF-LOG-03)
+      const sub = await currentPush().catch(() => null);
+      if (sub) {
+        await call('removePushSubscription', [sub.endpoint]).catch(() => undefined);
+        await sub.unsubscribe().catch(() => undefined);
+      }
       await supabase.auth.signOut();
       emit();
+    },
+    async getNotificationSettings() {
+      const sub = await currentPush().catch(() => null);
+      return call('getNotificationSettings', [sub?.endpoint ?? null]);
+    },
+    // WF-PRO-02: erst nach Tippen fragt der Browser nach der Erlaubnis (6.3)
+    async setPush(on) {
+      if (!on) {
+        const sub = await currentPush();
+        if (sub) {
+          await call('removePushSubscription', [sub.endpoint]);
+          await sub.unsubscribe().catch(() => undefined);
+        }
+        return;
+      }
+      if (!options.vapidPublicKey) throw new AppError('rule', 'Push ist noch nicht eingerichtet.');
+      const reg = await registration();
+      if (!reg)
+        throw new AppError('rule', 'Push geht nur in der installierten App, nicht in dieser Ansicht.');
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted')
+        throw new AppError(
+          'rule',
+          'Der Browser erlaubt keine Benachrichtigungen. Du kannst das in den Einstellungen des Browsers ändern.',
+        );
+      const sub =
+        (await reg.pushManager.getSubscription()) ??
+        (await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: keyBytes(options.vapidPublicKey),
+        }));
+      await call('savePushSubscription', [sub.toJSON()]);
     },
   };
   for (const action of P1_ACTIONS)
