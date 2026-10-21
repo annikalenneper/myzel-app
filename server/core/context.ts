@@ -50,6 +50,8 @@ export interface Ctx {
   now: Date;
   inverse: InverseOp[];
   historyIds: string[];
+  /** [P2] Nachrichten dieser Aktion in der Outbox – „Rückgängig“ zieht noch wartende zurück */
+  outbox: string[];
 }
 
 export const iso = (ctx: Ctx) => ctx.now.toISOString();
@@ -159,6 +161,7 @@ export async function registerUndo(
       label,
       ops: JSON.stringify(ctx.inverse),
       history_ids: JSON.stringify(ctx.historyIds),
+      outbox_ids: JSON.stringify(ctx.outbox),
     })
     .execute();
   return { undo_token: token };
@@ -179,7 +182,7 @@ export async function inTransaction<T>(
     try {
       return await db.transaction().execute(async (trx) => {
         const actor = await resolveActor(trx, authUserId, { lock: true });
-        return fn({ trx, actor, now, inverse: [], historyIds: [] });
+        return fn({ trx, actor, now, inverse: [], historyIds: [], outbox: [] });
       });
     } catch (e) {
       const code = (e as { code?: string }).code;

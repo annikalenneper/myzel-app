@@ -23,6 +23,7 @@ import {
   type Ctx,
 } from '../core/context';
 import type { MemberRow } from '../db/types';
+import { dropChannels } from '../p2/notify';
 import { dropAssignee, dropFollower } from './tasks';
 
 async function findMember(ctx: Ctx, id: string): Promise<MemberRow> {
@@ -203,6 +204,8 @@ export async function deactivateMember(ctx: Ctx, memberId: string): Promise<Deac
     .where('member_id', '=', memberId)
     .execute();
   for (const { task_id } of followed) await dropFollower(ctx, task_id, memberId, 'deactivated');
+  // [P2] keine Push-Abos und keine Telegram-Verknüpfung mehr, wartende Nachrichten entfallen
+  await dropChannels(ctx.trx, memberId);
   await touchMember(ctx, member, { active: false });
   await writeHistory(ctx, 'member', memberId, 'deactivated', { active: { old: true, new: false } });
   return impact;

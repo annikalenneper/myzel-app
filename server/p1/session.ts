@@ -6,7 +6,7 @@ import type { Session } from '../../src/data/api';
 import type { Member } from '../../src/shared/schema';
 import type { Database, MemberRow } from '../db/types';
 
-const toMember = (row: MemberRow): Member => ({ ...row, reminder_lead_days: 3, notify_own_status: false });
+const toMember = (row: MemberRow): Member => ({ ...row, notify_own_status: false });
 
 export async function sessionFor(
   db: Kysely<Database>,

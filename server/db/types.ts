@@ -1,7 +1,15 @@
 // Tabellen-Typen für Kysely, passend zu supabase/migrations. Spaltennamen wie im Datenvertrag (src/shared/schema.ts);
 // Zeitstempel kommen als ISO-Text aus der Datenbank, Datumsfelder als YYYY-MM-DD (siehe connection.ts).
 import type { ColumnType, Generated, Insertable, Selectable, Updateable } from 'kysely';
-import type { EventStatus, EventType, HistoryChanges, Priority, TaskStatus } from '../../src/shared/schema';
+import type {
+  EventStatus,
+  EventType,
+  HistoryChanges,
+  NotificationChannel,
+  NotificationEvent,
+  Priority,
+  TaskStatus,
+} from '../../src/shared/schema';
 
 type Timestamp = ColumnType<string, string, string>;
 type CreatedAt = ColumnType<string, string | undefined, never>;
@@ -19,6 +27,8 @@ export interface MembersTable {
   updated_at: Timestamp;
   created_by: string | null;
   version: Generated<number>;
+  /** [P2] Vorlauf für Fristerinnerungen */
+  reminder_lead_days: Generated<number>;
 }
 
 export interface TopicsTable {
@@ -124,6 +134,59 @@ export interface UndoActionsTable {
   label: string;
   ops: ColumnType<unknown[], string, never>;
   history_ids: ColumnType<string[], string, never>;
+  /** [P2] Nachrichten der Aktion, die „Rückgängig“ noch zurückzieht */
+  outbox_ids: ColumnType<string[], string | undefined, never>;
+}
+
+// ── Phase 2: Erinnerungen ───────────────────────────────────────────────────
+export interface PushSubscriptionsTable {
+  id: Generated<string>;
+  member_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  created_at: CreatedAt;
+}
+
+export interface TelegramLinksTable {
+  member_id: string;
+  chat_id: string;
+  linked_at: CreatedAt;
+}
+
+export interface TelegramLinkCodesTable {
+  code: string;
+  member_id: string;
+  expires_at: Timestamp;
+  used_at: Timestamp | null;
+}
+
+export interface NotificationOutboxTable {
+  id: Generated<string>;
+  dedupe_key: string;
+  member_id: string;
+  event_type: NotificationEvent;
+  channel: NotificationChannel;
+  text: string;
+  link: string;
+  status: Generated<'wartet' | 'gesendet' | 'fehlgeschlagen'>;
+  attempts: Generated<number>;
+  last_error: string | null;
+  locked_until: Timestamp | null;
+  created_at: CreatedAt;
+  sent_at: Timestamp | null;
+}
+
+export interface JobRunsTable {
+  id: Generated<string>;
+  started_at: Timestamp;
+  finished_at: Timestamp | null;
+  result: 'ok' | 'fehler';
+  summary: string;
+  error: string | null;
+  sent_push: Generated<number>;
+  sent_telegram: Generated<number>;
+  retries: Generated<number>;
 }
 
 export interface Database {
@@ -138,6 +201,11 @@ export interface Database {
   plenum_marks: PlenumMarksTable;
   history: HistoryTable;
   undo_actions: UndoActionsTable;
+  push_subscriptions: PushSubscriptionsTable;
+  telegram_links: TelegramLinksTable;
+  telegram_link_codes: TelegramLinkCodesTable;
+  notification_outbox: NotificationOutboxTable;
+  job_runs: JobRunsTable;
 }
 
 export type MemberRow = Selectable<MembersTable>;

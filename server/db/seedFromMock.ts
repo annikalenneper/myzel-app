@@ -32,6 +32,7 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
           updated_at: m.updated_at,
           created_by: null,
           version: m.version,
+          reminder_lead_days: m.reminder_lead_days,
         })),
       )
       .execute();
@@ -124,5 +125,45 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
           })),
         )
         .execute();
+
+    // Phase 2: wer wie erreichbar ist, die Nachrichten und Jobläufe der Testdaten
+    if (data.push_subscriptions.length)
+      await trx
+        .insertInto('push_subscriptions')
+        .values(
+          data.push_subscriptions.map((s) => ({
+            id: s.id,
+            member_id: s.member_id,
+            endpoint: s.endpoint,
+            p256dh: 'test',
+            auth: 'test',
+            created_at: s.created_at,
+          })),
+        )
+        .execute();
+    if (data.telegram_links.length)
+      await trx.insertInto('telegram_links').values(data.telegram_links).execute();
+    if (data.telegram_link_codes.length)
+      await trx.insertInto('telegram_link_codes').values(data.telegram_link_codes).execute();
+    if (data.notification_outbox.length)
+      await trx
+        .insertInto('notification_outbox')
+        .values(
+          data.notification_outbox.map((o) => ({
+            id: o.id,
+            dedupe_key: o.dedupe_key,
+            member_id: o.member_id,
+            event_type: o.event_type,
+            channel: o.channel,
+            text: o.text,
+            link: o.link,
+            status: o.status,
+            attempts: o.attempts,
+            created_at: o.created_at,
+            sent_at: o.sent_at,
+          })),
+        )
+        .execute();
+    if (data.job_runs.length) await trx.insertInto('job_runs').values(data.job_runs).execute();
   });
 }

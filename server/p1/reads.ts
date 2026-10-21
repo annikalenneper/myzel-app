@@ -19,7 +19,7 @@ import type { Database } from '../db/types';
 type Db = Kysely<Database>;
 
 /** Spalten späterer Phasen */
-const memberLater = { reminder_lead_days: 3, notify_own_status: false } as const;
+const memberLater = { notify_own_status: false } as const;
 const taskLater = { appointment_id: null, origin_plenum_id: null } as const;
 const eventLater = {
   setup_at: null,

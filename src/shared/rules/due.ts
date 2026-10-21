@@ -28,6 +28,17 @@ export function berlinDate(d: Date): string {
   return BERLIN.format(d);
 }
 
+const BERLIN_HOUR = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Berlin',
+  hour: '2-digit',
+  hourCycle: 'h23',
+});
+
+/** Stunde in Köln (0 bis 23) – für „Fristerinnerungen gegen 9:00 Uhr (Europe/Berlin)“ auf dem Server (6.1) */
+export function berlinHour(d: Date): number {
+  return Number(BERLIN_HOUR.format(d));
+}
+
 export function addDays(isoDate: string, days: number): string {
   const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
   return toIsoDate(new Date(y, m - 1, d + days));

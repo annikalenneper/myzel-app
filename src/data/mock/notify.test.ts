@@ -1,4 +1,5 @@
-// Phase 2 – Erinnerungen: Benachrichtigungslogik, Outbox ohne Doppelversand, Joblauf, Push, Telegram
+// Phase 2 – Erinnerungen: Benachrichtigungslogik, Outbox ohne Doppelversand, Joblauf, Push, Telegram.
+// Mit MYZEL_API=server laufen dieselben Tests gegen die echten Server-Funktionen auf PGlite (Schritt C, Phase 2).
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../shared/errors';
 import { dueReminderMessages, isJobOverdue } from '../../shared/rules/notifications';
@@ -14,6 +15,8 @@ function memoryStorage(): KeyValueStorage {
   };
 }
 
+const SERVER = process.env.MYZEL_API === 'server';
+const onlyMock = it.skipIf(SERVER);
 let api: MyzelApi;
 let clock: Date;
 let storage: KeyValueStorage;
@@ -37,7 +40,9 @@ const memberId = async (name: string) => (await api.listMembers()).find((m) => m
 beforeEach(async () => {
   clock = new Date(2026, 9, 11, 12, 0, 0);
   storage = memoryStorage();
-  api = createMockApi({ storage, now: () => clock });
+  api = SERVER
+    ? await (await import('../../../server/api/serverApi')).createServerApi({ now: () => clock })
+    : createMockApi({ storage, now: () => clock });
   await login('mo');
 });
 
@@ -198,7 +203,8 @@ describe('Ereignisse und Outbox (6.1, 6.2)', () => {
     expect((await overdue()).map((m) => m.channel)).toEqual(['telegram']);
   });
 
-  it('vor 9 Uhr gehen keine Fristerinnerungen raus', async () => {
+  // die Testdaten entstehen hier mit eigenem Joblauf; gegen den Server prüft das server/p2/notify.test.ts
+  onlyMock('vor 9 Uhr gehen keine Fristerinnerungen raus', async () => {
     clock = new Date(2026, 9, 12, 8, 30, 0);
     const early = createMockApi({ storage: memoryStorage(), now: () => clock });
     await early.demo!.signInAs('mo@example.org');

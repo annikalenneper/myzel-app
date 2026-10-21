@@ -10,10 +10,13 @@ import * as members from '../p1/members';
 import * as reads from '../p1/reads';
 import * as tasks from '../p1/tasks';
 import { undo } from '../p1/undo';
+import * as notify from '../p2/notify';
 
 type Args = unknown[];
 const s = (v: unknown) => v as string;
 const n = (v: unknown) => v as number;
+/** Name des Telegram-Bots (ohne @) für den Verknüpfungs-Link; leer = Telegram noch nicht eingerichtet */
+const botUsername = () => process.env.TELEGRAM_BOT_USERNAME?.trim().replace(/^@/, '') || null;
 
 export const READ_ACTIONS: Record<string, (db: Kysely<Database>, args: Args, now: Date) => Promise<unknown>> =
   {
@@ -62,4 +65,13 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   archiveTopic: (ctx, [id, version]) => members.archiveTopic(ctx, s(id), n(version)),
   restoreTopic: (ctx, [id, version]) => members.restoreTopic(ctx, s(id), n(version)),
   deleteTopic: (ctx, [id]) => members.deleteTopic(ctx, s(id)),
+
+  // [P2] Erinnerungen – lesen auch über die handelnde Person (eigene Einstellungen, Admin-Status)
+  getNotificationSettings: (ctx, [endpoint]) =>
+    notify.notificationSettings(ctx, typeof endpoint === 'string' ? endpoint : null, botUsername()),
+  savePushSubscription: (ctx, [subscription]) => notify.savePushSubscription(ctx, subscription),
+  removePushSubscription: (ctx, [endpoint]) => notify.removePushSubscription(ctx, endpoint),
+  startTelegramLink: (ctx) => notify.startTelegramLink(ctx, botUsername()),
+  unlinkTelegram: (ctx) => notify.unlinkTelegram(ctx),
+  getSystemStatus: (ctx) => notify.systemStatus(ctx),
 };

@@ -181,6 +181,14 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
       }
     }
   }
+  // Nachrichten der zurückgenommenen Aktion, die noch nicht raus sind, werden nicht mehr verschickt
+  const outboxIds = record.outbox_ids as string[];
+  if (outboxIds.length > 0)
+    await ctx.trx
+      .deleteFrom('notification_outbox')
+      .where('id', 'in', outboxIds)
+      .where('status', '=', 'wartet')
+      .execute();
   if (table === 'tasks')
     await taskStillValid(
       ctx,

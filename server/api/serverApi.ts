@@ -12,9 +12,13 @@ import { seedFromMock } from '../db/seedFromMock';
 import type { Database } from '../db/types';
 import * as members from '../p1/members';
 import { sessionFor } from '../p1/session';
+import * as notify from '../p2/notify';
+import { JOB_WARNING_MINUTES } from '../../src/shared/rules/notifications';
 import { READ_ACTIONS, WRITE_ACTIONS } from './actions';
 
 const OUTSIDER = 'jemand@example.org';
+/** Versand in den Tests: alles kommt an */
+const delivered: notify.Senders = { push: async () => 'ok', telegram: async () => {} };
 const templates = new Map<string, Promise<LocalDb>>();
 
 /** Befüllte Datenbank einmal je Stichtag aufbauen, dann je Test klonen */
@@ -38,6 +42,13 @@ export interface ServerApiOptions {
 
 export async function createServerApi(options: ServerApiOptions = {}): Promise<MyzelApi> {
   const now = options.now ?? (() => new Date());
+  // wie in Betrieb über TELEGRAM_BOT_USERNAME eingerichtet
+  process.env.TELEGRAM_BOT_USERNAME ??= 'myzel_bot';
+  /** dieses Gerät: sein Push-Abo, wie es der Browser liefert */
+  const device = {
+    endpoint: `https://push.example.org/${crypto.randomUUID()}`,
+    keys: { p256dh: 'test', auth: 'test' },
+  };
   let db = await freshDb(now());
   const listeners = new Set<() => void>();
   /** wie Supabase Auth: je Mail-Adresse eine feste Login-ID, die beim ersten Login entsteht */
@@ -101,9 +112,15 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
       pendingMagic = parsed.data;
     },
     async signOut() {
+      // Abmelden entfernt das Push-Abo dieses Geräts (WF-LOG-03)
+      if (authUserId) await write('removePushSubscription', [device.endpoint]);
       login = null;
       authUserId = null;
       emit();
+    },
+    getNotificationSettings: () => write('getNotificationSettings', [device.endpoint]) as never,
+    setPush: async (on) => {
+      await write(on ? 'savePushSubscription' : 'removePushSubscription', [on ? device : device.endpoint]);
     },
     getDeactivationImpact: (memberId) =>
       inTransaction(db, authUserId, now(), (ctx) => members.getDeactivationImpact(ctx, memberId)),
@@ -149,10 +166,33 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
         db = await freshDb(now());
         emit();
       },
-      completeTelegramLink: later,
-      myMessages: later,
-      runJobNow: later,
-      setOutage: later,
+      async completeTelegramLink() {
+        const me = await resolveActor(db, authUserId);
+        const code = await db
+          .selectFrom('telegram_link_codes')
+          .select('code')
+          .where('member_id', '=', me.id)
+          .where('used_at', 'is', null)
+          .executeTakeFirst();
+        if (!code) throw new AppError('rule', 'Es wartet keine Verknüpfung.');
+        await notify.redeemTelegramCode(db, now(), code.code, `chat-${me.short.toLowerCase()}`);
+        emit();
+      },
+      async myMessages() {
+        const me = await resolveActor(db, authUserId);
+        return structuredClone(await notify.messagesFor(db, me.id)) as never;
+      },
+      async runJobNow() {
+        await notify.runJob(db, now(), delivered);
+        emit();
+      },
+      async setOutage(on) {
+        // Ausfall: seit gut zwei Stunden kein Lauf; danach holt der nächste Lauf nach
+        const cutoff = new Date(now().getTime() - (JOB_WARNING_MINUTES + 15) * 60_000).toISOString();
+        if (on) await db.deleteFrom('job_runs').where('started_at', '>=', cutoff).execute();
+        else await notify.runJob(db, now(), delivered);
+        emit();
+      },
       outage: () => false,
       driveAddFile: later,
       driveTrashLinkedFile: later,

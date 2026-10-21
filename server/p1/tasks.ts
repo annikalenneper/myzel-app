@@ -6,6 +6,12 @@ import { AppError } from '../../src/shared/errors';
 import { TASK_STATUS_LABEL } from '../../src/shared/labels';
 import { wouldCreateBlockerCycle } from '../../src/shared/rules/blockers';
 import {
+  assignmentMessages,
+  commentMessages,
+  statusMessages,
+  unblockedMessages,
+} from '../../src/shared/rules/notifications';
+import {
   blockReasonMissing,
   canTransitionTask,
   isActiveTaskStatus,
@@ -33,6 +39,7 @@ import {
   type Undoable,
 } from '../core/context';
 import type { TaskRow } from '../db/types';
+import { notify } from '../p2/notify';
 
 async function findTask(ctx: Ctx, id: string, { lock = true } = {}): Promise<TaskRow> {
   let q = ctx.trx.selectFrom('tasks').selectAll().where('id', '=', id);
@@ -98,6 +105,24 @@ export async function selectableMember(ctx: Ctx, id: string): Promise<{ id: stri
   if (!member || member.is_system || !member.active)
     throw rule('Nur aktive Mitglieder lassen sich eintragen.');
   return member;
+}
+
+async function assigneeIds(ctx: Ctx, taskId: string): Promise<string[]> {
+  const rows = await ctx.trx
+    .selectFrom('task_assignees')
+    .select('member_id')
+    .where('task_id', '=', taskId)
+    .execute();
+  return rows.map((r) => r.member_id);
+}
+
+async function followerIds(ctx: Ctx, taskId: string): Promise<string[]> {
+  const rows = await ctx.trx
+    .selectFrom('task_followers')
+    .select('member_id')
+    .where('task_id', '=', taskId)
+    .execute();
+  return rows.map((r) => r.member_id);
 }
 
 async function memberName(ctx: Ctx, id: string): Promise<string> {
@@ -357,6 +382,22 @@ export async function setTaskStatus(
   await dropMark(ctx, id, changes);
   await follow(ctx, id, ctx.actor.id);
   await writeHistory(ctx, 'task', id, 'status', changes);
+  // [P2] Bearbeitende und Folgende erfahren es (6.2)
+  const [assignees, followers] = await Promise.all([assigneeIds(ctx, id), followerIds(ctx, id)]);
+  await notify(ctx, statusMessages(task, to, ctx.actor.id, assignees, followers, iso(ctx)));
+  if (to === 'erledigt') {
+    // die wartenden Aufgaben ändern ihren Status nicht automatisch – ihre Bearbeitenden erfahren es (4.1)
+    const waiting = await ctx.trx
+      .selectFrom('task_blockers as b')
+      .innerJoin('tasks as t', 't.id', 'b.task_id')
+      .select(['t.id', 't.title', 't.due_date'])
+      .where('b.blocker_task_id', '=', id)
+      .where('t.archived_at', 'is', null)
+      .where('t.status', 'in', ['neu', 'geplant', 'in_arbeit', 'blockiert'])
+      .execute();
+    for (const w of waiting)
+      await notify(ctx, unblockedMessages(task, w, await assigneeIds(ctx, w.id), ctx.actor.id, iso(ctx)));
+  }
   return { ...(await registerUndo(ctx, 'task', task, `Status: ${TASK_STATUS_LABEL[to]}`)), self_assigned };
 }
 
@@ -373,6 +414,7 @@ export async function addAssignee(ctx: Ctx, taskId: string, memberId: string): P
   await follow(ctx, taskId, memberId);
   await touchTask(ctx, task);
   await writeHistory(ctx, 'task', taskId, 'assignee_added', { assignee: { old: null, new: memberId } });
+  await notify(ctx, assignmentMessages(task, memberId, ctx.actor.id, iso(ctx)));
   return registerUndo(ctx, 'task', task, `${member.display_name} eingetragen`);
 }
 
@@ -496,7 +538,7 @@ export async function addComment(
   raw: unknown,
 ): Promise<{ id: string; now_following: boolean }> {
   const body = parse(commentBodySchema, raw);
-  await editableTask(ctx, taskId);
+  const task = await editableTask(ctx, taskId);
   const now = iso(ctx);
   const comment = await ctx.trx
     .insertInto('comments')
@@ -505,6 +547,18 @@ export async function addComment(
     .executeTakeFirstOrThrow();
   const now_following = await follow(ctx, taskId, ctx.actor.id);
   await writeHistory(ctx, 'task', taskId, 'comment_added', { comment: { old: null, new: comment.id } });
+  const [assignees, followers] = await Promise.all([assigneeIds(ctx, taskId), followerIds(ctx, taskId)]);
+  await notify(
+    ctx,
+    commentMessages(
+      task,
+      { id: comment.id, body },
+      ctx.actor.id,
+      ctx.actor.display_name,
+      assignees,
+      followers,
+    ),
+  );
   return { id: comment.id, now_following };
 }
 

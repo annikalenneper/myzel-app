@@ -39,7 +39,11 @@ export default defineConfig({
       // dieselben Phase-1-Tests gegen die Server-Funktionen (Schritt C)
       {
         extends: true,
-        test: { name: 'server', include: ['src/data/mock/mockApi.test.ts'], env: { MYZEL_API: 'server' } },
+        test: {
+          name: 'server',
+          include: ['src/data/mock/mockApi.test.ts', 'src/data/mock/notify.test.ts'],
+          env: { MYZEL_API: 'server' },
+        },
       },
     ],
   },
