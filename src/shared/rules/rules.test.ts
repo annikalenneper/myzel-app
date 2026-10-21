@@ -3,7 +3,8 @@ import { formatDueLabel } from '../format';
 import { TASK_STATUSES, type Task } from '../schema';
 import { wouldCreateBlockerCycle } from './blockers';
 import { driveFileIdFromUrl, reachableDriveIds } from './drive';
-import { addDays, daysUntil, dueState, isPlausibleDate } from './due';
+import { addDays, berlinDate, daysUntil, dueState, isPlausibleDate } from './due';
+import { suggestsFollowUp } from './eventDetails';
 import { allowedEventTransitions, canTransitionEvent } from './eventStatus';
 import { suggestShort } from './members';
 import { sortTasks } from './taskSort';
@@ -225,5 +226,25 @@ describe('Drive (3.13)', () => {
       { file_id: 'fremd', parent_id: 'anderswo', trashed: false },
     ];
     expect([...reachableDriveIds(items, 'w')].sort()).toEqual(['a', 'a1', 'w']);
+  });
+});
+
+describe('Kalenderdatum in Köln (Server läuft in UTC)', () => {
+  it('kurz nach Mitternacht in Köln ist schon der neue Tag', () => {
+    expect(berlinDate(new Date('2026-07-10T22:30:00Z'))).toBe('2026-07-11');
+    expect(berlinDate(new Date('2026-12-31T23:30:00Z'))).toBe('2027-01-01');
+    expect(berlinDate(new Date('2026-07-10T21:30:00Z'))).toBe('2026-07-10');
+  });
+
+  it('„In Nachbereitung?“ erst am Kölner Tag nach dem Ende', () => {
+    // Party endet Samstag 01:00 in Köln (Freitag 23:00 UTC)
+    const event = {
+      status: 'bestaetigt' as const,
+      starts_at: '2026-07-10T20:00:00Z',
+      ends_at: '2026-07-10T23:00:00Z',
+    };
+    expect(suggestsFollowUp(event, new Date('2026-07-11T00:30:00Z'))).toBe(false);
+    expect(suggestsFollowUp(event, new Date('2026-07-11T21:59:00Z'))).toBe(false);
+    expect(suggestsFollowUp(event, new Date('2026-07-11T22:00:00Z'))).toBe(true);
   });
 });

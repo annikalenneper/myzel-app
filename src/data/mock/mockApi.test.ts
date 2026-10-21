@@ -307,6 +307,41 @@ describe('Rückgängig (WF-ALL-02)', () => {
     await expectError(api.undo(second.undo_token), 'rule');
   });
 
+  it('setzt keine Markierung an eine inzwischen erledigte Aufgabe zurück', async () => {
+    const task = await newTask();
+    const { undo_token } = await api.setPlenumMark(task.id, false);
+    await login('lea');
+    await api.setTaskStatus(task.id, { status: 'erledigt', version: (await api.getTask(task.id)).version });
+    await login('mo');
+    await api.undo(undo_token);
+    expect((await api.getTask(task.id)).marked).toBe(false);
+  });
+
+  it('nimmt keine Markierung zurück, die inzwischen jemand anderes gesetzt hat', async () => {
+    const task = await newTask({ mark_for_plenum: false });
+    const { undo_token } = await api.setPlenumMark(task.id, true);
+    await login('lea');
+    await api.setTaskStatus(task.id, { status: 'geplant', version: (await api.getTask(task.id)).version });
+    await api.setPlenumMark(task.id, true);
+    await login('mo');
+    await api.undo(undo_token);
+    expect((await api.getTask(task.id)).marked).toBe(true);
+  });
+
+  it('stellt „In Arbeit“ nicht ohne Bearbeitende wieder her', async () => {
+    const { member } = await ids();
+    const jule = member('Jule');
+    const task = await newTask();
+    await api.addAssignee(task.id, jule.id);
+    await api.setTaskStatus(task.id, { status: 'in_arbeit', version: (await api.getTask(task.id)).version });
+    await api.removeAssignee(task.id, (await ids()).member('Mo').id);
+    const { undo_token } = await api.removeAssignee(task.id, jule.id);
+    expect((await api.getTask(task.id)).status).toBe('geplant');
+    await api.deactivateMember(jule.id);
+    await expectError(api.undo(undo_token), 'rule');
+    expect((await api.getTask(task.id)).status).toBe('geplant');
+  });
+
   it('überschreibt keine Änderung, die inzwischen jemand anderes gemacht hat', async () => {
     const task = await newTask();
     const { undo_token } = await api.setTaskStatus(task.id, { status: 'geplant', version: 1 });
@@ -645,6 +680,30 @@ describe('Themen (WF-ADM-05)', () => {
     expect(restored.archived_at).toBeNull();
     await api.archiveTopic(old.id, restored.version);
     expect((await ids()).topic('Alte Location').archived_at).not.toBeNull();
+  });
+
+  it('öffnet keine Aufgabe in einem archivierten Thema wieder', async () => {
+    const { topic } = await ids();
+    const own = await api.createTopic({ name: 'Werkstatt' });
+    const task = (await newTask({ topic_id: own.id }))!;
+    await api.setTaskStatus(task.id, { status: 'erledigt', version: 1 });
+    await api.archiveTopic(own.id, (await ids()).topic('Werkstatt').version);
+    const done = await api.getTask(task.id);
+    const error = await expectError(
+      api.setTaskStatus(task.id, { status: 'geplant', version: done.version }),
+      'rule',
+    );
+    expect(error.message).toContain('„Werkstatt“ ist archiviert');
+    // eine erledigte Aufgabe darf aus dem Archiv zurück, eine offene nicht
+    await api.archiveTask(task.id, done.version);
+    await api.restoreTask(task.id, (await api.getTask(task.id)).version);
+    const other = topic('Verein');
+    await api.restoreTopic(own.id, (await ids()).topic('Werkstatt').version);
+    const open = await newTask({ topic_id: own.id });
+    await api.archiveTask(open.id, open.version);
+    await api.archiveTopic(own.id, (await ids()).topic('Werkstatt').version);
+    await expectError(api.restoreTask(open.id, (await api.getTask(open.id)).version), 'rule');
+    expect(other).toBeDefined();
   });
 });
 

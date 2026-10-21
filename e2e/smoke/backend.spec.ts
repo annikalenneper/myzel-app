@@ -24,7 +24,7 @@ async function signIn(page: Page, authUserId: string, email: string) {
     },
   };
   await page.addInitScript((value) => {
-    window.localStorage.setItem('sb-localhost-auth-token', value);
+    window.localStorage.setItem('sb-127-auth-token', value);
   }, JSON.stringify(session));
   await page.goto('/');
 }

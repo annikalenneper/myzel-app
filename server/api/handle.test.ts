@@ -98,6 +98,51 @@ describe('Anmeldung über Supabase (F-LOG-01, -02)', () => {
 describe('Aktionen', () => {
   const lea = { authUserId: LEA_AUTH, email: 'lea@example.org' };
 
+  it('neue Mail-Adresse löst den bisherigen Login; Login-IDs gehen nicht an andere Mitglieder', async () => {
+    await handleAction(local.db, lea, 'getSession', [], now);
+    const { id } = (await handleAction(
+      local.db,
+      lea,
+      'createMember',
+      [{ display_name: 'Anna', short: 'AN', email: 'anna@gmial.com' }],
+      now,
+    )) as { id: string };
+    const wrong = { authUserId: '33333333-3333-4333-8333-333333333333', email: 'anna@gmial.com' };
+    expect(((await handleAction(local.db, wrong, 'getSession', [], now)) as { state: string }).state).toBe(
+      'member',
+    );
+    const members = (await handleAction(local.db, lea, 'listMembers', [], now)) as {
+      id: string;
+      version: number;
+      auth_user_id: string | null;
+    }[];
+    expect(members.every((m) => m.auth_user_id === null)).toBe(true);
+    const anna = members.find((m) => m.id === id)!;
+    await handleAction(
+      local.db,
+      lea,
+      'updateMember',
+      [
+        id,
+        {
+          display_name: 'Anna',
+          short: 'AN',
+          email: 'anna@gmail.com',
+          is_admin: false,
+          version: anna.version,
+        },
+      ],
+      now,
+    );
+    expect(((await handleAction(local.db, wrong, 'getSession', [], now)) as { state: string }).state).toBe(
+      'no_access',
+    );
+    const right = { authUserId: '44444444-4444-4444-8444-444444444444', email: 'anna@gmail.com' };
+    expect(((await handleAction(local.db, right, 'getSession', [], now)) as { state: string }).state).toBe(
+      'member',
+    );
+  });
+
   it('die handelnde Person kommt aus dem Login – nicht aus den Argumenten', async () => {
     await handleAction(local.db, lea, 'getSession', [], now);
     const { id } = (await handleAction(

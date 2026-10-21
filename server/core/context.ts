@@ -1,7 +1,7 @@
 // Kern der Server-Funktionen (ANFORDERUNGEN 7.2): jede Aktion in einer Transaktion, handelnde Person immer aus der
 // Sitzung, Historie in derselben Transaktion, Optimistic Locking, Rückgängig über gespeicherte Gegenschritte.
 // Geschnitten wie die Testdaten-Schicht (src/data/mock/server.ts), nur gegen die Datenbank.
-import type { Kysely, Transaction } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 import type { ZodType } from 'zod';
 import { AppError, validationErrorFromZod } from '../../src/shared/errors';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
@@ -66,6 +66,14 @@ export function requireAdmin(ctx: Ctx): void {
   if (!ctx.actor.is_admin) throw new AppError('forbidden', 'Das dürfen nur Personen mit Admin-Rechten.');
 }
 
+/**
+ * Sperre für Regeln über viele Zeilen (Zyklen im Abhängigkeitsgraphen, Reihenfolge der Markierungen): gleichzeitige
+ * Aktionen warten aufeinander bis zum Ende der Transaktion, statt beide auf demselben alten Stand zu prüfen.
+ */
+export async function lockFor(ctx: Ctx, name: 'task_blockers' | 'plenum_marks'): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtext(${name}))`.execute(ctx.trx);
+}
+
 export async function writeHistory(
   ctx: Ctx,
   entity_type: HistoryEntity,
@@ -113,6 +121,17 @@ export async function checkVersion(
   });
 }
 
+/** Das UPDATE mit „where version = …“ hat genau eine Zeile getroffen – sonst war jemand schneller (Konflikt). */
+export async function updatedOne(
+  ctx: Ctx,
+  result: { numUpdatedRows: bigint },
+  entity_type: HistoryEntity,
+  row: { id: string; version: number },
+): Promise<void> {
+  if (Number(result.numUpdatedRows) !== 1)
+    await checkVersion(ctx, entity_type, { id: row.id, version: -1 }, row.version);
+}
+
 export interface Undoable {
   undo_token: string;
 }
@@ -155,15 +174,31 @@ export async function inTransaction<T>(
   now: Date,
   fn: (ctx: Ctx) => Promise<T>,
 ): Promise<T> {
-  return db.transaction().execute(async (trx) => {
-    const actor = await resolveActor(trx, authUserId);
-    return fn({ trx, actor, now, inverse: [], historyIds: [] });
-  });
+  // Deadlock oder Serialisierungsfehler bei gleichzeitigen Aktionen: die Transaktion ist zurückgerollt, einmal neu
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await db.transaction().execute(async (trx) => {
+        const actor = await resolveActor(trx, authUserId, { lock: true });
+        return fn({ trx, actor, now, inverse: [], historyIds: [] });
+      });
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (attempt < 3 && (code === '40P01' || code === '40001')) continue;
+      // Eindeutigkeit (Kürzel, Mail, Themenname), die eine gleichzeitige Aktion gerade vergeben hat
+      if (code === '23505')
+        throw new AppError(
+          'conflict',
+          'Das hat gerade jemand anderes angelegt. Bitte lade neu und prüf die Angaben.',
+        );
+      throw e;
+    }
+  }
 }
 
 export async function resolveActor(
   trx: Trx | Kysely<Database>,
   authUserId: string | null,
+  { lock = false }: { lock?: boolean } = {},
 ): Promise<MemberRow> {
   if (!authUserId)
     throw new AppError('unauthenticated', 'Du bist nicht mehr angemeldet. Bitte melde dich neu an.');
@@ -172,6 +207,8 @@ export async function resolveActor(
     .selectAll()
     .where('auth_user_id', '=', authUserId)
     .where('is_system', '=', false)
+    // beim Schreiben: eine gleichzeitige Deaktivierung wartet, bis diese Aktion fertig ist (und räumt danach auf)
+    .$if(lock, (q) => q.forShare())
     .executeTakeFirst();
   if (!actor || !actor.active)
     throw new AppError('unauthenticated', 'Du bist nicht mehr angemeldet. Bitte melde dich neu an.');

@@ -21,6 +21,8 @@ import {
 } from '../../src/shared/schema';
 import {
   checkVersion,
+  lockFor,
+  updatedOne,
   iso,
   notFound,
   parse,
@@ -52,10 +54,26 @@ async function usableTopic(ctx: Ctx, id: string): Promise<void> {
     .selectFrom('topics')
     .select(['archived_at'])
     .where('id', '=', id)
+    // gleichzeitiges Archivieren des Themas wartet (archiveTopic sperrt die Zeile)
+    .forShare()
     .executeTakeFirst();
   if (!topic) throw new AppError('validation', 'Dieses Thema gibt es nicht mehr.', { field: 'topic_id' });
   if (topic.archived_at)
     throw new AppError('validation', 'Dieses Thema ist archiviert.', { field: 'topic_id' });
+}
+
+/** Wieder aktiv nur in einem aktiven Thema – sonst stünde eine offene Aufgabe in einem archivierten (WF-ADM-05) */
+export async function topicStillActive(ctx: Ctx, task: { topic_id: string }): Promise<void> {
+  const topic = await ctx.trx
+    .selectFrom('topics')
+    .select(['name', 'archived_at'])
+    .where('id', '=', task.topic_id)
+    .forShare()
+    .executeTakeFirstOrThrow();
+  if (topic.archived_at)
+    throw rule(
+      `Das Thema „${topic.name}“ ist archiviert. Stell es erst wieder her oder wähle ein anderes Thema.`,
+    );
 }
 
 async function usableEvent(ctx: Ctx, id: string): Promise<void> {
@@ -74,6 +92,8 @@ export async function selectableMember(ctx: Ctx, id: string): Promise<{ id: stri
     .selectFrom('members')
     .select(['id', 'display_name', 'active', 'is_system'])
     .where('id', '=', id)
+    // gleichzeitiges Deaktivieren wartet und trägt die Person danach auch hier aus
+    .forShare()
     .executeTakeFirst();
   if (!member || member.is_system || !member.active)
     throw rule('Nur aktive Mitglieder lassen sich eintragen.');
@@ -91,12 +111,13 @@ async function memberName(ctx: Ctx, id: string): Promise<string> {
 async function touchTask(ctx: Ctx, task: TaskRow, set: Partial<TaskRow> = {}): Promise<void> {
   const { id, version } = task;
   Object.assign(task, set, { version: version + 1, updated_at: iso(ctx) });
-  await ctx.trx
+  const result = await ctx.trx
     .updateTable('tasks')
     .set({ ...set, version: version + 1, updated_at: iso(ctx) } as never)
     .where('id', '=', id)
     .where('version', '=', version)
-    .executeTakeFirstOrThrow();
+    .executeTakeFirst();
+  await updatedOne(ctx, result, 'task', { id, version });
 }
 
 /** Trägt die Person als Folgende*n ein, falls sie noch nicht folgt (F-AUF-06). */
@@ -134,6 +155,7 @@ export async function dropMark(ctx: Ctx, taskId: string, changes: HistoryChanges
 
 /** Neu Markiertes kommt ans Ende der Agenda. */
 async function addMark(ctx: Ctx, taskId: string): Promise<void> {
+  await lockFor(ctx, 'plenum_marks');
   const max = await ctx.trx
     .selectFrom('plenum_marks')
     .select(ctx.trx.fn.max('position').as('max'))
@@ -255,6 +277,7 @@ async function insertBlocker(ctx: Ctx, task: TaskRow, blockerId: string): Promis
   if (blockerId === task.id) throw rule('Eine Aufgabe kann nicht auf sich selbst warten.');
   const blocker = await findTask(ctx, blockerId, { lock: false });
   if (blocker.archived_at) throw rule('Archivierte Aufgaben können nicht blockieren.');
+  await lockFor(ctx, 'task_blockers');
   const edges = await ctx.trx.selectFrom('task_blockers').selectAll().execute();
   if (edges.some((b) => b.task_id === task.id && b.blocker_task_id === blockerId)) return false;
   if (wouldCreateBlockerCycle(edges, task.id, blockerId))
@@ -287,6 +310,8 @@ export async function setTaskStatus(
     );
   if (blockReasonMissing(to, input.block_reason))
     throw new AppError('validation', 'Ohne Grund lässt sich nicht blockieren.', { field: 'block_reason' });
+
+  if (!isActiveTaskStatus(from) && isActiveTaskStatus(to)) await topicStillActive(ctx, task);
 
   ctx.inverse.push(taskState(task));
   const changes: HistoryChanges = { status: { old: from, new: to } };
@@ -521,6 +546,7 @@ export async function restoreTask(ctx: Ctx, id: string, version: number): Promis
   const task = await findTask(ctx, id);
   await checkVersion(ctx, 'task', task, version);
   if (!task.archived_at) return;
+  if (isActiveTaskStatus(task.status)) await topicStillActive(ctx, task);
   await touchTask(ctx, task, { archived_at: null });
   await writeHistory(ctx, 'task', id, 'restored');
 }

@@ -10,7 +10,7 @@ import type {
   TopicWithUsage,
 } from '../../src/data/api';
 import { emptyEventDetails, sectionSummaries, suggestsFollowUp } from '../../src/shared/rules/eventDetails';
-import { isOverdue, toIsoDate } from '../../src/shared/rules/due';
+import { berlinDate, isOverdue } from '../../src/shared/rules/due';
 import { isActiveTaskStatus } from '../../src/shared/rules/taskStatus';
 import type { EventRow, HistoryEntry, Member, Task, Topic } from '../../src/shared/schema';
 import { notFound } from '../core/context';
@@ -30,7 +30,8 @@ const eventLater = {
 
 export async function listMembers(db: Db): Promise<Member[]> {
   const rows = await db.selectFrom('members').selectAll().orderBy('created_at').orderBy('id').execute();
-  return rows.map((m) => ({ ...m, ...memberLater }));
+  // die Login-ID braucht nur der Server, nicht die anderen Mitglieder
+  return rows.map((m) => ({ ...m, auth_user_id: null, ...memberLater }));
 }
 
 export async function listTopics(db: Db): Promise<TopicWithUsage[]> {
@@ -148,7 +149,7 @@ async function eventItems(
 ): Promise<EventListItem[]> {
   if (events.length === 0) return [];
   const ids = events.map((e) => e.id);
-  const today = toIsoDate(now);
+  const today = berlinDate(now);
   const [tasks, followUp] = await Promise.all([
     db
       .selectFrom('tasks')

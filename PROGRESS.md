@@ -8,7 +8,7 @@ Geführt vom Agenten. Quelle der Anforderungen: docs/ANFORDERUNGEN.md.
 Schritt B durchgesehen (20.10.2026). Migration der Phase 1 im Entwicklungsprojekt eingespielt, erste Admin-Person
 angelegt, erster echter Login mit Google und Durchklicken der Phase 1 durch die Nutzerin ohne Befund
 (21.10.2026); check:integrity und Smoke-Tests gegen das echte Backend stehen. Als Nächstes: Agent-Review
-Schritt C Phase 1, Mail-Link am echten Projekt.**
+Schritt C Phase 1 eingearbeitet (21.10.2026); offen: Mail-Link am echten Projekt.**
 Reihenfolge seit 12.10.2026: erst das ganze Frontend (Schritt A für P1 bis P6), dann
 Durchsicht (B), Daten und Server (C), Deploy am Ende (D).
 
@@ -362,6 +362,37 @@ Nicht dringlich; vor Schritt C sichten.
 - Wissen/Termine: Undo von „Hat stattgefunden“ setzt die Teilnahme als Ganzes zurück; Historie nennt bei
   Quelle Plenum „im Plenum angelegt“; Hinweis zu Benachrichtigungen beim Verschieben zählt die handelnde
   Person mit; key einer Terminart aus Umlauten; künftige Plenen als Quelle wählbar.
+
+### Agent-Review Schritt C, Phase 1 (21.10.2026)
+
+Zwei unabhängige Reviews (Sicherheit/Zugriff; Regeln/Nebenläufigkeit). Eingearbeitet:
+
+- Login: nur bestätigte Mail-Adressen verknüpfen ein Mitglied, auch bei Google keine Ausnahme; lokale
+  supabase/config.toml mit Mail-Bestätigung (online war sie schon an); neue Mail-Adresse löst den alten Login;
+  Login-IDs gehen nicht an andere Mitglieder.
+- Rechte: Migration 20261021000001_grants – anon darf nichts, authenticated nur lesen, keine Sequenzen, keine
+  Funktionen per RPC, neue Tabellen ohne Rechte von selbst (im Entwicklungsprojekt eingespielt und geprüft).
+- Datenbank-Zertifikat prüfbar über DATABASE_CA_CERT; Smoke-Server nur auf 127.0.0.1.
+- Nebenläufigkeit: Sperren für Abhängigkeiten (keine Kreise durch zwei gleichzeitige Anfragen), Markierungs-Reihenfolge,
+  Mitglied beim Eintragen und als handelnde Person (gleichzeitiges Deaktivieren wartet), Thema beim Verwenden;
+  Deadlocks werden wiederholt, gleichzeitig vergebene Kürzel/Mails/Namen als Konflikt gemeldet; UPDATE mit
+  Versionsbedingung prüft die Zahl der getroffenen Zeilen.
+- Regeln: Wiederöffnen und Wiederherstellen nur in einem aktiven Thema; Rückgängig setzt keine Markierung an
+  abgeschlossene oder archivierte Aufgaben, entfernt keine fremde Markierung, stellt „In Arbeit“ nicht ohne
+  Bearbeitende her und keine aktive Aufgabe in einem archivierten Thema – in Testdaten-Schicht und Server gleich.
+- „Heute/überfällig“ und „In Nachbereitung?“ nach Kölner Kalender (Europe/Berlin), auch auf dem Server in UTC.
+- check:integrity: Kreisprüfung endet auch bei verzweigten Abhängigkeiten.
+
+Offen, nicht dringlich:
+
+- Für Phase 2: alle Zeitberechnungen auf dem Server (Erinnerungen, Jobs, Texte mit Uhrzeit) ausdrücklich in
+  Europe/Berlin; src/shared/format.ts rechnet in der Zeitzone des Rechners.
+- Für Phase 3: Unique-Regel für plenum_marks.position (heute nur über Sperre und Rückgängig abgesichert).
+- Vor Schritt D: DATABASE_CA_CERT in Netlify setzen; im Produktivprojekt keine localhost-Adressen in den Redirect URLs
+  und Site URL auf die Netlify-Adresse; Content-Security-Policy für das Deploy.
+- Zur Durchsicht: Die Historie nennt beim Bearbeiten eines Kommentars nicht den alten und neuen Text, beim
+  Rückgängig nur, was zurückgenommen wurde (Testdaten-Schicht genauso). 3.10 verlangt „alt → neu“ – Text mit
+  aufnehmen?
 
 ## Entscheidungsprotokoll
 

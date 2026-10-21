@@ -13,6 +13,21 @@ export function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+const BERLIN = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Berlin',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/**
+ * Kalenderdatum in Köln (Europe/Berlin) als YYYY-MM-DD – unabhängig von der Zeitzone des Rechners. Für „heute“ auf dem
+ * Server (Netlify läuft in UTC): zwischen 0 und 2 Uhr ist dort sonst noch gestern.
+ */
+export function berlinDate(d: Date): string {
+  return BERLIN.format(d);
+}
+
 export function addDays(isoDate: string, days: number): string {
   const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
   return toIsoDate(new Date(y, m - 1, d + days));

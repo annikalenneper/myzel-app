@@ -30,7 +30,7 @@ async function loginFrom(req: Request) {
 }
 
 createServer(async (req, res) => {
-  const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
+  const url = new URL(req.url ?? '/', `http://127.0.0.1:${PORT}`);
   const api = url.pathname.match(/^\/api\/([A-Za-z]+)$/);
   if (api) {
     const chunks: Buffer[] = [];
@@ -55,4 +55,4 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end();
   }
-}).listen(PORT, () => console.log(`Smoke-Server auf http://localhost:${PORT}`));
+}).listen(PORT, '127.0.0.1', () => console.log(`Smoke-Server auf http://127.0.0.1:${PORT}`));

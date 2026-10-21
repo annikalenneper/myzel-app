@@ -1,8 +1,19 @@
 // Rückgängig (WF-ALL-02), Phase 1: die gespeicherten Gegenschritte einer Aktion, 30 Sekunden lang, nur für die
 // Person, die gehandelt hat; ebenfalls in der Historie. Hat die Aktion die Zeile selbst geändert, darf inzwischen
 // niemand anderes daran gewesen sein (Optimistic Locking wie überall).
+import { isActiveTaskStatus } from '../../src/shared/rules/taskStatus';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
-import { checkVersion, iso, notFound, rule, writeHistory, type Ctx, type InverseOp } from '../core/context';
+import {
+  checkVersion,
+  iso,
+  lockFor,
+  notFound,
+  rule,
+  writeHistory,
+  type Ctx,
+  type InverseOp,
+} from '../core/context';
+import { topicStillActive } from './tasks';
 
 const ROW_KINDS = new Set<InverseOp['kind']>([
   'task_state',
@@ -96,16 +107,41 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
             .execute();
         break;
       }
-      case 'mark_restore':
-        // der Punkt steht wieder an alter Stelle
+      case 'mark_restore': {
+        // nur an einer Aufgabe, die (nach den Gegenschritten davor) aktiv ist – sonst bleibt sie unmarkiert
+        const task = await ctx.trx
+          .selectFrom('tasks')
+          .select(['status', 'archived_at'])
+          .where('id', '=', op.row.task_id!)
+          .executeTakeFirst();
+        if (!task || task.archived_at || !isActiveTaskStatus(task.status)) break;
+        // der Punkt steht wieder an alter Stelle – ist sie inzwischen vergeben, am Ende
+        await lockFor(ctx, 'plenum_marks');
+        const taken = await ctx.trx
+          .selectFrom('plenum_marks')
+          .select('id')
+          .where('position', '=', op.row.position)
+          .executeTakeFirst();
+        const last = await ctx.trx
+          .selectFrom('plenum_marks')
+          .select(ctx.trx.fn.max('position').as('max'))
+          .executeTakeFirst();
+        const position = taken ? Number(last?.max ?? 0) + 1 : op.row.position;
         await ctx.trx
           .insertInto('plenum_marks')
-          .values(op.row)
+          .values({ ...op.row, position })
           .onConflict((oc) => oc.doNothing())
           .execute();
         break;
+      }
       case 'mark_remove':
-        await ctx.trx.deleteFrom('plenum_marks').where('task_id', '=', op.id).execute();
+        // nur die Markierung dieser Aktion – eine inzwischen von jemand anderem gesetzte bleibt
+        await ctx.trx
+          .deleteFrom('plenum_marks')
+          .where('task_id', '=', op.id)
+          .where('marked_by', '=', record.actor_id)
+          .where('marked_at', '=', record.created_at)
+          .execute();
         break;
       case 'blocker_remove':
         await ctx.trx
@@ -123,6 +159,7 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
         break;
     }
   }
+  if (table === 'tasks') await taskStillValid(ctx, entity.id);
   if (touchesRow)
     await ctx.trx
       .updateTable(table)
@@ -133,4 +170,23 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
     undone: { old: record.label, new: null },
     history_ids: { old: record.history_ids, new: null },
   });
+}
+
+/** Pflichtregeln nach den Gegenschritten (4.1): sonst bricht das Rückgängig ab und nichts ändert sich */
+async function taskStillValid(ctx: Ctx, taskId: string): Promise<void> {
+  const task = await ctx.trx
+    .selectFrom('tasks')
+    .select(['status', 'archived_at', 'topic_id'])
+    .where('id', '=', taskId)
+    .executeTakeFirstOrThrow();
+  if (task.archived_at || !isActiveTaskStatus(task.status)) return;
+  await topicStillActive(ctx, task);
+  if (task.status !== 'in_arbeit') return;
+  const assignee = await ctx.trx
+    .selectFrom('task_assignees')
+    .select('member_id')
+    .where('task_id', '=', taskId)
+    .executeTakeFirst();
+  if (!assignee)
+    throw rule('Die Person ist inzwischen nicht mehr aktiv – das lässt sich nicht mehr rückgängig machen.');
 }

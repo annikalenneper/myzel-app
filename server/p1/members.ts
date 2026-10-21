@@ -13,6 +13,7 @@ import {
 } from '../../src/shared/schema';
 import {
   checkVersion,
+  updatedOne,
   iso,
   notFound,
   parse,
@@ -36,12 +37,13 @@ async function findMember(ctx: Ctx, id: string): Promise<MemberRow> {
 }
 
 async function touchMember(ctx: Ctx, member: MemberRow, set: Partial<MemberRow>): Promise<void> {
-  await ctx.trx
+  const result = await ctx.trx
     .updateTable('members')
     .set({ ...set, version: member.version + 1, updated_at: iso(ctx) } as never)
     .where('id', '=', member.id)
     .where('version', '=', member.version)
-    .executeTakeFirstOrThrow();
+    .executeTakeFirst();
+  await updatedOne(ctx, result, 'member', member);
 }
 
 async function assertUniqueMember(
@@ -121,6 +123,8 @@ export async function updateMember(ctx: Ctx, id: string, raw: unknown): Promise<
     (set as Record<string, unknown>)[key] = input[key];
   }
   if (Object.keys(changes).length === 0) return;
+  // neue Mail-Adresse: der bisherige Login gehört nicht mehr dazu; beim nächsten Login wird neu verknüpft
+  if (changes.email) set.auth_user_id = null;
   await touchMember(ctx, member, set);
   await writeHistory(ctx, 'member', id, 'updated', changes);
 }
@@ -310,12 +314,13 @@ export async function updateTopic(ctx: Ctx, id: string, raw: unknown): Promise<v
     set.sort_order = await nextSortOrder(ctx, input.parent_id, id);
   }
   if (Object.keys(changes).length === 0) return;
-  await ctx.trx
+  const result = await ctx.trx
     .updateTable('topics')
     .set({ ...set, version: topic.version + 1, updated_at: iso(ctx) })
     .where('id', '=', id)
     .where('version', '=', topic.version)
-    .executeTakeFirstOrThrow();
+    .executeTakeFirst();
+  await updatedOne(ctx, result, 'topic', topic);
   await writeHistory(ctx, 'topic', id, 'updated', changes);
 }
 

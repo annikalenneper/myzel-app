@@ -10,6 +10,7 @@ import {
 } from '../../src/shared/schema';
 import {
   checkVersion,
+  updatedOne,
   iso,
   notFound,
   parse,
@@ -74,12 +75,13 @@ export async function updateEvent(ctx: Ctx, id: string, raw: unknown): Promise<v
   if (input.setup_at || input.teardown_at)
     throw new AppError('validation', 'Aufbau und Abbau gibt es erst ab Phase 4.', { field: 'setup_at' });
   if (Object.keys(changes).length === 0) return;
-  await ctx.trx
+  const result = await ctx.trx
     .updateTable('events')
     .set({ ...set, version: event.version + 1, updated_at: iso(ctx) })
     .where('id', '=', id)
     .where('version', '=', event.version)
-    .executeTakeFirstOrThrow();
+    .executeTakeFirst();
+  await updatedOne(ctx, result, 'event', event);
   await writeHistory(ctx, 'event', id, 'updated', changes);
 }
 
@@ -98,12 +100,13 @@ export async function setEventStatus(
   ctx.inverse.push({ kind: 'event_status', event_id: id, status: event.status });
   const changes: HistoryChanges = { status: { old: event.status, new: status } };
   // Veranstaltungen sind erst ab P3 markierbar – hier gibt es nichts zu entfernen
-  await ctx.trx
+  const result = await ctx.trx
     .updateTable('events')
     .set({ status, version: event.version + 1, updated_at: iso(ctx) })
     .where('id', '=', id)
     .where('version', '=', event.version)
-    .executeTakeFirstOrThrow();
+    .executeTakeFirst();
+  await updatedOne(ctx, result, 'event', event);
   await writeHistory(ctx, 'event', id, 'status', changes);
   return registerUndo(
     ctx,

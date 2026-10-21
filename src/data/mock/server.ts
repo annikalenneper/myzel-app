@@ -461,6 +461,15 @@ function usableTopic(ctx: Ctx, id: string): Topic {
   return topic;
 }
 
+/** Wieder aktiv nur in einem aktiven Thema – sonst stünde eine offene Aufgabe in einem archivierten (WF-ADM-05) */
+function topicStillActive(db: Db, task: Task): void {
+  const topic = db.topics.find((t) => t.id === task.topic_id);
+  if (topic?.archived_at)
+    throw rule(
+      `Das Thema „${topic.name}“ ist archiviert. Stell es erst wieder her oder wähle ein anderes Thema.`,
+    );
+}
+
 function usableEvent(ctx: Ctx, id: string): EventRow {
   const event = ctx.db.events.find((e) => e.id === id && !e.archived_at);
   if (!event)
@@ -667,6 +676,7 @@ export function setTaskStatus(
     );
   if (blockReasonMissing(to, input.block_reason))
     throw new AppError('validation', 'Ohne Grund lässt sich nicht blockieren.', { field: 'block_reason' });
+  if (!isActiveTaskStatus(from) && isActiveTaskStatus(to)) topicStillActive(ctx.db, task);
 
   ctx.inverse.push(taskState(task));
   const changes: HistoryChanges = { status: { old: from, new: to } };
@@ -899,12 +909,21 @@ export function restoreTask(ctx: Ctx, id: string, version: number): void {
   const task = findTask(ctx.db, id);
   checkVersion(ctx, 'task', task, version);
   if (!task.archived_at) return;
+  if (isActiveTaskStatus(task.status)) topicStillActive(ctx.db, task);
   task.archived_at = null;
   touch(ctx, task);
   writeHistory(ctx, 'task', id, 'restored');
 }
 
 // ── Rückgängig (WF-ALL-02): Gegenaktion, ebenfalls in der Historie ───────────
+
+/** Pflichtregeln nach den Gegenschritten (4.1): sonst bricht das Rückgängig ab und nichts ändert sich */
+function taskStillValid(db: Db, task: Task): void {
+  if (task.archived_at || !isActiveTaskStatus(task.status)) return;
+  topicStillActive(db, task);
+  if (task.status === 'in_arbeit' && !db.task_assignees.some((a) => a.task_id === task.id))
+    throw rule('Die Person ist inzwischen nicht mehr aktiv – das lässt sich nicht mehr rückgängig machen.');
+}
 
 export function undo(ctx: Ctx, token: string): void {
   const record = ctx.db.undo.find((u) => u.token === token);
@@ -1024,11 +1043,26 @@ export function undo(ctx: Ctx, token: string): void {
       case 'mark_restore': {
         // der Punkt steht wieder an alter Stelle
         const target = MARK_TARGETS.find((t) => op.row[markColumn(t)])!;
-        if (!isMarked(db, target, op.row[markColumn(target)]!)) db.plenum_marks.push(op.row);
+        // eine Aufgabe nur, wenn sie (nach den Gegenschritten davor) aktiv ist – sonst bleibt sie unmarkiert
+        const task = op.row.task_id ? db.tasks.find((t) => t.id === op.row.task_id) : undefined;
+        if (task && (task.archived_at || !isActiveTaskStatus(task.status))) break;
+        if (isMarked(db, target, op.row[markColumn(target)]!)) break;
+        // alte Stelle – ist sie inzwischen vergeben, am Ende
+        const taken = db.plenum_marks.some((m) => m.position === op.row.position);
+        const position = taken ? Math.max(0, ...db.plenum_marks.map((m) => m.position)) + 1 : op.row.position;
+        db.plenum_marks.push({ ...op.row, position });
         break;
       }
       case 'mark_remove':
-        db.plenum_marks = db.plenum_marks.filter((m) => m[markColumn(op.target)] !== op.id);
+        // nur die Markierung dieser Aktion – eine inzwischen von jemand anderem gesetzte bleibt
+        db.plenum_marks = db.plenum_marks.filter(
+          (m) =>
+            !(
+              m[markColumn(op.target)] === op.id &&
+              m.marked_by === record.actor_id &&
+              m.marked_at === record.created_at
+            ),
+        );
         break;
       case 'blocker_remove':
         db.task_blockers = db.task_blockers.filter(
@@ -1148,6 +1182,7 @@ export function undo(ctx: Ctx, token: string): void {
   );
   // eine im selben Schritt angelegte Aufgabe ist wieder weg – dann gibt es nichts mehr zu vermerken
   if (record.ops.some((op) => op.kind === 'task_delete' && op.task_id === entity.id)) return;
+  if (record.entity_type === 'task') taskStillValid(db, entity as Task);
   if (touchesRow) touch(ctx, entity);
   writeHistory(ctx, record.entity_type, entity.id, 'undo', {
     undone: { old: record.label, new: null },

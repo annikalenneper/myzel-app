@@ -2,6 +2,7 @@
 // Kurzzusammenfassungen; offene Punkte werden in Bernstein hervorgehoben.
 import type { EventBooking, EventDetails, EventStatus, FrameItem, FrameStatus } from '../schema';
 import { FRAME_ITEMS } from '../schema';
+import { berlinDate } from './due';
 
 export const LOCATION_CONFIRMATION_LABEL = {
   offen: 'Offen',
@@ -205,9 +206,8 @@ export function suggestsFollowUp(
   now: Date,
 ): boolean {
   if (event.status !== 'bestaetigt') return false;
-  const end = new Date(event.ends_at ?? event.starts_at);
-  const nextDay = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
-  return now.getTime() >= nextDay.getTime();
+  // „am Tag danach“ nach Kölner Kalender, auch auf dem Server
+  return berlinDate(now) > berlinDate(new Date(event.ends_at ?? event.starts_at));
 }
 
 /** Ab so vielen Tagen in Nachbereitung zeigt die Liste einen Hinweis (4.2) */

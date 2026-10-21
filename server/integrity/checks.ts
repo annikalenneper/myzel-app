@@ -43,12 +43,11 @@ export const CHECKS: IntegrityCheck[] = [
   {
     name: 'Keine Zyklen bei Abhängigkeiten',
     level: 'fehler',
-    query: sql`with recursive path (start_id, task_id, steps) as (
-        select task_id, blocker_task_id, 1 from task_blockers
-        union all
-        select p.start_id, b.blocker_task_id, p.steps + 1
-        from path p join task_blockers b on b.task_id = p.task_id
-        where p.steps < 1000 and p.task_id <> p.start_id
+    query: sql`with recursive path (start_id, task_id) as (
+        select task_id, blocker_task_id from task_blockers
+        -- „union“ statt „union all“: jedes Paar nur einmal, endet auch bei verzweigten Abhängigkeiten
+        union
+        select p.start_id, b.blocker_task_id from path p join task_blockers b on b.task_id = p.task_id
       )
       select distinct ${task} || ' hängt über einen Kreis von sich selbst ab' as label
       from path p join tasks t on t.id = p.start_id where p.task_id = p.start_id`,

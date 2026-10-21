@@ -31,6 +31,9 @@ export default defineConfig({
   ],
   test: {
     environment: 'node',
+    // Datenbank-Tests legen je Test ein frisches Postgres (PGlite) an – unter voller Last dauert das
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
     projects: [
       { extends: true, test: { name: 'app', include: ['src/**/*.test.ts', 'server/**/*.test.ts'] } },
       // dieselben Phase-1-Tests gegen die Server-Funktionen (Schritt C)

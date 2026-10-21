@@ -108,18 +108,20 @@ describe('Zugriff über Supabase (RLS)', () => {
     expect((await asUser(local.pg, AUTH_LEA, count)).rows[0]!.n).toBe(10);
     expect((await asUser(local.pg, AUTH_TAREK, count)).rows[0]!.n).toBe(0);
     expect((await asUser(local.pg, AUTH_FREMD, count)).rows[0]!.n).toBe(0);
-    expect((await asUser(local.pg, null, count)).rows[0]!.n).toBe(0);
+    // ohne Login gar kein Zugriff auf die Tabellen (Migration 20261021000001_grants)
+    expect(await asUser(local.pg, null, () => fails('select count(*) from public.topics'))).toMatch(
+      /permission denied/,
+    );
   });
 
   it('direktes Schreiben ist gesperrt – auch für aktive Mitglieder', async () => {
     const result = await asUser(local.pg, AUTH_LEA, async () => ({
       insert: await fails(`insert into public.topics (name) values ('Neu')`),
-      update: (await local.pg.query(`update public.members set is_admin = true`)).affectedRows,
-      remove: (await local.pg.query(`delete from public.topics`)).affectedRows,
+      update: await fails(`update public.members set is_admin = true`),
+      remove: await fails(`delete from public.topics`),
+      truncate: await fails(`truncate public.comments`),
     }));
-    expect(result.insert).toMatch(/row-level security/);
-    expect(result.update).toBe(0);
-    expect(result.remove).toBe(0);
+    expect(Object.values(result).every((e) => /permission denied/.test(e ?? ''))).toBe(true);
     expect((await local.db.selectFrom('topics').select('id').execute()).length).toBe(10);
   });
 
@@ -129,7 +131,43 @@ describe('Zugriff über Supabase (RLS)', () => {
       `insert into undo_actions (actor_id, entity_type, entity_id, version_after, label, ops) values ($1, 'task', $1, 1, 'x', '[]')`,
       [lea],
     );
-    const seen = await asUser(local.pg, AUTH_LEA, () => local.pg.query(`select * from public.undo_actions`));
-    expect(seen.rows).toHaveLength(0);
+    expect(await asUser(local.pg, AUTH_LEA, () => fails(`select * from public.undo_actions`))).toMatch(
+      /permission denied/,
+    );
+  });
+});
+
+describe('Rechte', () => {
+  const privilege = async (role: string, check: string) =>
+    (await local.pg.query<{ ok: boolean }>(`select ${check} as ok`.replace('$role', `'${role}'`))).rows[0]!
+      .ok;
+
+  it('anon darf nichts, authenticated nur lesen; keine Sequenzen, keine Funktionen per RPC', async () => {
+    for (const table of ['members', 'tasks', 'history', 'undo_actions']) {
+      expect(await privilege('anon', `has_table_privilege($role, 'public.${table}', 'select')`)).toBe(false);
+      for (const p of ['insert', 'update', 'delete', 'truncate', 'trigger', 'references'])
+        expect(
+          await privilege('authenticated', `has_table_privilege($role, 'public.${table}', '${p}')`),
+        ).toBe(false);
+    }
+    expect(await privilege('authenticated', `has_table_privilege($role, 'public.tasks', 'select')`)).toBe(
+      true,
+    );
+    expect(
+      await privilege('authenticated', `has_table_privilege($role, 'public.undo_actions', 'select')`),
+    ).toBe(false);
+    expect(
+      await privilege('authenticated', `has_sequence_privilege($role, 'public.task_number_seq', 'usage')`),
+    ).toBe(false);
+    expect(
+      await privilege('anon', `has_function_privilege($role, 'public.is_active_member()', 'execute')`),
+    ).toBe(false);
+  });
+
+  it('neue Tabellen bekommen keine Rechte von selbst', async () => {
+    await local.pg.exec('create table public.later_phase (id int)');
+    expect(
+      await privilege('authenticated', `has_table_privilege($role, 'public.later_phase', 'select')`),
+    ).toBe(false);
   });
 });
