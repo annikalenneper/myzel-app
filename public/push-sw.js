@@ -20,7 +20,9 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.link || '/', self.location.origin).href;
+  const link = new URL(event.notification.data?.link || '/', self.location.origin);
+  // nur Ansichten der App, nie eine fremde Seite
+  const target = link.origin === self.location.origin ? link.href : self.location.origin + '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       const open = windows.find((w) => new URL(w.url).origin === self.location.origin);

@@ -106,7 +106,7 @@ describe('check:integrity', () => {
     expect(found['Deaktivierte haben keine Push-Abos und keine Telegram-Verknüpfung']).toEqual([
       'Lea (Push)',
     ]);
-    expect(found['Joblauf in den letzten 2 Stunden']).toEqual(['noch kein Lauf']);
+    expect(found['Erfolgreicher Joblauf in den letzten 2 Stunden']).toEqual(['noch kein Lauf']);
   });
 
   it('läuft nur lesend', async () => {

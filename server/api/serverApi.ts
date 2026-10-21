@@ -17,8 +17,13 @@ import { JOB_WARNING_MINUTES } from '../../src/shared/rules/notifications';
 import { READ_ACTIONS, WRITE_ACTIONS } from './actions';
 
 const OUTSIDER = 'jemand@example.org';
+/** Schlüssel eines Browsers in gültiger Form (65 und 16 Bytes, base64url) */
+export const TEST_PUSH_KEYS = {
+  p256dh: Buffer.alloc(65, 4).toString('base64url'),
+  auth: Buffer.alloc(16, 7).toString('base64url'),
+};
 /** Versand in den Tests: alles kommt an */
-const delivered: notify.Senders = { push: async () => 'ok', telegram: async () => {} };
+const delivered: notify.Senders = { push: async () => 'ok', telegram: async () => 'ok' };
 const templates = new Map<string, Promise<LocalDb>>();
 
 /** Befüllte Datenbank einmal je Stichtag aufbauen, dann je Test klonen */
@@ -46,8 +51,8 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
   process.env.TELEGRAM_BOT_USERNAME ??= 'myzel_bot';
   /** dieses Gerät: sein Push-Abo, wie es der Browser liefert */
   const device = {
-    endpoint: `https://push.example.org/${crypto.randomUUID()}`,
-    keys: { p256dh: 'test', auth: 'test' },
+    endpoint: `https://fcm.googleapis.com/fcm/send/${crypto.randomUUID()}`,
+    keys: TEST_PUSH_KEYS,
   };
   let db = await freshDb(now());
   const listeners = new Set<() => void>();

@@ -1,30 +1,55 @@
 // Versand in Betrieb (6.3, 6.4): Web-Push mit VAPID-Schlüsseln und Telegram über die Bot-API.
 // Jede Nachricht nennt Titel, Datum und einen Direktlink; Telegram bekommt den Link als volle Adresse.
+// Jeder Aufruf nach außen hat eine Zeitgrenze, damit ein hängender Dienst den Joblauf nicht aufhält.
 import webpush from 'web-push';
-import type { Senders } from './notify';
+import { RetryLater, type Senders } from './notify';
+
+const TIMEOUT_MS = 4_000;
 
 /** Adresse der App für Links in Telegram – Netlify setzt URL selbst, lokal APP_URL */
 export const appUrl = () =>
   (process.env.URL || process.env.APP_URL || 'http://localhost:8888').replace(/\/$/, '');
 
-export function telegramApi(method: string, body: unknown): Promise<Response> {
+/** Der Bot-Token steckt in der Adresse – er darf in keiner Fehlermeldung landen (Log, Systemstatus) */
+const hideToken = (text: string) => {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  return token ? text.split(token).join('<token>') : text;
+};
+
+export async function telegramApi(method: string, body: unknown): Promise<Response> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN fehlt.');
-  return fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  try {
+    return await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (e) {
+    // bewusst ohne cause: der ursprüngliche Fehler kann die Adresse mit dem Token enthalten
+    // eslint-disable-next-line preserve-caught-error
+    throw new Error(hideToken(`Telegram nicht erreichbar: ${e instanceof Error ? e.message : 'unbekannt'}`));
+  }
 }
 
-/** Eine Nachricht in einen Chat; Fehler der Bot-API werden zu Fehlern (der Joblauf versucht es noch einmal) */
-export async function sendTelegram(chatId: string, text: string): Promise<void> {
+/**
+ * Eine Nachricht in einen Chat. „gone“: Bot blockiert oder Chat gibt es nicht mehr (403, 400 „chat not found“);
+ * 429 heißt später noch einmal; andere Fehler werden wiederholt.
+ */
+export async function sendTelegram(chatId: string, text: string): Promise<'ok' | 'gone'> {
   const response = await telegramApi('sendMessage', {
     chat_id: chatId,
     text,
     link_preview_options: { is_disabled: true },
   });
-  if (!response.ok) throw new Error(`Telegram antwortet ${response.status}.`);
+  if (response.ok) return 'ok';
+  const body = (await response.json().catch(() => ({}))) as { description?: string };
+  const description = body.description ?? '';
+  if (response.status === 403 || (response.status === 400 && /chat not found/i.test(description)))
+    return 'gone';
+  if (response.status === 429) throw new RetryLater('Telegram: zu viele Nachrichten, später noch einmal.');
+  throw new Error(hideToken(`Telegram antwortet ${response.status}.`));
 }
 
 export function liveSenders(): Senders {
@@ -39,7 +64,7 @@ export function liveSenders(): Senders {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           JSON.stringify({ title: 'Myzel', body: message.text, link: message.link }),
-          { TTL: 24 * 3600 },
+          { TTL: 24 * 3600, timeout: TIMEOUT_MS },
         );
         return 'ok';
       } catch (e) {
@@ -50,7 +75,7 @@ export function liveSenders(): Senders {
       }
     },
     async telegram(chatId, message) {
-      await sendTelegram(chatId, `${message.text}\n${appUrl()}${message.link}`);
+      return sendTelegram(chatId, `${message.text}\n${appUrl()}${message.link}`);
     },
   };
 }

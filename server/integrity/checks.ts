@@ -80,10 +80,10 @@ export const CHECKS: IntegrityCheck[] = [
       from notification_outbox where status = 'wartet' and created_at < now() - interval '24 hours' having count(*) > 0`,
   },
   {
-    name: 'Joblauf in den letzten 2 Stunden',
+    name: 'Erfolgreicher Joblauf in den letzten 2 Stunden',
     level: 'hinweis',
     query: sql`select coalesce('letzter Lauf ' || to_char(max(started_at) at time zone 'Europe/Berlin', 'DD.MM. HH24:MI'), 'noch kein Lauf') as label
-      from job_runs having coalesce(max(started_at), '1970-01-01') < now() - interval '2 hours'`,
+      from job_runs where result = 'ok' having coalesce(max(started_at), '1970-01-01') < now() - interval '2 hours'`,
   },
   {
     name: 'Deaktivierte haben keine Push-Abos und keine Telegram-Verknüpfung',

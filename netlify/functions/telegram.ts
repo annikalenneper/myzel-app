@@ -17,7 +17,9 @@ export default async (req: Request): Promise<Response> => {
   if (req.method !== 'POST' || !authorized(req)) return new Response('Nicht berechtigt.', { status: 401 });
   try {
     const update = (await req.json()) as TelegramUpdate;
-    await handleTelegramUpdate(database(), update, new Date(), appUrl(), sendTelegram);
+    await handleTelegramUpdate(database(), update, new Date(), appUrl(), async (chat, text) => {
+      await sendTelegram(chat, text);
+    });
   } catch (e) {
     // Telegram wiederholt sonst dieselbe Nachricht immer wieder – Fehler nur ins Log
     console.error(e);

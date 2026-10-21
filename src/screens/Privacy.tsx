@@ -22,7 +22,7 @@ const SECTIONS: [title: string, text: string][] = [
   ],
   [
     'Benachrichtigungen',
-    'Ab der nächsten Ausbaustufe kann Myzel dich per Push und – wenn du es selbst verknüpfst – per Telegram erinnern. Telegram ist ein Anbieter außerhalb der EU; die Verknüpfung ist freiwillig und lässt sich jederzeit trennen.',
+    'Myzel kann dich per Push und – wenn du es selbst verknüpfst – per Telegram erinnern. Die Nachrichten nennen Aufgabentitel und Fristen, bei Kommentaren einen Auszug mit Namen. Push läuft über den Dienst deines Browsers (Google, Apple, Mozilla oder Microsoft), der Inhalt ist dabei verschlüsselt. Telegram ist ein Anbieter außerhalb der EU und sieht die Nachrichten; die Verknüpfung ist freiwillig und lässt sich jederzeit trennen. Verschickte Nachrichten löscht Myzel nach 30 Tagen.',
   ],
   [
     'Deine Rechte',

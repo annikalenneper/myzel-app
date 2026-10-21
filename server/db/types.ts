@@ -173,6 +173,8 @@ export interface NotificationOutboxTable {
   attempts: Generated<number>;
   last_error: string | null;
   locked_until: Timestamp | null;
+  /** Push: Endpoints, die die Nachricht schon bekommen haben */
+  delivered_to: ColumnType<string[], string | undefined, string>;
   created_at: CreatedAt;
   sent_at: Timestamp | null;
 }

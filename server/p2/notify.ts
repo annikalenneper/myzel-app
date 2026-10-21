@@ -2,7 +2,7 @@
 // Wie die Testdaten-Schicht (src/data/mock/notify.ts), nur gegen die Datenbank und mit echtem Versand über `Senders`.
 // Bis P6 feste Voreinstellungen (6.1): Push, sobald auf einem Gerät aktiv; Telegram, sobald verknüpft; eigene
 // Statusänderungen nie.
-import { sql, type Kysely } from 'kysely';
+import { sql, type ExpressionBuilder, type Kysely } from 'kysely';
 import { z } from 'zod';
 import type { NotificationSettings, SystemStatus } from '../../src/data/api';
 import { berlinDate, berlinHour } from '../../src/shared/rules/due';
@@ -22,8 +22,15 @@ type Db = Kysely<Database>;
 export const TELEGRAM_CODE_MINUTES = 15;
 /** so lange gehört eine Nachricht dem Joblauf, der sie gerade verschickt */
 const CLAIM_MS = 2 * 60_000;
-/** je Lauf höchstens so viele Nachrichten – eine Function hat nur wenige Sekunden */
+/** je Lauf höchstens so viele Nachrichten beanspruchen */
 const BATCH = 40;
+/** Zeitbudget je Lauf für den Versand – eine Netlify Function hat 10 Sekunden */
+const SEND_BUDGET_MS = 6_000;
+/** gesendete und fehlgeschlagene Nachrichten, Jobläufe: so lange aufbewahren (Datensparsamkeit, 9) */
+const KEEP_DAYS = 30;
+const OPEN_STATUSES = ['neu', 'geplant', 'in_arbeit', 'blockiert'] as const;
+
+export type SendResult = 'ok' | 'gone';
 
 /** Versand nach außen; in Tests ersetzt (server/p2/senders.ts für den Betrieb) */
 export interface Senders {
@@ -31,71 +38,84 @@ export interface Senders {
   push(
     sub: { endpoint: string; p256dh: string; auth: string },
     message: { text: string; link: string },
-  ): Promise<'ok' | 'gone'>;
-  telegram(chatId: string, message: { text: string; link: string }): Promise<void>;
+  ): Promise<SendResult>;
+  /** „gone“: der Chat ist nicht mehr erreichbar (Bot blockiert, Chat gelöscht) – die Verknüpfung endet */
+  telegram(chatId: string, message: { text: string; link: string }): Promise<SendResult>;
 }
 
-/** Alles läuft über die Outbox; der dedupe_key verhindert Doppelversand (6.1). `collect` merkt sich die neuen IDs. */
+/** Vorübergehend zu viele Nachrichten (Telegram 429): später noch einmal, ohne dass es als Versuch zählt */
+export class RetryLater extends Error {}
+
+const chunks = <T>(items: readonly T[], size = 500): T[][] =>
+  Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
+
+/**
+ * Alles läuft über die Outbox; der dedupe_key verhindert Doppelversand (6.1). `collect` merkt sich die neuen IDs.
+ * Mengenweise: je Tabelle eine Abfrage, ein Insert – auch bei vielen Fristerinnerungen in einem Lauf.
+ */
 export async function enqueue(
   trx: Trx,
   now: Date,
   messages: readonly Message[],
   collect?: string[],
 ): Promise<number> {
-  let added = 0;
-  for (const m of messages) {
-    // eigene Statusänderungen erst mit den Einstellungen ab P6 (6.2)
-    if (m.own) continue;
-    const member = await trx
+  // eigene Statusänderungen erst mit den Einstellungen ab P6 (6.2)
+  const wanted = messages.filter((m) => !m.own);
+  if (wanted.length === 0) return 0;
+  const memberIds = [...new Set(wanted.map((m) => m.member_id))];
+  const [active, push, telegram] = await Promise.all([
+    trx
       .selectFrom('members')
-      .select(['id'])
-      .where('id', '=', m.member_id)
+      .select('id')
+      .where('id', 'in', memberIds)
       .where('active', '=', true)
       .where('is_system', '=', false)
-      .executeTakeFirst();
-    if (!member) continue;
-    // je Anlass nur einmal: wer später einen weiteren Kanal einschaltet, bekommt nichts nachgeliefert
-    const keys = NOTIFICATION_CHANNELS.map((c) => `${m.dedupe_key}:${c}`);
-    const known = await trx
+      .execute(),
+    trx.selectFrom('push_subscriptions').select('member_id').where('member_id', 'in', memberIds).execute(),
+    trx.selectFrom('telegram_links').select('member_id').where('member_id', 'in', memberIds).execute(),
+  ]);
+  const isActive = new Set(active.map((r) => r.id));
+  const hasPush = new Set(push.map((r) => r.member_id));
+  const hasTelegram = new Set(telegram.map((r) => r.member_id));
+  // je Anlass nur einmal: wer später einen weiteren Kanal einschaltet, bekommt nichts nachgeliefert
+  const allKeys = wanted.flatMap((m) => NOTIFICATION_CHANNELS.map((c) => `${m.dedupe_key}:${c}`));
+  const known = new Set<string>();
+  for (const part of chunks(allKeys)) {
+    const rows = await trx
       .selectFrom('notification_outbox')
-      .select('id')
-      .where('dedupe_key', 'in', keys)
-      .executeTakeFirst();
-    if (known) continue;
+      .select('dedupe_key')
+      .where('dedupe_key', 'in', part)
+      .execute();
+    for (const r of rows) known.add(r.dedupe_key.slice(0, r.dedupe_key.lastIndexOf(':')));
+  }
+  const rows = [];
+  for (const m of wanted) {
+    if (!isActive.has(m.member_id) || known.has(m.dedupe_key)) continue;
+    known.add(m.dedupe_key);
     const channels: NotificationChannel[] = [];
-    const [push, telegram] = await Promise.all([
-      trx
-        .selectFrom('push_subscriptions')
-        .select('id')
-        .where('member_id', '=', m.member_id)
-        .executeTakeFirst(),
-      trx
-        .selectFrom('telegram_links')
-        .select('member_id')
-        .where('member_id', '=', m.member_id)
-        .executeTakeFirst(),
-    ]);
-    if (push) channels.push('push');
-    if (telegram) channels.push('telegram');
-    for (const channel of channels) {
-      const row = await trx
-        .insertInto('notification_outbox')
-        .values({
-          dedupe_key: `${m.dedupe_key}:${channel}`,
-          member_id: m.member_id,
-          event_type: m.event_type,
-          channel,
-          text: m.text,
-          link: m.link,
-          created_at: now.toISOString(),
-        })
-        .onConflict((oc) => oc.column('dedupe_key').doNothing())
-        .returning('id')
-        .executeTakeFirst();
-      if (!row) continue;
-      collect?.push(row.id);
-      added += 1;
-    }
+    if (hasPush.has(m.member_id)) channels.push('push');
+    if (hasTelegram.has(m.member_id)) channels.push('telegram');
+    for (const channel of channels)
+      rows.push({
+        dedupe_key: `${m.dedupe_key}:${channel}`,
+        member_id: m.member_id,
+        event_type: m.event_type,
+        channel,
+        text: m.text,
+        link: m.link,
+        created_at: now.toISOString(),
+      });
+  }
+  let added = 0;
+  for (const part of chunks(rows, 200)) {
+    const inserted = await trx
+      .insertInto('notification_outbox')
+      .values(part)
+      .onConflict((oc) => oc.column('dedupe_key').doNothing())
+      .returning('id')
+      .execute();
+    collect?.push(...inserted.map((r) => r.id));
+    added += inserted.length;
   }
   return added;
 }
@@ -104,7 +124,10 @@ export async function enqueue(
 export const notify = (ctx: Ctx, messages: readonly Message[]) =>
   enqueue(ctx.trx, ctx.now, messages, ctx.outbox);
 
-/** Fristerinnerungen des Tages (6.2): ab 9 Uhr in Köln; der dedupe_key macht wiederholte Läufe harmlos */
+/**
+ * Fristerinnerungen (6.2): jeder Lauf ab 9 Uhr in Köln reiht ein, was heute ansteht; der dedupe_key (Aufgabe,
+ * Person, Frist) macht wiederholte Läufe harmlos.
+ */
 async function enqueueDueReminders(db: Db, now: Date): Promise<number> {
   if (berlinHour(now) < DAILY_REMINDER_HOUR) return 0;
   return db.transaction().execute(async (trx) => {
@@ -113,7 +136,7 @@ async function enqueueDueReminders(db: Db, now: Date): Promise<number> {
       .select(['id', 'title', 'due_date', 'status', 'archived_at'])
       .where('due_date', 'is not', null)
       .where('archived_at', 'is', null)
-      .where('status', 'in', ['neu', 'geplant', 'in_arbeit', 'blockiert'])
+      .where('status', 'in', OPEN_STATUSES)
       .execute();
     if (tasks.length === 0) return 0;
     const ids = tasks.map((t) => t.id);
@@ -137,9 +160,21 @@ async function enqueueDueReminders(db: Db, now: Date): Promise<number> {
   });
 }
 
-/** Nachrichten für diesen Lauf beanspruchen – ohne das, was eine Aktion noch per „Rückgängig“ zurücknehmen kann */
+/**
+ * Nachrichten für diesen Lauf beanspruchen – ohne das, was eine Aktion noch per „Rückgängig“ zurücknehmen kann.
+ * Gezählt wird ein Versuch erst beim Versand; was nach drei Versuchen noch wartet, gilt als fehlgeschlagen.
+ */
 async function claim(db: Db, now: Date) {
   return db.transaction().execute(async (trx) => {
+    const free = (eb: ExpressionBuilder<Database, 'notification_outbox'>) =>
+      eb.or([eb('locked_until', 'is', null), eb('locked_until', '<', now.toISOString())]);
+    await trx
+      .updateTable('notification_outbox')
+      .set({ status: 'fehlgeschlagen', last_error: 'Nach drei Versuchen aufgegeben.', locked_until: null })
+      .where('status', '=', 'wartet')
+      .where('attempts', '>=', MAX_SEND_ATTEMPTS)
+      .where(free)
+      .execute();
     const settled = new Date(now.getTime() - UNDO_WINDOW_MS).toISOString();
     const recent = await trx
       .selectFrom('undo_actions')
@@ -152,7 +187,7 @@ async function claim(db: Db, now: Date) {
       .selectAll()
       .where('status', '=', 'wartet')
       .where('attempts', '<', MAX_SEND_ATTEMPTS)
-      .where((eb) => eb.or([eb('locked_until', 'is', null), eb('locked_until', '<', now.toISOString())]))
+      .where(free)
       .$if(undoable.length > 0, (q) => q.where('id', 'not in', undoable))
       .orderBy('created_at')
       .limit(BATCH)
@@ -162,78 +197,143 @@ async function claim(db: Db, now: Date) {
     if (rows.length === 0) return [];
     await trx
       .updateTable('notification_outbox')
-      .set((eb) => ({
-        attempts: eb('attempts', '+', 1),
-        locked_until: new Date(now.getTime() + CLAIM_MS).toISOString(),
-      }))
+      .set({ locked_until: new Date(now.getTime() + CLAIM_MS).toISOString() })
       .where(
         'id',
         'in',
         rows.map((r) => r.id),
       )
       .execute();
-    return rows.map((r) => ({ ...r, attempts: r.attempts + 1 }));
+    return rows;
   });
 }
 
+type Entry = Awaited<ReturnType<typeof claim>>[number];
 type Outcome =
-  { status: 'gesendet' } | { status: 'fehlgeschlagen'; error: string } | { status: 'nochmal'; error: string };
+  | { status: 'gesendet' }
+  | { status: 'fehlgeschlagen'; error: string }
+  | { status: 'nochmal'; error: string; counts: boolean };
 
-async function deliver(
-  db: Db,
-  senders: Senders,
-  entry: Awaited<ReturnType<typeof claim>>[number],
-): Promise<Outcome> {
+const reason = (e: unknown) => (e instanceof Error ? e.message.slice(0, 300) : 'Unbekannter Fehler');
+
+async function deliver(db: Db, senders: Senders, entry: Entry, attempt: number): Promise<Outcome> {
   const message = { text: entry.text, link: entry.link };
+  const again = (e: unknown): Outcome =>
+    e instanceof RetryLater
+      ? { status: 'nochmal', error: reason(e), counts: false }
+      : attempt >= MAX_SEND_ATTEMPTS
+        ? { status: 'fehlgeschlagen', error: reason(e) }
+        : { status: 'nochmal', error: reason(e), counts: true };
   if (entry.channel === 'telegram') {
     const link = await db
       .selectFrom('telegram_links')
-      .select('chat_id')
+      .select(['member_id', 'chat_id'])
       .where('member_id', '=', entry.member_id)
       .executeTakeFirst();
     if (!link) return { status: 'fehlgeschlagen', error: 'Telegram ist nicht mehr verknüpft.' };
-    await senders.telegram(link.chat_id, message);
-    return { status: 'gesendet' };
+    try {
+      if ((await senders.telegram(link.chat_id, message)) === 'ok') return { status: 'gesendet' };
+    } catch (e) {
+      return again(e);
+    }
+    // Bot blockiert oder Chat weg: die Verknüpfung endet, das Profil zeigt wieder „Verknüpfen“
+    await db.deleteFrom('telegram_links').where('member_id', '=', link.member_id).execute();
+    return { status: 'fehlgeschlagen', error: 'Telegram-Chat nicht mehr erreichbar – Verknüpfung beendet.' };
   }
+  // an jedes Gerät der Person höchstens einmal: was schon zugestellt ist, bleibt bei einer Wiederholung aus
+  const done = new Set(entry.delivered_to as string[]);
   const subs = await db
     .selectFrom('push_subscriptions')
     .select(['id', 'endpoint', 'p256dh', 'auth'])
     .where('member_id', '=', entry.member_id)
     .execute();
-  let delivered = false;
+  let failure: unknown = null;
   for (const sub of subs) {
-    // ungültige Abos (404/410) werden entfernt (6.1)
-    if ((await senders.push(sub, message)) === 'gone')
-      await db.deleteFrom('push_subscriptions').where('id', '=', sub.id).execute();
-    else delivered = true;
+    if (done.has(sub.endpoint)) continue;
+    try {
+      // ungültige Abos (404/410) werden entfernt (6.1)
+      if ((await senders.push(sub, message)) === 'gone')
+        await db.deleteFrom('push_subscriptions').where('id', '=', sub.id).execute();
+      else done.add(sub.endpoint);
+    } catch (e) {
+      failure = e;
+    }
   }
-  return delivered
+  await db
+    .updateTable('notification_outbox')
+    .set({ delivered_to: JSON.stringify([...done]) })
+    .where('id', '=', entry.id)
+    .execute();
+  if (failure) {
+    const outcome = again(failure);
+    // nach dem letzten Versuch zählt, dass wenigstens ein Gerät sie bekommen hat
+    return outcome.status === 'fehlgeschlagen' && done.size > 0 ? { status: 'gesendet' } : outcome;
+  }
+  return done.size > 0
     ? { status: 'gesendet' }
     : { status: 'fehlgeschlagen', error: 'Kein gültiges Push-Abo mehr.' };
 }
 
+/** Aufräumen (Datensparsamkeit, 9): alte Nachrichten und Läufe, benutzte und abgelaufene Telegram-Codes */
+async function cleanUp(db: Db, now: Date): Promise<void> {
+  const cutoff = new Date(now.getTime() - KEEP_DAYS * 24 * 3_600_000).toISOString();
+  await db
+    .deleteFrom('notification_outbox')
+    .where('status', '<>', 'wartet')
+    .where('created_at', '<', cutoff)
+    .execute();
+  await db.deleteFrom('job_runs').where('started_at', '<', cutoff).execute();
+  await db
+    .deleteFrom('telegram_link_codes')
+    .where((eb) => eb.or([eb('used_at', 'is not', null), eb('expires_at', '<', now.toISOString())]))
+    .execute();
+}
+
 /**
  * Ein Joblauf (alle 15 Minuten, E-07): Fristerinnerungen ab 9 Uhr, dann die Outbox abarbeiten, mit bis zu drei
- * Versuchen je Nachricht. Idempotent – fällt ein Lauf aus, holt der nächste nach, ohne etwas doppelt zu schicken.
+ * Versuchen je Nachricht und einem Zeitbudget. Idempotent – fällt ein Lauf aus, holt der nächste nach, ohne etwas
+ * doppelt zu schicken. Ein Fehler beim Einreihen hält den Versand nicht auf.
  */
 export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRun> {
   const started = now.toISOString();
+  const deadline = Date.now() + SEND_BUDGET_MS;
   const sent: Record<NotificationChannel, number> = { push: 0, telegram: 0 };
   let reminders = 0;
   let retries = 0;
-  let error: string | null = null;
+  const errors: string[] = [];
   try {
     reminders = await enqueueDueReminders(db, now);
-    for (const entry of await claim(db, now)) {
+  } catch (e) {
+    console.error(e);
+    errors.push(`Fristerinnerungen: ${reason(e)}`);
+  }
+  try {
+    const claimed = await claim(db, now);
+    for (const [i, entry] of claimed.entries()) {
+      if (Date.now() > deadline) {
+        // Zeit um: der Rest bleibt für den nächsten Lauf
+        await db
+          .updateTable('notification_outbox')
+          .set({ locked_until: null })
+          .where(
+            'id',
+            'in',
+            claimed.slice(i).map((r) => r.id),
+          )
+          .execute();
+        break;
+      }
+      const attempt = entry.attempts + 1;
+      await db
+        .updateTable('notification_outbox')
+        .set({ attempts: attempt })
+        .where('id', '=', entry.id)
+        .execute();
       let outcome: Outcome;
       try {
-        outcome = await deliver(db, senders, entry);
+        outcome = await deliver(db, senders, entry, attempt);
       } catch (e) {
-        const reason = e instanceof Error ? e.message.slice(0, 300) : 'Unbekannter Fehler';
-        outcome =
-          entry.attempts >= MAX_SEND_ATTEMPTS
-            ? { status: 'fehlgeschlagen', error: reason }
-            : { status: 'nochmal', error: reason };
+        outcome = { status: 'nochmal', error: reason(e), counts: true };
       }
       if (outcome.status === 'nochmal') retries += 1;
       if (outcome.status === 'gesendet') sent[entry.channel] += 1;
@@ -244,26 +344,32 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
           last_error: outcome.status === 'gesendet' ? null : outcome.error,
           sent_at: outcome.status === 'gesendet' ? new Date().toISOString() : null,
           locked_until: null,
+          ...(outcome.status === 'nochmal' && !outcome.counts ? { attempts: entry.attempts } : {}),
         })
         .where('id', '=', entry.id)
         .execute();
     }
+    await cleanUp(db, now);
   } catch (e) {
     console.error(e);
-    error = e instanceof Error ? e.message.slice(0, 300) : 'Unbekannter Fehler';
+    errors.push(`Versand: ${reason(e)}`);
   }
+  const error = errors.length > 0 ? errors.join(' · ').slice(0, 500) : null;
   const total = sent.push + sent.telegram;
+  const count = `${total} ${total === 1 ? 'Nachricht' : 'Nachrichten'} verschickt`;
   const run = {
     started_at: started,
     finished_at: new Date(Math.max(Date.now(), now.getTime())).toISOString(),
     result: error ? ('fehler' as const) : ('ok' as const),
     summary: error
-      ? 'Lauf abgebrochen'
+      ? total > 0
+        ? `Mit Fehler, ${count}`
+        : 'Lauf mit Fehler'
       : total === 0
         ? 'Nichts zu tun'
         : reminders > 0
-          ? `Fristerinnerungen: ${Math.min(reminders, total)} verschickt${total > reminders ? `, dazu ${total - reminders} weitere` : ''}`
-          : `${total} ${total === 1 ? 'Nachricht' : 'Nachrichten'} verschickt`,
+          ? `${reminders} Fristerinnerungen eingereiht, ${count}`
+          : count,
     error,
     sent_push: sent.push,
     sent_telegram: sent.telegram,
@@ -311,27 +417,58 @@ export async function notificationSettings(
   };
 }
 
+const CHANNEL_OFF = 'Kanal abgeschaltet.';
+
 const botLink = (botUsername: string, code: string) => `https://t.me/${botUsername}?start=${code}`;
 
 /** Kanal abgeschaltet: wartende Nachrichten dieses Kanals gehen nicht mehr raus, bleiben aber als Anlass stehen */
 async function dropWaiting(trx: Trx, memberId: string, channel: NotificationChannel): Promise<void> {
   await trx
     .updateTable('notification_outbox')
-    .set({ status: 'fehlgeschlagen', last_error: 'Kanal abgeschaltet.' })
+    .set({ status: 'fehlgeschlagen', last_error: CHANNEL_OFF })
     .where('member_id', '=', memberId)
     .where('channel', '=', channel)
     .where('status', '=', 'wartet')
     .execute();
 }
 
+/**
+ * Nur Adressen der bekannten Push-Dienste (Google, Mozilla, Apple, Microsoft) – der Joblauf ruft sie später auf,
+ * eine beliebige Adresse dürfte er nicht anfragen.
+ */
+const PUSH_HOSTS = [
+  /^fcm.googleapis.com$/,
+  /^android.googleapis.com$/,
+  /.push.services.mozilla.com$/,
+  /^web.push.apple.com$/,
+  /.notify.windows.com$/,
+];
+const invalidPush = 'Dieses Push-Abo ist ungültig.';
+/** Schlüssel des Browsers: base64url, p256dh 65 Bytes (öffentlicher Schlüssel), auth 16 Bytes */
+const keyOfBytes = (bytes: number) =>
+  z
+    .string()
+    .regex(/^[A-Za-z0-9_-]+$/, invalidPush)
+    .refine((v) => Buffer.from(v, 'base64url').length === bytes, invalidPush);
 const pushSubscriptionInput = z.object({
-  endpoint: z.url({ protocol: /^https$/, error: 'Dieses Push-Abo ist ungültig.' }).max(1000),
-  keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
+  endpoint: z
+    .url({ protocol: /^https$/, error: invalidPush })
+    .max(1000)
+    .refine((v) => PUSH_HOSTS.some((host) => host.test(new URL(v).hostname)), invalidPush),
+  keys: z.object({ p256dh: keyOfBytes(65), auth: keyOfBytes(16) }),
 });
 
 /** WF-PRO-02: Push-Abo dieses Geräts speichern (ein Gerät gehört immer der Person, die zuletzt eingeschaltet hat) */
 export async function savePushSubscription(ctx: Ctx, raw: unknown): Promise<void> {
   const input = parse(pushSubscriptionInput, raw);
+  // dasselbe Gerät (gleiche Schlüssel) wechselt die Person; fremde Schlüssel für einen bekannten Endpoint nicht
+  const existing = await ctx.trx
+    .selectFrom('push_subscriptions')
+    .select(['p256dh', 'auth'])
+    .where('endpoint', '=', input.endpoint)
+    .executeTakeFirst();
+  if (existing && (existing.p256dh !== input.keys.p256dh || existing.auth !== input.keys.auth))
+    throw rule(invalidPush);
   await ctx.trx.deleteFrom('push_subscriptions').where('endpoint', '=', input.endpoint).execute();
   await ctx.trx
     .insertInto('push_subscriptions')
@@ -364,8 +501,13 @@ export async function removePushSubscription(ctx: Ctx, endpoint: unknown): Promi
 /** Einmal-Code für /start: 16 Zeichen aus einem Zufallsgenerator, den Telegram als start-Parameter erlaubt */
 function newCode(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+  // ohne Verzerrung: nur Bytes unterhalb des größten Vielfachen der Alphabetlänge
+  const limit = 256 - (256 % alphabet.length);
+  let code = '';
+  while (code.length < 16)
+    for (const b of crypto.getRandomValues(new Uint8Array(32)))
+      if (b < limit && code.length < 16) code += alphabet[b % alphabet.length];
+  return code;
 }
 
 /** WF-PRO-03: Einmal-Code, 15 Minuten gültig, einmal verwendbar */
@@ -462,8 +604,14 @@ export async function systemStatus(ctx: Ctx): Promise<SystemStatus> {
   const dayAgo = new Date(ctx.now.getTime() - 24 * 3_600_000).toISOString();
   const count = (q: { executeTakeFirstOrThrow(): Promise<{ n: number | string | bigint }> }) =>
     q.executeTakeFirstOrThrow().then((r) => Number(r.n));
-  const [runs, waiting, failed, pushSubs, linked, members] = await Promise.all([
+  const [runs, lastOk, waiting, failed, pushSubs, linked, members] = await Promise.all([
     ctx.trx.selectFrom('job_runs').selectAll().orderBy('started_at', 'desc').limit(5).execute(),
+    ctx.trx
+      .selectFrom('job_runs')
+      .select('started_at')
+      .where('result', '=', 'ok')
+      .orderBy('started_at', 'desc')
+      .executeTakeFirst(),
     count(
       ctx.trx
         .selectFrom('notification_outbox')
@@ -477,6 +625,7 @@ export async function systemStatus(ctx: Ctx): Promise<SystemStatus> {
         .select((eb) => eb.fn.countAll().as('n'))
         .where('status', '=', 'fehlgeschlagen')
         .where('attempts', '>', 0)
+        .where((eb) => eb.or([eb('last_error', 'is', null), eb('last_error', '<>', CHANNEL_OFF)]))
         .where('created_at', '>=', dayAgo),
     ),
     count(
@@ -503,7 +652,8 @@ export async function systemStatus(ctx: Ctx): Promise<SystemStatus> {
   ]);
   return {
     runs,
-    last_run_at: runs[0]?.started_at ?? null,
+    // die Warnung nach 2 Stunden richtet sich nach dem letzten Lauf ohne Fehler
+    last_run_at: lastOk?.started_at ?? null,
     outbox_waiting: waiting,
     failed_24h: failed,
     push_subscriptions: pushSubs,

@@ -105,6 +105,26 @@ Schritt C – Daten und Server (Checkliste 10.2):
       Wiederholung, 404/410, 9 Uhr Köln, Telegram-Bot; Smoke: Telegram-Code und Systemstatus)
 - [ ] Phasenabschluss (10.7)
 
+Agent-Review Phase 2 (22.10.2026, zwei Reviews): 2 hoch, 5 mittel – eingearbeitet:
+
+- Versuche zählen erst beim Versand; ausgeschöpfte Nachrichten werden „fehlgeschlagen“ statt ewig zu warten;
+  Zeitbudget je Lauf (6 s) und Zeitgrenze je Aufruf (4 s); Fehler beim Einreihen halten den Versand nicht auf.
+- Outbox mengenweise (je Tabelle eine Abfrage, ein Insert) – auch bei vielen Fristerinnerungen.
+- Telegram: blockierter Bot oder gelöschter Chat beendet die Verknüpfung; 429 zählt nicht als Versuch; Bot-Token
+  nie in Fehlermeldungen.
+- Push: an jedes Gerät höchstens einmal (Migration 20261022000002, delivered_to); nur Adressen bekannter
+  Push-Dienste, Schlüssel geprüft, kein Übernehmen fremder Geräte; Antippen öffnet nur Ansichten der App.
+- Systemstatus und check:integrity warnen nach dem letzten erfolgreichen Lauf; abgeschaltete Kanäle zählen nicht
+  als Fehler; Aufräumen nach 30 Tagen (Nachrichten, Läufe), benutzte Telegram-Codes sofort.
+- Datenschutzhinweis ergänzt: Inhalte der Nachrichten, Push-Dienste der Browser, Telegram, Löschung nach 30 Tagen
+  (Entwurf zur Freigabe durch die Nutzerin).
+
+Offen, niedrig: Fristerinnerungen reihen jeden Lauf ab 9 Uhr ein (nicht nur einmal gegen 9 Uhr – eine Zuweisung um
+20 Uhr an eine in 2 Tagen fällige Aufgabe meldet sofort „noch 2 Tage“, wie in der Testdaten-Schicht); im Profil steht
+nicht, mit welchem Telegram-Konto verknüpft ist; ein Chat, der mit einem fremden Code verknüpft wird, wechselt still;
+wiederholtes Ein- und Austragen erzeugt je Zuweisung eine Nachricht. Region der Netlify Functions vor Schritt D auf
+EU (Frankfurt) prüfen – die Datenbank liegt in Irland.
+
 Einrichtung für die Nutzerin (nach dem Deploy):
 
 1. Telegram: bei @BotFather mit /newbot einen Bot anlegen; Token als TELEGRAM_BOT_TOKEN, Namen ohne @ als

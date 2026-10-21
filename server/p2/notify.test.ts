@@ -2,9 +2,10 @@
 // gleichzeitige Jobläufe, Telegram-Bot. Die fachlichen Regeln prüft src/data/mock/notify.test.ts auf beiden Schichten.
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { handleAction } from '../api/handle';
+import { TEST_PUSH_KEYS } from '../api/serverApi';
 import { createFirstAdmin } from '../db/firstAdmin';
 import { createLocalDb, type LocalDb } from '../db/localDb';
-import { runJob, type Senders } from './notify';
+import { RetryLater, runJob, type Senders } from './notify';
 import { handleTelegramUpdate } from './telegramBot';
 
 let local: LocalDb;
@@ -34,8 +35,8 @@ beforeEach(async () => {
   topicId = ((await as(LEA, 'createTopic', { name: 'Werkstatt' })) as { id: string }).id;
   // Jule hat Push auf einem Gerät und Telegram
   await as(JULE, 'savePushSubscription', {
-    endpoint: 'https://push.example.org/jule',
-    keys: { p256dh: 'k', auth: 'a' },
+    endpoint: 'https://fcm.googleapis.com/fcm/send/jule',
+    keys: TEST_PUSH_KEYS,
   });
   await local.pg.query(`insert into telegram_links (member_id, chat_id) values ($1, 'chat-jule')`, [juleId]);
 });
@@ -61,7 +62,10 @@ const recorder = (push: Senders['push'] = async () => 'ok') => {
       sent.push(`push:${m.text}`);
       return result;
     },
-    telegram: async (chat, m) => void sent.push(`telegram:${chat}:${m.link}`),
+    telegram: async (chat, m) => {
+      sent.push(`telegram:${chat}:${m.link}`);
+      return 'ok';
+    },
   };
   return { sent, senders };
 };
@@ -151,6 +155,142 @@ describe('Joblauf mit echtem Versand', () => {
     expect(await local.db.selectFrom('push_subscriptions').select('id').execute()).toEqual([]);
     expect(await local.db.selectFrom('telegram_links').select('chat_id').execute()).toEqual([]);
     expect(await outbox()).toEqual([]);
+  });
+});
+
+describe('Review Phase 2: robuster Versand', () => {
+  it('abgebrochene Läufe verbrauchen keine Versuche; ausgeschöpfte Nachrichten werden „fehlgeschlagen“', async () => {
+    await assignJule();
+    later(31_000);
+    // ein Lauf beansprucht und bricht ab (Timeout der Function): Sperre gesetzt, kein Versuch gezählt
+    await local.db
+      .updateTable('notification_outbox')
+      .set({ locked_until: new Date(now.getTime() + 120_000).toISOString() })
+      .execute();
+    expect((await outbox()).map((o) => o.attempts)).toEqual([0, 0]);
+    later(3 * 60_000);
+    const { sent, senders } = recorder();
+    await runJob(local.db, now, senders);
+    expect(sent).toHaveLength(2);
+    // drei echte Fehlversuche, dann bleibt nichts im Wartezustand hängen
+    await local.db
+      .updateTable('notification_outbox')
+      .set({ status: 'wartet', attempts: 3, locked_until: null })
+      .execute();
+    await runJob(local.db, now, senders);
+    expect((await outbox()).map((o) => o.status)).toEqual(['fehlgeschlagen', 'fehlgeschlagen']);
+  });
+
+  it('viele Fristerinnerungen: wenige Abfragen, nichts doppelt', async () => {
+    for (let i = 0; i < 30; i++) {
+      const { id } = (await as(LEA, 'createTask', {
+        title: `Aufgabe ${i}`,
+        topic_id: topicId,
+        due_date: '2026-07-01',
+      })) as { id: string };
+      await as(LEA, 'addAssignee', id, juleId);
+    }
+    later(31_000);
+    const started = Date.now();
+    await runJob(local.db, now, recorder().senders);
+    await runJob(local.db, now, recorder().senders);
+    expect(Date.now() - started).toBeLessThan(15_000);
+    const overdue = (await outbox()).filter((o) => o.event_type === 'frist_ueberschritten');
+    expect(overdue).toHaveLength(60);
+    expect(new Set(overdue.map((o) => o.dedupe_key)).size).toBe(60);
+  });
+
+  it('Telegram: blockierter Bot beendet die Verknüpfung, 429 zählt nicht als Versuch', async () => {
+    await assignJule();
+    later(31_000);
+    const busy: Senders = {
+      push: async () => 'ok',
+      telegram: async () => {
+        throw new RetryLater('Telegram: zu viele Nachrichten, später noch einmal.');
+      },
+    };
+    await runJob(local.db, now, busy);
+    const waiting = (await outbox()).find((o) => o.channel === 'telegram')!;
+    expect([waiting.status, waiting.attempts]).toEqual(['wartet', 0]);
+    await runJob(local.db, now, { push: async () => 'ok', telegram: async () => 'gone' });
+    expect((await outbox()).find((o) => o.channel === 'telegram')!.status).toBe('fehlgeschlagen');
+    expect(await local.db.selectFrom('telegram_links').select('chat_id').execute()).toEqual([]);
+  });
+
+  it('mehrere Geräte: scheitert eines, bekommt das andere die Nachricht trotzdem nur einmal', async () => {
+    await as(JULE, 'savePushSubscription', {
+      endpoint: 'https://fcm.googleapis.com/fcm/send/jule-tablet',
+      keys: TEST_PUSH_KEYS,
+    });
+    await assignJule();
+    later(31_000);
+    const sentTo: string[] = [];
+    const flaky: Senders = {
+      push: async (sub) => {
+        if (sub.endpoint.endsWith('tablet')) throw new Error('Push-Dienst antwortet 500.');
+        sentTo.push(sub.endpoint);
+        return 'ok';
+      },
+      telegram: async () => 'ok',
+    };
+    for (let i = 0; i < 3; i++) {
+      await runJob(local.db, now, flaky);
+      later(15 * 60_000);
+    }
+    expect(sentTo).toEqual(['https://fcm.googleapis.com/fcm/send/jule']);
+    expect((await outbox()).find((o) => o.channel === 'push')!.status).toBe('gesendet');
+  });
+
+  it('Systemstatus warnt, wenn nur noch fehlerhafte Läufe kommen', async () => {
+    await local.pg.exec(`
+      insert into job_runs (started_at, result, summary) values (now() - interval '3 hours', 'ok', 'Nichts zu tun');
+      insert into job_runs (started_at, result, summary, error) values (now(), 'fehler', 'Lauf mit Fehler', 'x');
+    `);
+    const status = (await handleAction(local.db, LEA, 'getSystemStatus', [], new Date())) as {
+      last_run_at: string;
+      runs: unknown[];
+    };
+    expect(status.runs).toHaveLength(2);
+    expect(Date.now() - new Date(status.last_run_at).getTime()).toBeGreaterThan(2 * 3_600_000);
+  });
+
+  it('Push-Abos nur von bekannten Push-Diensten, mit gültigen Schlüsseln, ohne fremde Geräte zu übernehmen', async () => {
+    const code = (p: Promise<unknown>) =>
+      p.then(
+        () => null,
+        (e: { code: string }) => e.code,
+      );
+    expect(
+      await code(
+        as(JULE, 'savePushSubscription', { endpoint: 'https://10.0.0.1/intern', keys: TEST_PUSH_KEYS }),
+      ),
+    ).toBe('validation');
+    expect(
+      await code(
+        as(JULE, 'savePushSubscription', {
+          endpoint: 'https://fcm.googleapis.com/fcm/send/x',
+          keys: { p256dh: 'k', auth: 'a' },
+        }),
+      ),
+    ).toBe('validation');
+    const other = { p256dh: Buffer.alloc(65, 9).toString('base64url'), auth: TEST_PUSH_KEYS.auth };
+    expect(
+      await code(
+        as(LEA, 'savePushSubscription', {
+          endpoint: 'https://fcm.googleapis.com/fcm/send/jule',
+          keys: other,
+        }),
+      ),
+    ).toBe('rule');
+    // dasselbe Gerät mit denselben Schlüsseln: wechselt zur Person, die sich dort zuletzt eingeschaltet hat
+    expect(
+      await code(
+        as(LEA, 'savePushSubscription', {
+          endpoint: 'https://fcm.googleapis.com/fcm/send/jule',
+          keys: TEST_PUSH_KEYS,
+        }),
+      ),
+    ).toBeNull();
   });
 });
 

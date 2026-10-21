@@ -188,6 +188,8 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
       .deleteFrom('notification_outbox')
       .where('id', 'in', outboxIds)
       .where('status', '=', 'wartet')
+      // was ein Joblauf gerade verschickt, ist schon unterwegs
+      .where('locked_until', 'is', null)
       .execute();
   if (table === 'tasks')
     await taskStillValid(
