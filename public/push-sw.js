@@ -26,7 +26,12 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
-      if (open) return open.focus().then(() => open.navigate(target));
+      // ein Fenster, das der Service Worker nicht steuert, lässt sich nicht umleiten – dann ein neues öffnen
+      if (open)
+        return open
+          .focus()
+          .then(() => open.navigate(target))
+          .catch(() => self.clients.openWindow(target));
       return self.clients.openWindow(target);
     }),
   );

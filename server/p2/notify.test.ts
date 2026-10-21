@@ -186,7 +186,7 @@ describe('Review Phase 2: robuster Versand', () => {
       const { id } = (await as(LEA, 'createTask', {
         title: `Aufgabe ${i}`,
         topic_id: topicId,
-        due_date: '2026-07-01',
+        due_date: '2026-07-05',
       })) as { id: string };
       await as(LEA, 'addAssignee', id, juleId);
     }
@@ -282,6 +282,21 @@ describe('Review Phase 2: robuster Versand', () => {
         }),
       ),
     ).toBe('rule');
+    // nachgebaute Adressen, die nur so aussehen wie ein Push-Dienst
+    for (const endpoint of [
+      'https://fcm-googleapis.com/x',
+      'https://evilpush-services-mozilla.com/x',
+      'https://web-push-apple.com/x',
+    ])
+      expect(await code(as(JULE, 'savePushSubscription', { endpoint, keys: TEST_PUSH_KEYS }))).toBe(
+        'validation',
+      );
+    for (const endpoint of [
+      'https://updates.push.services.mozilla.com/wpush/v2/x',
+      'https://web.push.apple.com/x',
+      'https://wns2-par02p.notify.windows.com/w/?token=x',
+    ])
+      expect(await code(as(JULE, 'savePushSubscription', { endpoint, keys: TEST_PUSH_KEYS }))).toBeNull();
     // dasselbe Gerät mit denselben Schlüsseln: wechselt zur Person, die sich dort zuletzt eingeschaltet hat
     expect(
       await code(

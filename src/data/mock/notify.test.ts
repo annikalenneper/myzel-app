@@ -62,6 +62,9 @@ describe('Fristerinnerungen (6.2)', () => {
     // überschritten: Bearbeitende und Folgende
     expect(kinds('2026-10-14', '2026-10-15')).toEqual(['frist_ueberschritten:a', 'frist_ueberschritten:f']);
     expect(kinds('2026-10-14', '2026-10-08', 7)).toEqual(['frist_naht:a']);
+    // „überfällig“ nur in der ersten Woche danach – auch wenn die Outbox alte Einträge aufgeräumt hat
+    expect(kinds('2026-10-14', '2026-10-21')).toEqual(['frist_ueberschritten:a', 'frist_ueberschritten:f']);
+    expect(kinds('2026-10-14', '2026-10-22')).toEqual([]);
   });
 
   it('nennen Titel und Datum und führen direkt zur Aufgabe', () => {

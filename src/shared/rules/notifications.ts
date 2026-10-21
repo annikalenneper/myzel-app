@@ -185,6 +185,9 @@ export function dueReminderMessages(items: readonly ReminderInput[], today: stri
     const days = daysUntil(task.due_date, today);
     const link = taskLink(task.id);
     const key = (kind: string, memberId: string) => `${kind}:${task.id}:${memberId}:${task.due_date}`;
+    // „überfällig“ nur in den ersten Tagen danach – genug, um ausgefallene Jobläufe nachzuholen; danach kommt
+    // nichts mehr, auch wenn die Outbox alte Einträge schon aufgeräumt hat (einmalig, 6.2)
+    if (days < -OVERDUE_CATCH_UP_DAYS) continue;
     if (days < 0) {
       // einmalig an Bearbeitende, dazu die Folgenden
       for (const member_id of unique([...assignees.map((a) => a.id), ...followerIds]))
@@ -218,6 +221,9 @@ export function dueReminderMessages(items: readonly ReminderInput[], today: stri
   }
   return out;
 }
+
+/** So viele Tage nach der Frist kommt „überfällig“ noch – länger als die Outbox Einträge aufbewahrt, nie */
+export const OVERDUE_CATCH_UP_DAYS = 7;
 
 /** Fristerinnerungen gehen einmal täglich gegen 9:00 Uhr (Europe/Berlin) raus. */
 export const DAILY_REMINDER_HOUR = 9;

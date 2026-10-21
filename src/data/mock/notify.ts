@@ -294,7 +294,8 @@ export function systemStatus(ctx: Ctx): SystemStatus {
   const people = db.members.filter((m) => m.active && !m.is_system);
   return {
     runs: runs.slice(0, 5),
-    last_run_at: runs[0]?.started_at ?? null,
+    // wie auf dem Server: maßgeblich ist der letzte Lauf ohne Fehler
+    last_run_at: runs.find((r) => r.result === 'ok')?.started_at ?? null,
     outbox_waiting: db.notification_outbox.filter((o) => o.status === 'wartet').length,
     failed_24h: db.notification_outbox.filter(
       // bewusst abgeschaltete Kanäle sind kein Zustellfehler (nie versucht)

@@ -119,6 +119,12 @@ Agent-Review Phase 2 (22.10.2026, zwei Reviews): 2 hoch, 5 mittel – eingearbei
 - Datenschutzhinweis ergänzt: Inhalte der Nachrichten, Push-Dienste der Browser, Telegram, Löschung nach 30 Tagen
   (Entwurf zur Freigabe durch die Nutzerin).
 
+Zweite Runde (22.10.2026): 0 hoch, 2 mittel – eingearbeitet: Liste der Push-Dienste war durch fehlende Maskierung
+umgehbar (jetzt exakt, mit Test für nachgebaute Adressen); „überfällig“ kommt nur in der ersten Woche nach der Frist,
+damit das Aufräumen nach 30 Tagen keine Wiederholung auslöst (Testdaten-Schicht und Server). Dazu: Push an alle
+Geräte gleichzeitig, Telegram-Verknüpfung endet nur für den betroffenen Chat, Systemstatus unterscheidet „kein Lauf“
+von „Läufe mit Fehler“. Ergebnis: keine Befunde hoher oder mittlerer Schwere offen.
+
 Offen, niedrig: Fristerinnerungen reihen jeden Lauf ab 9 Uhr ein (nicht nur einmal gegen 9 Uhr – eine Zuweisung um
 20 Uhr an eine in 2 Tagen fällige Aufgabe meldet sofort „noch 2 Tage“, wie in der Testdaten-Schicht); im Profil steht
 nicht, mit welchem Telegram-Konto verknüpft ist; ein Chat, der mit einem fremden Code verknüpft wird, wechselt still;

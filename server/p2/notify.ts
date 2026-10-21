@@ -24,8 +24,8 @@ export const TELEGRAM_CODE_MINUTES = 15;
 const CLAIM_MS = 2 * 60_000;
 /** je Lauf höchstens so viele Nachrichten beanspruchen */
 const BATCH = 40;
-/** Zeitbudget je Lauf für den Versand – eine Netlify Function hat 10 Sekunden */
-const SEND_BUDGET_MS = 6_000;
+/** Zeitbudget je Lauf für den Versand – eine Netlify Function hat 10 Sekunden, ein Aufruf nach außen höchstens 4 */
+const SEND_BUDGET_MS = 4_500;
 /** gesendete und fehlgeschlagene Nachrichten, Jobläufe: so lange aufbewahren (Datensparsamkeit, 9) */
 const KEEP_DAYS = 30;
 const OPEN_STATUSES = ['neu', 'geplant', 'in_arbeit', 'blockiert'] as const;
@@ -236,8 +236,15 @@ async function deliver(db: Db, senders: Senders, entry: Entry, attempt: number):
     } catch (e) {
       return again(e);
     }
-    // Bot blockiert oder Chat weg: die Verknüpfung endet, das Profil zeigt wieder „Verknüpfen“
-    await db.deleteFrom('telegram_links').where('member_id', '=', link.member_id).execute();
+    // Bot blockiert oder Chat weg: diese Verknüpfung endet (eine inzwischen neue bleibt), das Profil zeigt wieder
+    // „Verknüpfen“; die übrigen wartenden Telegram-Nachrichten der Person gehen nicht mehr raus
+    const ended = await db
+      .deleteFrom('telegram_links')
+      .where('member_id', '=', link.member_id)
+      .where('chat_id', '=', link.chat_id)
+      .executeTakeFirst();
+    if (Number(ended.numDeletedRows) > 0)
+      await db.transaction().execute((trx) => dropWaiting(trx, link.member_id, 'telegram', entry.id));
     return { status: 'fehlgeschlagen', error: 'Telegram-Chat nicht mehr erreichbar – Verknüpfung beendet.' };
   }
   // an jedes Gerät der Person höchstens einmal: was schon zugestellt ist, bleibt bei einer Wiederholung aus
@@ -248,16 +255,16 @@ async function deliver(db: Db, senders: Senders, entry: Entry, attempt: number):
     .where('member_id', '=', entry.member_id)
     .execute();
   let failure: unknown = null;
-  for (const sub of subs) {
-    if (done.has(sub.endpoint)) continue;
-    try {
-      // ungültige Abos (404/410) werden entfernt (6.1)
-      if ((await senders.push(sub, message)) === 'gone')
-        await db.deleteFrom('push_subscriptions').where('id', '=', sub.id).execute();
-      else done.add(sub.endpoint);
-    } catch (e) {
-      failure = e;
-    }
+  // alle Geräte gleichzeitig – ein hängender Push-Dienst kostet nur einmal die Zeitgrenze
+  const open = subs.filter((sub) => !done.has(sub.endpoint));
+  const results = await Promise.allSettled(open.map((sub) => senders.push(sub, message)));
+  for (const [i, result] of results.entries()) {
+    const sub = open[i]!;
+    if (result.status === 'rejected') failure = result.reason;
+    // ungültige Abos (404/410) werden entfernt (6.1)
+    else if (result.value === 'gone')
+      await db.deleteFrom('push_subscriptions').where('id', '=', sub.id).execute();
+    else done.add(sub.endpoint);
   }
   await db
     .updateTable('notification_outbox')
@@ -422,13 +429,19 @@ const CHANNEL_OFF = 'Kanal abgeschaltet.';
 const botLink = (botUsername: string, code: string) => `https://t.me/${botUsername}?start=${code}`;
 
 /** Kanal abgeschaltet: wartende Nachrichten dieses Kanals gehen nicht mehr raus, bleiben aber als Anlass stehen */
-async function dropWaiting(trx: Trx, memberId: string, channel: NotificationChannel): Promise<void> {
+async function dropWaiting(
+  trx: Trx,
+  memberId: string,
+  channel: NotificationChannel,
+  exceptId?: string,
+): Promise<void> {
   await trx
     .updateTable('notification_outbox')
     .set({ status: 'fehlgeschlagen', last_error: CHANNEL_OFF })
     .where('member_id', '=', memberId)
     .where('channel', '=', channel)
     .where('status', '=', 'wartet')
+    .$if(!!exceptId, (q) => q.where('id', '<>', exceptId!))
     .execute();
 }
 
@@ -437,11 +450,11 @@ async function dropWaiting(trx: Trx, memberId: string, channel: NotificationChan
  * eine beliebige Adresse dürfte er nicht anfragen.
  */
 const PUSH_HOSTS = [
-  /^fcm.googleapis.com$/,
-  /^android.googleapis.com$/,
-  /.push.services.mozilla.com$/,
-  /^web.push.apple.com$/,
-  /.notify.windows.com$/,
+  /^fcm\.googleapis\.com$/,
+  /^android\.googleapis\.com$/,
+  /\.push\.services\.mozilla\.com$/,
+  /^web\.push\.apple\.com$/,
+  /\.notify\.windows\.com$/,
 ];
 const invalidPush = 'Dieses Push-Abo ist ungültig.';
 /** Schlüssel des Browsers: base64url, p256dh 65 Bytes (öffentlicher Schlüssel), auth 16 Bytes */
@@ -464,12 +477,15 @@ export async function savePushSubscription(ctx: Ctx, raw: unknown): Promise<void
   // dasselbe Gerät (gleiche Schlüssel) wechselt die Person; fremde Schlüssel für einen bekannten Endpoint nicht
   const existing = await ctx.trx
     .selectFrom('push_subscriptions')
-    .select(['p256dh', 'auth'])
+    .select(['member_id', 'p256dh', 'auth'])
     .where('endpoint', '=', input.endpoint)
     .executeTakeFirst();
   if (existing && (existing.p256dh !== input.keys.p256dh || existing.auth !== input.keys.auth))
     throw rule(invalidPush);
   await ctx.trx.deleteFrom('push_subscriptions').where('endpoint', '=', input.endpoint).execute();
+  // wer damit kein Gerät mehr hat, bekommt wartende Push-Nachrichten nicht mehr (sie gingen sonst an dieses Gerät)
+  if (existing && existing.member_id !== ctx.actor.id)
+    await dropWaitingIfNoDevice(ctx.trx, existing.member_id);
   await ctx.trx
     .insertInto('push_subscriptions')
     .values({
@@ -490,12 +506,16 @@ export async function removePushSubscription(ctx: Ctx, endpoint: unknown): Promi
     .where('endpoint', '=', endpoint)
     .where('member_id', '=', ctx.actor.id)
     .execute();
-  const left = await ctx.trx
+  await dropWaitingIfNoDevice(ctx.trx, ctx.actor.id);
+}
+
+async function dropWaitingIfNoDevice(trx: Trx, memberId: string): Promise<void> {
+  const left = await trx
     .selectFrom('push_subscriptions')
     .select('id')
-    .where('member_id', '=', ctx.actor.id)
+    .where('member_id', '=', memberId)
     .executeTakeFirst();
-  if (!left) await dropWaiting(ctx.trx, ctx.actor.id, 'push');
+  if (!left) await dropWaiting(trx, memberId, 'push');
 }
 
 /** Einmal-Code für /start: 16 Zeichen aus einem Zufallsgenerator, den Telegram als start-Parameter erlaubt */

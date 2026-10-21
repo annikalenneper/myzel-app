@@ -48,6 +48,8 @@ export function SystemStatus() {
 function Loaded({ status }: { status: Status }) {
   const now = new Date();
   const overdue = isJobOverdue(status.last_run_at, now);
+  // die Warnung richtet sich nach dem letzten erfolgreichen Lauf; kommen Läufe mit Fehler, liegt es nicht am Auftrag
+  const failing = status.runs[0]?.result === 'fehler';
   const stats: [label: string, value: string, warn: boolean][] = [
     ['Wartet in der Outbox', String(status.outbox_waiting), overdue && status.outbox_waiting > 0],
     ['Fehlgeschlagen 24 h', String(status.failed_24h), false],
@@ -74,13 +76,15 @@ function Loaded({ status }: { status: Status }) {
           {!status.last_run_at
             ? 'Noch kein Lauf'
             : overdue
-              ? `Seit ${formatSince(status.last_run_at, now)} kein Lauf`
+              ? `Seit ${formatSince(status.last_run_at, now)} kein ${failing ? 'erfolgreicher ' : ''}Lauf`
               : `Letzter Lauf vor ${formatSince(status.last_run_at, now)}`}
         </span>
         <span className="text-[14px] leading-normal text-weich">
-          {overdue
-            ? 'Erinnerungen werden gerade nicht verschickt. Bei cron-job.org prüfen, ob der Auftrag aktiv ist und der Schlüssel stimmt.'
-            : 'Erinnerungen und Nachrichten gehen raus. Die Läufe halten außerdem die Datenbank wach.'}
+          {overdue && failing
+            ? 'Die Läufe kommen an, melden aber Fehler – Details stehen unten bei den letzten Läufen.'
+            : overdue
+              ? 'Erinnerungen werden gerade nicht verschickt. Bei cron-job.org prüfen, ob der Auftrag aktiv ist und der Schlüssel stimmt.'
+              : 'Erinnerungen und Nachrichten gehen raus. Die Läufe halten außerdem die Datenbank wach.'}
         </span>
       </div>
 
