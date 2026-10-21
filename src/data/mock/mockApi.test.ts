@@ -280,6 +280,8 @@ describe('Rückgängig (WF-ALL-02)', () => {
     expect(after.assignee_ids).toEqual([]);
     expect(after.marked).toBe(true);
     expect(after.history[0]!.action).toBe('undo');
+    // was zurückgesetzt wurde, steht als alt → neu in der Historie (3.10)
+    expect(after.history[0]!.changes.status).toEqual({ old: 'in_arbeit', new: 'neu' });
   });
 
   it('stellt nach „Blockiert“ Grund, Abhängigkeit und Markierung wieder her', async () => {
@@ -401,7 +403,13 @@ describe('Bearbeiten, Kommentare, Archiv (WF-AUF-04, -05, -12, -14)', () => {
     await api.updateComment(id, 'Erster, korrigiert');
     await login('lea');
     await expectError(api.updateComment(id, 'Gekapert'), 'forbidden');
-    expect((await api.getTask(task.id)).comments[0]!.body).toBe('Erster, korrigiert');
+    const after = await api.getTask(task.id);
+    expect(after.comments[0]!.body).toBe('Erster, korrigiert');
+    // Text alt → neu in der Historie (3.10)
+    expect(after.history.find((h) => h.action === 'comment_edited')!.changes.body).toEqual({
+      old: 'Erster',
+      new: 'Erster, korrigiert',
+    });
   });
 
   it('archiviert statt zu löschen, entfernt die Markierung und stellt wieder her', async () => {

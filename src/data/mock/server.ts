@@ -886,10 +886,13 @@ export function updateComment(ctx: Ctx, commentId: string, raw: unknown): void {
     throw new AppError('forbidden', 'Nur eigene Kommentare lassen sich bearbeiten.');
   editableTask(ctx, comment.task_id);
   if (body === comment.body) return;
+  // Text alt → neu (3.10)
+  const previous = comment.body;
   comment.body = body;
   comment.updated_at = iso(ctx);
   writeHistory(ctx, 'task', comment.task_id, 'comment_edited', {
     comment: { old: comment.id, new: comment.id },
+    body: { old: previous, new: body },
   });
 }
 
@@ -918,10 +921,15 @@ export function restoreTask(ctx: Ctx, id: string, version: number): void {
 // ── Rückgängig (WF-ALL-02): Gegenaktion, ebenfalls in der Historie ───────────
 
 /** Pflichtregeln nach den Gegenschritten (4.1): sonst bricht das Rückgängig ab und nichts ändert sich */
-function taskStillValid(db: Db, task: Task): void {
+function taskStillValid(db: Db, task: Task, restoresInArbeit: boolean): void {
   if (task.archived_at || !isActiveTaskStatus(task.status)) return;
   topicStillActive(db, task);
-  if (task.status === 'in_arbeit' && !db.task_assignees.some((a) => a.task_id === task.id))
+  // „In Arbeit“ ohne Bearbeitende ist sonst erlaubt (z. B. aus dem Plenum) – nur nicht als Ergebnis des Rückgängig
+  if (
+    restoresInArbeit &&
+    task.status === 'in_arbeit' &&
+    !db.task_assignees.some((a) => a.task_id === task.id)
+  )
     throw rule('Die Person ist inzwischen nicht mehr aktiv – das lässt sich nicht mehr rückgängig machen.');
 }
 
@@ -1006,10 +1014,14 @@ export function undo(ctx: Ctx, token: string): void {
   const touchesRow = record.ops.some((op) => rowKinds.includes(op.kind));
   if (touchesRow) checkVersion(ctx, record.entity_type, entity, record.version_after);
 
+  // was das Rückgängig zurücksetzt, steht als alt → neu in der Historie (3.10)
+  const undone: HistoryChanges = {};
   for (const op of record.ops) {
     switch (op.kind) {
       case 'task_state': {
         const task = findTask(db, op.task_id);
+        for (const key of ['status', 'block_reason', 'discard_reason', 'archived_at'] as const)
+          if (task[key] !== op[key]) undone[key] = { old: task[key], new: op[key] };
         task.status = op.status;
         task.block_reason = op.block_reason;
         task.discard_reason = op.discard_reason;
@@ -1069,9 +1081,12 @@ export function undo(ctx: Ctx, token: string): void {
           (b) => !(b.task_id === op.task_id && b.blocker_task_id === op.blocker_task_id),
         );
         break;
-      case 'event_status':
-        findEvent(db, op.event_id).status = op.status;
+      case 'event_status': {
+        const event = findEvent(db, op.event_id);
+        if (event.status !== op.status) undone.status = { old: event.status, new: op.status };
+        event.status = op.status;
         break;
+      }
       case 'task_delete':
         db.tasks = db.tasks.filter((t) => t.id !== op.task_id);
         db.task_assignees = db.task_assignees.filter((a) => a.task_id !== op.task_id);
@@ -1182,9 +1197,15 @@ export function undo(ctx: Ctx, token: string): void {
   );
   // eine im selben Schritt angelegte Aufgabe ist wieder weg – dann gibt es nichts mehr zu vermerken
   if (record.ops.some((op) => op.kind === 'task_delete' && op.task_id === entity.id)) return;
-  if (record.entity_type === 'task') taskStillValid(db, entity as Task);
+  if (record.entity_type === 'task')
+    taskStillValid(
+      db,
+      entity as Task,
+      record.ops.some((op) => op.kind === 'task_state' && op.status === 'in_arbeit'),
+    );
   if (touchesRow) touch(ctx, entity);
   writeHistory(ctx, record.entity_type, entity.id, 'undo', {
+    ...undone,
     undone: { old: record.label, new: null },
     // diese Einträge zählen nicht mehr zum Ergebnis eines Plenums
     history_ids: { old: record.history_ids, new: null },

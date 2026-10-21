@@ -165,7 +165,14 @@ describe('Rechte', () => {
   });
 
   it('neue Tabellen bekommen keine Rechte von selbst', async () => {
-    await local.pg.exec('create table public.later_phase (id int)');
+    await local.pg.exec(`
+      create table public.later_phase (id int);
+      create function public.later_fn() returns int language sql as 'select 1';
+    `);
+    for (const role of ['anon', 'authenticated'])
+      expect(await privilege(role, `has_function_privilege($role, 'public.later_fn()', 'execute')`)).toBe(
+        false,
+      );
     expect(
       await privilege('authenticated', `has_table_privilege($role, 'public.later_phase', 'select')`),
     ).toBe(false);

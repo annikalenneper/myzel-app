@@ -372,7 +372,12 @@ Zwei unabhängige Reviews (Sicherheit/Zugriff; Regeln/Nebenläufigkeit). Eingear
   Login-IDs gehen nicht an andere Mitglieder.
 - Rechte: Migration 20261021000001_grants – anon darf nichts, authenticated nur lesen, keine Sequenzen, keine
   Funktionen per RPC, neue Tabellen ohne Rechte von selbst (im Entwicklungsprojekt eingespielt und geprüft).
-- Datenbank-Zertifikat prüfbar über DATABASE_CA_CERT; Smoke-Server nur auf 127.0.0.1.
+- TLS zur Datenbank immer mit Prüfung gegen das öffentliche Supabase-Stammzertifikat (im Code, gültig bis 2031;
+  gegen den Pooler des Entwicklungsprojekts geprüft); Smoke-Server nur auf 127.0.0.1.
+- Zweite Runde: Funktionen späterer Phasen ohne EXECUTE für PUBLIC (Migration 20261021000002); Rückgängig sperrt
+  die Person beim Wiedereintragen; „In Arbeit ohne Bearbeitende“ verhindert nur ein Rückgängig, das genau dahin
+  zurücksetzt. Historie: bearbeiteter Kommentartext und vom Rückgängig zurückgesetzte Felder als alt → neu
+  (Nutzerin, 21.10.2026). Ergebnis: keine Befunde hoher oder mittlerer Schwere offen.
 - Nebenläufigkeit: Sperren für Abhängigkeiten (keine Kreise durch zwei gleichzeitige Anfragen), Markierungs-Reihenfolge,
   Mitglied beim Eintragen und als handelnde Person (gleichzeitiges Deaktivieren wartet), Thema beim Verwenden;
   Deadlocks werden wiederholt, gleichzeitig vergebene Kürzel/Mails/Namen als Konflikt gemeldet; UPDATE mit
@@ -388,11 +393,11 @@ Offen, nicht dringlich:
 - Für Phase 2: alle Zeitberechnungen auf dem Server (Erinnerungen, Jobs, Texte mit Uhrzeit) ausdrücklich in
   Europe/Berlin; src/shared/format.ts rechnet in der Zeitzone des Rechners.
 - Für Phase 3: Unique-Regel für plenum_marks.position (heute nur über Sperre und Rückgängig abgesichert).
-- Vor Schritt D: DATABASE_CA_CERT in Netlify setzen; im Produktivprojekt keine localhost-Adressen in den Redirect URLs
+- Vor Schritt D: im Produktivprojekt keine localhost-Adressen in den Redirect URLs
   und Site URL auf die Netlify-Adresse; Content-Security-Policy für das Deploy.
-- Zur Durchsicht: Die Historie nennt beim Bearbeiten eines Kommentars nicht den alten und neuen Text, beim
-  Rückgängig nur, was zurückgenommen wurde (Testdaten-Schicht genauso). 3.10 verlangt „alt → neu“ – Text mit
-  aufnehmen?
+- Für Phase 2: Wiederholung bei Deadlocks in inTransaction nur, solange eine Aktion nichts außerhalb der Datenbank
+  auslöst – Push und Telegram nur über die Outbox nach dem Commit. Testdaten-Schicht rechnet „heute“ weiter in der
+  Zeitzone des Browsers (nur außerhalb deutscher Zeit ein Unterschied).
 
 ## Entscheidungsprotokoll
 

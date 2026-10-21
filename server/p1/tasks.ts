@@ -528,6 +528,8 @@ export async function updateComment(ctx: Ctx, commentId: string, raw: unknown): 
     .execute();
   await writeHistory(ctx, 'task', comment.task_id, 'comment_edited', {
     comment: { old: comment.id, new: comment.id },
+    // Text alt → neu (3.10)
+    body: { old: comment.body, new: body },
   });
 }
 

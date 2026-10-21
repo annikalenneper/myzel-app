@@ -13,6 +13,7 @@ import {
   type Ctx,
   type InverseOp,
 } from '../core/context';
+import type { HistoryChanges } from '../../src/shared/schema';
 import { topicStillActive } from './tasks';
 
 const ROW_KINDS = new Set<InverseOp['kind']>([
@@ -48,9 +49,18 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
   if (touchesRow)
     await checkVersion(ctx, record.entity_type as 'task' | 'event', entity, record.version_after);
 
+  // was das Rückgängig zurücksetzt, steht als alt → neu in der Historie (3.10)
+  const changes: HistoryChanges = {};
   for (const op of ops) {
     switch (op.kind) {
-      case 'task_state':
+      case 'task_state': {
+        const before = await ctx.trx
+          .selectFrom('tasks')
+          .select(['status', 'block_reason', 'discard_reason', 'archived_at'])
+          .where('id', '=', op.task_id)
+          .executeTakeFirstOrThrow();
+        for (const key of ['status', 'block_reason', 'discard_reason', 'archived_at'] as const)
+          if (before[key] !== op[key]) changes[key] = { old: before[key], new: op[key] };
         await ctx.trx
           .updateTable('tasks')
           .set({
@@ -62,6 +72,7 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .where('id', '=', op.task_id)
           .execute();
         break;
+      }
       case 'assignee_remove':
         await ctx.trx
           .deleteFrom('task_assignees')
@@ -76,6 +87,8 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .select('id')
           .where('id', '=', op.row.member_id)
           .where('active', '=', true)
+          // gleichzeitiges Deaktivieren wartet und räumt danach auch diesen Eintrag auf
+          .forShare()
           .executeTakeFirst();
         if (active)
           await ctx.trx
@@ -98,6 +111,8 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .select('id')
           .where('id', '=', op.member_id)
           .where('active', '=', true)
+          // gleichzeitiges Deaktivieren wartet und räumt danach auch diesen Eintrag auf
+          .forShare()
           .executeTakeFirst();
         if (active)
           await ctx.trx
@@ -150,16 +165,28 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .where('blocker_task_id', '=', op.blocker_task_id)
           .execute();
         break;
-      case 'event_status':
+      case 'event_status': {
+        const before = await ctx.trx
+          .selectFrom('events')
+          .select('status')
+          .where('id', '=', op.event_id)
+          .executeTakeFirstOrThrow();
+        if (before.status !== op.status) changes.status = { old: before.status, new: op.status };
         await ctx.trx
           .updateTable('events')
           .set({ status: op.status as never })
           .where('id', '=', op.event_id)
           .execute();
         break;
+      }
     }
   }
-  if (table === 'tasks') await taskStillValid(ctx, entity.id);
+  if (table === 'tasks')
+    await taskStillValid(
+      ctx,
+      entity.id,
+      ops.some((op) => op.kind === 'task_state' && op.status === 'in_arbeit'),
+    );
   if (touchesRow)
     await ctx.trx
       .updateTable(table)
@@ -167,13 +194,14 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
       .where('id', '=', entity.id)
       .execute();
   await writeHistory(ctx, record.entity_type as 'task' | 'event', entity.id, 'undo', {
+    ...changes,
     undone: { old: record.label, new: null },
     history_ids: { old: record.history_ids, new: null },
   });
 }
 
 /** Pflichtregeln nach den Gegenschritten (4.1): sonst bricht das Rückgängig ab und nichts ändert sich */
-async function taskStillValid(ctx: Ctx, taskId: string): Promise<void> {
+async function taskStillValid(ctx: Ctx, taskId: string, restoresInArbeit: boolean): Promise<void> {
   const task = await ctx.trx
     .selectFrom('tasks')
     .select(['status', 'archived_at', 'topic_id'])
@@ -181,7 +209,8 @@ async function taskStillValid(ctx: Ctx, taskId: string): Promise<void> {
     .executeTakeFirstOrThrow();
   if (task.archived_at || !isActiveTaskStatus(task.status)) return;
   await topicStillActive(ctx, task);
-  if (task.status !== 'in_arbeit') return;
+  // „In Arbeit“ ohne Bearbeitende ist sonst erlaubt (z. B. aus dem Plenum) – nur nicht als Ergebnis des Rückgängig
+  if (!restoresInArbeit || task.status !== 'in_arbeit') return;
   const assignee = await ctx.trx
     .selectFrom('task_assignees')
     .select('member_id')
