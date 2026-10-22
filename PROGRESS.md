@@ -483,6 +483,10 @@ Offen, nicht dringlich:
 
 ## Entscheidungsprotokoll
 
+Nachtrag 22.10.2026 abends (Nutzerin): Die Regel „erst das ganze Frontend, dann Server, Deploy erst am Ende“
+(Abschnitt 10, Stand 12.10.2026) ist aufgehoben: erst Deploy (Abschluss 10.7 für P1 bis P5), dann Phase 6.
+Abschnitt 0.2 und 10 in docs/ANFORDERUNGEN.md im Auftrag der Nutzerin angepasst.
+
 Nachtrag 22.10.2026 (Nutzerin): Plenum-Aktionen nur an Punkten der Agenda; eine umgehängte Vorlagenaufgabe wird bei der
 bisherigen Veranstaltung wieder anlegbar; Mail und Telefon von Partnern nicht in der Historie; Datenschutzhinweis
 (Benachrichtigungen) freigegeben. Alles umgesetzt in Server und Testdaten-Schicht.

@@ -51,12 +51,12 @@ supabase/migrations.
 
 ## Vorgehen
 
-Reihenfolge nach Abschnitt 10 (Stand 12.10.2026): **erst das ganze Frontend, dann Daten und Server, dann
-Deploy.** Schritt **A** (Oberfläche mit Testdaten, autonom, mit Agent-Review je Screen-Block) läuft für alle
-Phasen P1 bis P6 nacheinander, ohne Abnahme dazwischen. Danach **B** Durchsicht durch die Nutzerin für das
-Ganze → **C** Daten und Server Phase für Phase (autonom, mit Agent-Review) → **D** Abschluss (10.7). Deployt
-wird erst, wenn alles fertig ist. Offene Fragen (Abschnitt 11) halten Schritt A nicht auf: nach plausibler
-Annahme bauen, in PROGRESS.md festhalten, in Schritt B vorlegen.
+Schritt **A** (Oberfläche mit Testdaten) und **B** (Durchsicht) sind für alle Phasen erledigt. **C** Daten und
+Server läuft Phase für Phase (autonom, mit Agent-Review) → **D** Abschluss (10.7). Die Regel „erst das ganze
+Frontend, dann Server, Deploy erst am Ende“ hat die Nutzerin am 22.10.2026 aufgehoben: Deploy und Abschluss
+einzelner Phasen dürfen vor dem Ende kommen – nach Absprache, denn Deployen ist nach außen wirksam. Offene
+Fragen (Abschnitt 11) halten die Arbeit nicht auf: nach plausibler Annahme bauen, in PROGRESS.md festhalten,
+in der nächsten Durchsicht vorlegen.
 
 ## Integritätsregeln in Kürze (Abschnitte 0, 3, 7)
 
