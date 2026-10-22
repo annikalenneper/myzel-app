@@ -33,6 +33,10 @@ beforeEach(async () => {
     `insert into job_runs (started_at, result, summary) values (now(), 'ok', 'Nichts zu tun')`,
   );
   await act('createEvent', { title: 'Soli-Abend', type: 'soli', starts_at: '2026-11-01T18:00:00.000Z' });
+  // Drive gerade eingelesen (leeres Vereinsverzeichnis)
+  await local.pg.exec(
+    `insert into drive_sync_state (root_folder_id, last_checked_at, last_full_sync_at) values ('wurzel', now(), now())`,
+  );
 });
 afterEach(async () => {
   await local.db.destroy();
@@ -122,7 +126,7 @@ describe('check:integrity', () => {
 
   it('Phase 5: alter Drive-Cache, verschwundene verknüpfte Dateien und Ordner', async () => {
     await local.pg.exec(`
-      insert into drive_sync_state (root_folder_id, last_full_sync_at) values ('wurzel', now() - interval '9 days');
+      update drive_sync_state set last_full_sync_at = now() - interval '9 days';
       insert into drive_items (file_id, parent_id, name, mime_type, modified_time, web_url, trashed, synced_at) values
         ('wurzel', null, 'Myzel', 'application/vnd.google-apps.folder', now(), 'https://drive.google.com/drive/folders/wurzel', false, now()),
         ('ordner', 'wurzel', 'Soli', 'application/vnd.google-apps.folder', now(), 'https://drive.google.com/drive/folders/ordner', true, now()),
@@ -141,6 +145,13 @@ describe('check:integrity', () => {
       'Dokument „Plan“',
       'Ordner der Veranstaltung „Soli-Abend“',
     ]);
+  });
+
+  it('Phase 5: meldet ein nie eingelesenes Drive', async () => {
+    await local.pg.exec(`delete from drive_sync_state`);
+    expect(
+      Object.fromEntries(await failing())['Drive-Cache in den letzten 8 Tagen vollständig neu eingelesen'],
+    ).toEqual(['noch nie']);
   });
 
   it('läuft nur lesend', async () => {

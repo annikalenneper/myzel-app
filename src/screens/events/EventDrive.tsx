@@ -21,7 +21,8 @@ export function EventDriveFolder({ event }: { event: EventDetail }) {
   const now = useNow();
   const [picking, setPicking] = useState(false);
   const folder = event.drive_folder;
-  useDriveSync();
+  // ohne Ordner nur, wenn jemand einen wählt
+  useDriveSync(!!folder || picking);
 
   const save = (folderId: string | null) =>
     act(() => api.setEventDriveFolder(event.id, folderId, latest.current), {

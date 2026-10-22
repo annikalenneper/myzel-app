@@ -130,15 +130,15 @@ describe('Abgleich (3.13)', () => {
     const names = async () => (await api.getDriveFolder(folderId)).entries.map((e) => e.name);
     // der Seed-Abgleich liegt zwei Minuten zurück: der erste Abgleich holt die Änderung
     expect(await names()).not.toContain(name);
-    expect(await api.syncDrive()).toEqual({ changed: 1 });
+    expect(await api.syncDrive()).toEqual({ changed: 1, checked: true });
     expect(await names()).toContain(name);
 
     const second = await api.demo!.driveAddFile();
     later(30_000);
-    expect(await api.syncDrive()).toEqual({ changed: 0 });
+    expect(await api.syncDrive()).toMatchObject({ changed: 0 });
     expect(await names()).not.toContain(second);
     later(30_000);
-    expect(await api.syncDrive()).toEqual({ changed: 1 });
+    expect(await api.syncDrive()).toEqual({ changed: 1, checked: true });
     expect(await names()).toContain(second);
   });
 
@@ -165,13 +165,17 @@ describe('Abgleich (3.13)', () => {
     // auch der Neuaufbau übernimmt die Kinder nicht
     await api.rebuildDrive();
     expect(await api.searchDrive('Flyer_Winterrave')).toEqual([]);
+    // und der Hinweis an der verknüpften Datei bleibt
+    expect(
+      (await api.listDocuments()).find((d) => d.title === 'Flyer_Winterrave_v3.pdf')!.drive_missing,
+    ).toBe(true);
   });
 
   it('meldet auch einen Abgleich ohne Änderung, damit „abgeglichen vor …“ stimmt', async () => {
     let calls = 0;
     api.subscribe(() => (calls += 1));
     later(3 * 3_600_000);
-    expect(await api.syncDrive()).toEqual({ changed: 0 });
+    expect(await api.syncDrive()).toMatchObject({ changed: 0 });
     expect(calls).toBe(1);
     expect((await api.getDriveFolder(null)).sync.last_checked_at).toBe(clock.toISOString());
   });

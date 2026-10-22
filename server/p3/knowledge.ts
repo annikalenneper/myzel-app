@@ -51,7 +51,7 @@ import {
 import { addMark, dropMark, isMarked } from '../core/marks';
 import type { DecisionRow, DocumentRow, QuestionRow } from '../db/types';
 import { historyOf } from '../p1/reads';
-import { documentForFile, missingDriveDocuments, visibleDriveFile } from '../p5/drive';
+import { documentForFile, missingDriveDocuments, visibleDriveFile, type DriveIndex } from '../p5/drive';
 import { isPlenum } from './appointments';
 
 const dayText = (isoDate: string) => {
@@ -59,7 +59,7 @@ const dayText = (isoDate: string) => {
   return `${formatDayMonth(new Date(y, m - 1, d))}${y}`;
 };
 
-async function touch<T extends { id: string; version: number }>(
+export async function touch<T extends { id: string; version: number }>(
   ctx: Ctx,
   table: 'decisions' | 'questions' | 'documents',
   entity: HistoryEntity,
@@ -524,7 +524,12 @@ const TARGET_NOUN: Record<DocumentLinkTarget, [one: string, many: string]> = {
   decision: ['Entscheidung', 'Entscheidungen'],
 };
 
-export async function documentItems(trx: Trx, rows: DocumentRow[]): Promise<DocumentListItem[]> {
+/** driveIndex: schon geladener Drive-Cache (aus dem Verzeichnis) – sonst lädt ihn der Hinweis „nicht mehr vorhanden“ */
+export async function documentItems(
+  trx: Trx,
+  rows: DocumentRow[],
+  driveIndex?: DriveIndex,
+): Promise<DocumentListItem[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((d) => d.id);
   const [links, protocols, sources, marks, missing] = await Promise.all([
@@ -537,7 +542,7 @@ export async function documentItems(trx: Trx, rows: DocumentRow[]): Promise<Docu
     trx.selectFrom('decisions').select('source_document_id').where('source_document_id', 'in', ids).execute(),
     trx.selectFrom('plenum_marks').select('document_id').where('document_id', 'in', ids).execute(),
     // [P5] verknüpfte Dateien, die in Drive verschwunden sind (3.13)
-    missingDriveDocuments(trx, rows),
+    missingDriveDocuments(trx, rows, driveIndex),
   ]);
   return rows.map((d) => {
     const own = links.filter((l) => l.document_id === d.id);

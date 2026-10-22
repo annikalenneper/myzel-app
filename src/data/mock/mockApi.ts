@@ -337,9 +337,8 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     async syncDrive() {
       await wait();
       const me = actor();
-      const before = db.drive_sync_state.last_checked_at;
       const result = transact(me, (ctx) => drive.syncDrive(ctx.db, ctx.now), true);
-      if (result.changed || db.drive_sync_state.last_checked_at !== before) emit();
+      if (result.checked) emit();
       return result;
     },
     rebuildDrive: () => write((ctx) => drive.rebuildDrive(ctx.db, ctx.now)),

@@ -138,6 +138,17 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
     setPush: async (on) => {
       await write(on ? 'savePushSubscription' : 'removePushSubscription', [on ? device : device.endpoint]);
     },
+    // eigene Transaktionen auf dem Server; danach wie nach einer Änderung neu laden (wie remoteApi)
+    async syncDrive() {
+      const result = (await read('syncDrive', [])) as { changed: number; checked: boolean };
+      if (result.checked) emit();
+      return result;
+    },
+    async rebuildDrive() {
+      const result = (await read('rebuildDrive', [])) as { count: number };
+      emit();
+      return result;
+    },
     getDeactivationImpact: (memberId) =>
       inTransaction(db, authUserId, now(), (ctx) => members.getDeactivationImpact(ctx, memberId)),
     demo: {
@@ -247,7 +258,7 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
     },
   };
   for (const name of Object.keys(READ_ACTIONS))
-    (base as Record<string, unknown>)[name] = (...args: unknown[]) => read(name, args);
+    if (!(name in base)) (base as Record<string, unknown>)[name] = (...args: unknown[]) => read(name, args);
   for (const name of Object.keys(WRITE_ACTIONS))
     if (!(name in base)) (base as Record<string, unknown>)[name] = (...args: unknown[]) => write(name, args);
 

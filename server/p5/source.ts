@@ -17,10 +17,13 @@ export interface DriveSource {
   readonly configured: boolean;
   /** Wurzelordner des Vereins-Drives */
   readonly rootId: string;
-  /** alle Einträge, die das Dienstkonto sieht, samt Wurzel – dazu der Token für spätere Änderungen */
-  listAll(): Promise<{ items: RemoteItem[]; token: string }>;
+  /**
+   * alle nicht gelöschten Einträge, die das Dienstkonto sieht, samt Wurzel – dazu der Token für spätere Änderungen.
+   * deadline: Zeitpunkt (ms), bis zu dem alles erledigt sein muss – sonst DriveUnavailable.
+   */
+  listAll(deadline: number): Promise<{ items: RemoteItem[]; token: string }>;
   /** Änderungen seit dem Token; null: Token ungültig, der Cache muss vollständig neu aufgebaut werden */
-  changes(token: string): Promise<DriveChanges | null>;
+  changes(token: string, deadline: number): Promise<DriveChanges | null>;
 }
 
 /** Drive ist nicht eingerichtet oder nicht erreichbar – die App zeigt weiter den letzten Stand */
@@ -68,8 +71,9 @@ export class FakeDrive implements DriveSource {
     this.seq = remote.seq;
   }
 
+  /** wie Google mit „trashed = false“: Gelöschtes fehlt beim vollständigen Einlesen */
   async listAll(): Promise<{ items: RemoteItem[]; token: string }> {
-    return { items: structuredClone(this.items), token: String(this.seq) };
+    return { items: structuredClone(this.items.filter((i) => !i.trashed)), token: String(this.seq) };
   }
 
   async changes(token: string): Promise<DriveChanges | null> {
@@ -113,8 +117,8 @@ export class FakeDrive implements DriveSource {
 
 const API = 'https://www.googleapis.com/drive/v3';
 const FILE_FIELDS = 'id,name,mimeType,parents,modifiedTime,webViewLink,trashed';
-/** je Aufruf bei Google: danach lieber den letzten Stand zeigen als die App warten lassen */
-const CALL_TIMEOUT_MS = 8_000;
+/** unter dieser Restzeit gar nicht erst bei Google anfragen */
+const MIN_CALL_MS = 500;
 
 interface GoogleFile {
   id: string;
@@ -146,7 +150,14 @@ export function googleDrive(): DriveSource {
   const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() ?? '';
   let token: { value: string; expires: number } | null = null;
 
-  async function accessToken(): Promise<string> {
+  /** Zeitgrenze für den nächsten Aufruf: was vom Budget übrig ist */
+  function remaining(deadline: number): AbortSignal {
+    const ms = deadline - Date.now();
+    if (ms < MIN_CALL_MS) throw new DriveUnavailable('Drive: Zeitbudget aufgebraucht');
+    return AbortSignal.timeout(ms);
+  }
+
+  async function accessToken(deadline: number): Promise<string> {
     if (token && token.expires > Date.now() + 60_000) return token.value;
     const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!raw) throw new DriveUnavailable('GOOGLE_SERVICE_ACCOUNT_JSON fehlt');
@@ -173,7 +184,7 @@ export function googleDrive(): DriveSource {
         grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
         assertion: `${unsigned}.${signature}`,
       }),
-      signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+      signal: remaining(deadline),
     });
     const body = (await res.json().catch(() => ({}))) as { access_token?: string; expires_in?: number };
     if (!res.ok || !body.access_token) throw new DriveUnavailable(`Anmeldung bei Google: HTTP ${res.status}`);
@@ -182,14 +193,16 @@ export function googleDrive(): DriveSource {
   }
 
   /** GET an die Drive-API; liefert den HTTP-Status mit, damit ungültige Token erkennbar sind */
-  async function get<T>(path: string, params: Record<string, string>): Promise<{ status: number; body: T }> {
+  async function get<T>(
+    path: string,
+    params: Record<string, string>,
+    deadline: number,
+  ): Promise<{ status: number; body: T }> {
     const url = `${API}/${path}?${new URLSearchParams({ supportsAllDrives: 'true', ...params })}`;
     let res: Response;
     try {
-      res = await fetch(url, {
-        headers: { authorization: `Bearer ${await accessToken()}` },
-        signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
-      });
+      const auth = await accessToken(deadline);
+      res = await fetch(url, { headers: { authorization: `Bearer ${auth}` }, signal: remaining(deadline) });
     } catch (e) {
       if (e instanceof DriveUnavailable) throw e;
       throw new DriveUnavailable(`Drive nicht erreichbar: ${(e as Error).name}`);
@@ -198,8 +211,8 @@ export function googleDrive(): DriveSource {
     return { status: res.status, body };
   }
 
-  async function ok<T>(path: string, params: Record<string, string>): Promise<T> {
-    const { status, body } = await get<T & { error?: { message?: string } }>(path, params);
+  async function ok<T>(path: string, params: Record<string, string>, deadline: number): Promise<T> {
+    const { status, body } = await get<T & { error?: { message?: string } }>(path, params, deadline);
     if (status !== 200)
       throw new DriveUnavailable(`Drive: HTTP ${status} ${body.error?.message ?? ''}`.trim());
     return body;
@@ -209,52 +222,67 @@ export function googleDrive(): DriveSource {
     configured: !!rootId && !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
     rootId,
 
-    async listAll() {
+    async listAll(deadline) {
       if (!rootId) throw new DriveUnavailable('GOOGLE_DRIVE_ROOT_FOLDER_ID fehlt');
       // Token vor dem Einlesen holen: was sich währenddessen ändert, kommt mit dem nächsten Abgleich
-      const { startPageToken } = await ok<{ startPageToken: string }>('changes/startPageToken', {});
-      const root = await ok<GoogleFile>(`files/${encodeURIComponent(rootId)}`, { fields: FILE_FIELDS });
-      const files: GoogleFile[] = [];
+      const { startPageToken } = await ok<{ startPageToken: string }>('changes/startPageToken', {}, deadline);
+      const root = await ok<GoogleFile>(
+        `files/${encodeURIComponent(rootId)}`,
+        { fields: FILE_FIELDS },
+        deadline,
+      );
+      // je Datei ein Eintrag: bei gleichzeitigen Änderungen kann dieselbe Datei auf zwei Seiten stehen
+      const files = new Map<string, GoogleFile>();
       let pageToken: string | undefined;
       // alles, was das Dienstkonto sieht – erreichbar von der Wurzel ist nur der Vereinsordner (reachableDriveIds)
       do {
-        const page = await ok<{ files: GoogleFile[]; nextPageToken?: string }>('files', {
-          q: 'trashed = false',
-          fields: `nextPageToken,files(${FILE_FIELDS})`,
-          pageSize: '1000',
-          includeItemsFromAllDrives: 'true',
-          ...(pageToken ? { pageToken } : {}),
-        });
-        files.push(...page.files);
+        const page = await ok<{ files: GoogleFile[]; nextPageToken?: string }>(
+          'files',
+          {
+            q: 'trashed = false',
+            fields: `nextPageToken,files(${FILE_FIELDS})`,
+            pageSize: '1000',
+            includeItemsFromAllDrives: 'true',
+            ...(pageToken ? { pageToken } : {}),
+          },
+          deadline,
+        );
+        for (const f of page.files) files.set(f.id, f);
         pageToken = page.nextPageToken;
       } while (pageToken);
-      const items = files.filter((f) => f.id !== rootId).map((f) => toItem(f, rootId));
+      const items = [...files.values()].filter((f) => f.id !== rootId).map((f) => toItem(f, rootId));
       return { items: [toItem(root, rootId), ...items], token: startPageToken };
     },
 
-    async changes(since) {
+    async changes(since, deadline) {
       const changed = new Map<string, RemoteItem | null>();
       let pageToken = since;
       for (;;) {
         const { status, body } = await get<{
-          changes?: { fileId: string; removed?: boolean; file?: GoogleFile }[];
+          changes?: { changeType?: string; fileId?: string; removed?: boolean; file?: GoogleFile }[];
           nextPageToken?: string;
           newStartPageToken?: string;
           error?: { message?: string };
-        }>('changes', {
-          pageToken,
-          fields: `nextPageToken,newStartPageToken,changes(fileId,removed,file(${FILE_FIELDS}))`,
-          pageSize: '1000',
-          includeRemoved: 'true',
-          includeItemsFromAllDrives: 'true',
-          spaces: 'drive',
-        });
+        }>(
+          'changes',
+          {
+            pageToken,
+            fields: `nextPageToken,newStartPageToken,changes(changeType,fileId,removed,file(${FILE_FIELDS}))`,
+            pageSize: '1000',
+            includeRemoved: 'true',
+            includeItemsFromAllDrives: 'true',
+            spaces: 'drive',
+          },
+          deadline,
+        );
         // abgelaufener oder fremder Token: vollständig neu einlesen
         if (status === 400 || status === 404 || status === 410) return null;
         if (status !== 200)
           throw new DriveUnavailable(`Drive: HTTP ${status} ${body.error?.message ?? ''}`.trim());
+        // Änderungen an geteilten Ablagen selbst (changeType „drive“) nennen keine Datei
         for (const c of body.changes ?? [])
-          changed.set(c.fileId, c.removed || !c.file ? null : toItem(c.file, rootId));
+          if (c.fileId && c.changeType !== 'drive')
+            changed.set(c.fileId, c.removed || !c.file ? null : toItem(c.file, rootId));
         if (body.newStartPageToken) {
           return {
             changed: [...changed].map(([file_id, item]) => ({ file_id, item })),

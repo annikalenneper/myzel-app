@@ -526,7 +526,7 @@ export interface MyzelApi {
   /** „Zuletzt geändert“: die neuesten Dateien */
   recentDrive(): Promise<DriveEntry[]>;
   /** Abgleich im Hintergrund über die Changes-API, höchstens einmal pro Minute */
-  syncDrive(): Promise<{ changed: number }>;
+  syncDrive(): Promise<{ changed: number; checked: boolean }>;
   /** WF-WIS-10 „Neu einlesen“: vollständiger Neuaufbau des Caches */
   rebuildDrive(): Promise<{ count: number }>;
   /** WF-WIS-09: legt den documents-Eintrag an, falls neu, und verknüpft ihn */

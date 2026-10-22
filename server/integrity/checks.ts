@@ -192,8 +192,9 @@ export const CHECKS: IntegrityCheck[] = [
   {
     name: 'Drive-Cache in den letzten 8 Tagen vollständig neu eingelesen',
     level: 'hinweis',
-    query: sql`select coalesce('zuletzt ' || to_char(last_full_sync_at at time zone 'Europe/Berlin', 'DD.MM. HH24:MI'), 'noch nie') as label
-      from drive_sync_state where coalesce(last_full_sync_at, '1970-01-01') < now() - interval '8 days'`,
+    query: sql`select coalesce('zuletzt ' || to_char(s.last_full_sync_at at time zone 'Europe/Berlin', 'DD.MM. HH24:MI'), 'noch nie') as label
+      from (select 1) x left join drive_sync_state s on true
+      where coalesce(s.last_full_sync_at, '1970-01-01') < now() - interval '8 days'`,
   },
   {
     name: 'Verknüpfte Drive-Dateien und Ordner der Veranstaltungen sind im Drive vorhanden',

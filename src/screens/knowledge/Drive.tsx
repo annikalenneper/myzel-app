@@ -24,12 +24,13 @@ const KIND_COLOR: Record<DriveKind, string> = {
 };
 
 /** Abgleich im Hintergrund beim Öffnen – der Server fragt höchstens einmal pro Minute bei Drive nach */
-export function useDriveSync(): void {
+export function useDriveSync(enabled = true): void {
   useEffect(() => {
+    if (!enabled) return;
     void api.syncDrive().catch(() => {
       // ohne Abgleich bleibt der Cache sichtbar; „abgeglichen vor …“ zeigt, wie alt er ist
     });
-  }, []);
+  }, [enabled]);
 }
 
 export function DriveIcon({ kind }: { kind: DriveKind }) {

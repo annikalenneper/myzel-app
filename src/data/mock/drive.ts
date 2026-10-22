@@ -178,13 +178,13 @@ const validToken = (db: Db, token: string | null): token is string =>
  * Abgleich im Hintergrund: nur geänderte Einträge aktualisieren, neuen Token speichern.
  * Liegt der letzte Abgleich keine Minute zurück, passiert nichts.
  */
-export function syncDrive(db: Db, now: Date): { changed: number } {
+export function syncDrive(db: Db, now: Date): { changed: number; checked: boolean } {
   const state = db.drive_sync_state;
-  if (!driveCheckDue(state.last_checked_at, now)) return { changed: 0 };
+  if (!driveCheckDue(state.last_checked_at, now)) return { changed: 0, checked: false };
   if (!validToken(db, state.changes_page_token)) {
     // ohne gültigen Token weiß niemand, was sich geändert hat: vollständig neu, Ansicht neu laden
     rebuildDrive(db, now);
-    return { changed: 1 };
+    return { changed: 1, checked: true };
   }
   const since = Number(state.changes_page_token);
   const ids = [...new Set(db.drive_remote.changes.filter((c) => c.seq > since).map((c) => c.file_id))];
@@ -206,7 +206,7 @@ export function syncDrive(db: Db, now: Date): { changed: number } {
   }
   state.changes_page_token = String(db.drive_remote.seq);
   state.last_checked_at = at;
-  return { changed: ids.length };
+  return { changed: ids.length, checked: true };
 }
 
 export function weeklyRebuild(db: Db, now: Date): void {

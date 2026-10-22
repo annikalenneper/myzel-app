@@ -225,7 +225,9 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
         field: body.error.field ?? undefined,
         conflict: body.error.conflict ?? undefined,
       });
-    if (!READS.has(action)) emit();
+    // der Abgleich meldet sich nur, wenn der Server wirklich bei Drive nachgefragt hat (höchstens einmal pro Minute)
+    const quiet = action === 'syncDrive' && (body.result as { checked?: boolean } | null)?.checked === false;
+    if (!READS.has(action) && !quiet) emit();
     return body.result;
   }
 

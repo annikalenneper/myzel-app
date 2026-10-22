@@ -1,6 +1,8 @@
 // Phase 5: Drive-Cache mit Abgleich (ANFORDERUNGEN 3.13, F-WIS-04, -05, -08, F-VER-03). Wie die Testdaten-Schicht
 // (src/data/mock/drive.ts): Anzeige immer sofort aus dem Cache, Abgleich über die Changes-API höchstens einmal pro
 // Minute, vollständiger Neuaufbau bei ungültigem Token, auf Wunsch („Neu einlesen“) und wöchentlich im Joblauf.
+// Google wird nie innerhalb einer Datenbank-Transaktion gefragt: erst kurz den Abgleich beanspruchen, dann Drive
+// fragen, dann das Ergebnis in einer zweiten kurzen Transaktion schreiben.
 import type { Kysely } from 'kysely';
 import type { DriveEntry, DriveFolder, EventDetail } from '../../src/data/api';
 import { AppError } from '../../src/shared/errors';
@@ -16,26 +18,40 @@ import { DRIVE_FOLDER_MIME, driveLinkSchema, type DriveItem } from '../../src/sh
 import { checkVersion, iso, notFound, parse, rule, writeHistory, type Ctx, type Trx } from '../core/context';
 import type { Database, DocumentRow } from '../db/types';
 import { findEvent } from '../p1/events';
-import { documentItems, linkDocument } from '../p3/knowledge';
+import { documentItems, linkDocument, touch } from '../p3/knowledge';
 import { touchEvent } from '../p4/events';
 import { driveSource, DriveUnavailable, excludedFolderIds, type RemoteItem } from './source';
 
 type Db = Trx | Kysely<Database>;
 type Item = Omit<DriveItem, 'synced_at'>;
 
-interface DriveIndex {
+/** Zeit für Google je Anfrage der App – unter dem Zeitlimit der Netlify Function (10 s) */
+const REQUEST_BUDGET_MS = 7_000;
+/** nach einem Fehlschlag im Joblauf frühestens nach einer Stunde erneut neu einlesen */
+const JOB_RETRY_MS = 3_600_000;
+
+export interface DriveIndex {
   rootId: string;
   /** nur sichtbare Einträge: nicht gelöscht, nicht ausgeschlossen und über sichtbare Ordner an der Wurzel */
   byId: Map<string, Item>;
   children: Map<string, Item[]>;
-  /** alle Einträge im Cache, auch gelöschte – für „In Drive nicht mehr vorhanden“ */
+  /** alle Einträge im Cache, auch verschwundene, auf die etwas verweist – für „In Drive nicht mehr vorhanden“ */
   known: Map<string, Item>;
   sync: { last_checked_at: string | null; last_full_sync_at: string | null };
 }
 
 const isFolder = (i: { mime_type: string }) => i.mime_type === DRIVE_FOLDER_MIME;
 
-async function loadIndex(db: Db): Promise<DriveIndex> {
+/** sichtbar: über nicht gelöschte Ordner mit der Wurzel verbunden; ausgeschlossene Ordner sind eine Grenze */
+function visibleIds(items: readonly Item[], rootId: string): Set<string> {
+  const excluded = excludedFolderIds();
+  return reachableDriveIds(
+    excluded.size ? items.map((i) => (excluded.has(i.file_id) ? { ...i, trashed: true } : i)) : items,
+    rootId,
+  );
+}
+
+export async function loadIndex(db: Db): Promise<DriveIndex> {
   const [rows, state] = await Promise.all([
     db
       .selectFrom('drive_items')
@@ -45,11 +61,7 @@ async function loadIndex(db: Db): Promise<DriveIndex> {
   ]);
   // noch nie eingelesen: leeres Verzeichnis unter der eingerichteten Wurzel
   const rootId = state?.root_folder_id ?? driveSource().rootId;
-  const excluded = excludedFolderIds();
-  const ids = reachableDriveIds(
-    rows.map((r) => (excluded.has(r.file_id) ? { ...r, trashed: true } : r)),
-    rootId,
-  );
+  const ids = visibleIds(rows, rootId);
   const index: DriveIndex = {
     rootId,
     byId: new Map(),
@@ -90,12 +102,28 @@ const fileIdOf = (d: Pick<DocumentRow, 'drive_file_id' | 'url'>) =>
 /** Dokumente zu den Drive-Dateien, die gerade gezeigt werden – samt Verknüpfungen für das Kennzeichen */
 async function entries(db: Db, index: DriveIndex, items: Item[]): Promise<DriveEntry[]> {
   const files = new Set(items.filter((i) => !isFolder(i)).map((i) => i.file_id));
-  const docs = files.size
-    ? (await db.selectFrom('documents').selectAll().where('archived_at', 'is', null).execute()).filter((d) =>
-        files.has(fileIdOf(d) ?? ''),
+  const matching = files.size
+    ? (
+        await db
+          .selectFrom('documents')
+          .select(['id', 'url', 'drive_file_id'])
+          .where('archived_at', 'is', null)
+          .execute()
       )
+        .filter((d) => files.has(fileIdOf(d) ?? ''))
+        .map((d) => d.id)
     : [];
-  const summaries = await documentItems(db as Trx, docs);
+  const docs = matching.length
+    ? await db
+        .selectFrom('documents')
+        .selectAll()
+        .where('id', 'in', matching)
+        .orderBy('created_at')
+        .orderBy('id')
+        .execute()
+    : [];
+  const summaries = await documentItems(db as Trx, docs, index);
+  // ein Eintrag je Datei: das zuerst erfasste Dokument, wie documentForFile
   const byFile = new Map<string, (typeof summaries)[number]>();
   for (const s of summaries) {
     const id = fileIdOf(s)!;
@@ -177,6 +205,8 @@ export async function recentDrive(db: Db): Promise<DriveEntry[]> {
 
 // ── Abgleich (3.13) ─────────────────────────────────────────────────────────
 
+type SyncState = Awaited<ReturnType<typeof lockState>>;
+
 /** Drive nicht erreichbar: verständlich melden, Einzelheiten nur ins Protokoll */
 async function fromDrive<T>(call: () => Promise<T>): Promise<T> {
   try {
@@ -188,70 +218,67 @@ async function fromDrive<T>(call: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Stand des Abgleichs sperren – gleichzeitige Abgleiche warten aufeinander und fragen Drive nicht doppelt */
-async function lockState(trx: Trx) {
+/** die eine Zeile mit dem Stand des Abgleichs sperren (beim ersten Mal anlegen) */
+async function lockState(trx: Trx, { skipLocked = false } = {}) {
   await trx
     .insertInto('drive_sync_state')
     .values({ root_folder_id: driveSource().rootId })
     .onConflict((oc) => oc.column('id').doNothing())
     .execute();
-  return trx.selectFrom('drive_sync_state').selectAll().forUpdate().executeTakeFirstOrThrow();
+  return trx
+    .selectFrom('drive_sync_state')
+    .selectAll()
+    .forUpdate()
+    .$if(skipLocked, (q) => q.skipLocked())
+    .executeTakeFirst();
+}
+
+/**
+ * Abgleich beanspruchen: kurze Transaktion, die den Versuch vermerkt (auch ein fehlschlagender zählt). Wer gerade
+ * beansprucht, hält die Zeile nur Millisekunden; gleichzeitige Aufrufe sehen danach den frischen Versuch und lassen es.
+ */
+async function claim(
+  db: Kysely<Database>,
+  now: Date,
+  due: (state: NonNullable<SyncState>) => boolean,
+): Promise<NonNullable<SyncState> | null> {
+  return db.transaction().execute(async (trx) => {
+    const state = await lockState(trx, { skipLocked: true });
+    if (!state || !due(state)) return null;
+    await trx.updateTable('drive_sync_state').set({ last_attempt_at: now.toISOString() }).execute();
+    return state;
+  });
+}
+
+/** Drive-IDs, auf die Dokumente oder Veranstaltungen verweisen – sie bleiben im Cache, auch wenn sie verschwinden */
+async function referencedIds(trx: Trx): Promise<Set<string>> {
+  const [docs, events] = await Promise.all([
+    trx.selectFrom('documents').select(['url', 'drive_file_id']).where('archived_at', 'is', null).execute(),
+    trx.selectFrom('events').select('drive_folder_id').where('drive_folder_id', 'is not', null).execute(),
+  ]);
+  const ids = new Set<string>();
+  for (const d of docs) {
+    const id = fileIdOf(d);
+    if (id) ids.add(id);
+  }
+  for (const e of events) ids.add(e.drive_folder_id!);
+  return ids;
+}
+
+/** Nur der Vereinsordner (3.13) und verschwundene Einträge, auf die etwas verweist */
+function keepIds(items: readonly Item[], rootId: string, refs: Set<string>): Set<string> {
+  const keep = visibleIds(items, rootId);
+  for (const i of items) if (refs.has(i.file_id)) keep.add(i.file_id);
+  return keep;
 }
 
 const row = (i: RemoteItem, at: string) => ({ ...i, synced_at: at });
 
-async function rebuild(trx: Trx, now: Date): Promise<number> {
-  const source = driveSource();
-  const { items, token } = await fromDrive(() => source.listAll());
-  const at = now.toISOString();
-  await trx.deleteFrom('drive_items').execute();
-  for (let i = 0; i < items.length; i += 500)
+async function insertItems(trx: Trx, rows: ReturnType<typeof row>[]): Promise<void> {
+  for (let i = 0; i < rows.length; i += 500)
     await trx
       .insertInto('drive_items')
-      .values(items.slice(i, i + 500).map((item) => row(item, at)))
-      .execute();
-  await trx
-    .updateTable('drive_sync_state')
-    .set({
-      root_folder_id: source.rootId,
-      changes_page_token: token,
-      last_checked_at: at,
-      last_full_sync_at: at,
-    })
-    .execute();
-  return (await loadIndex(trx)).byId.size;
-}
-
-/** Vollständiger Neuaufbau: „Neu einlesen“ (WF-WIS-10) */
-export async function rebuildDrive(ctx: Ctx): Promise<{ count: number }> {
-  await lockState(ctx.trx);
-  return { count: await rebuild(ctx.trx, ctx.now) };
-}
-
-/**
- * Abgleich im Hintergrund: nur geänderte Einträge aktualisieren, neuen Token speichern.
- * Liegt der letzte Abgleich keine Minute zurück, passiert nichts.
- */
-export async function syncDrive(ctx: Ctx): Promise<{ changed: number }> {
-  const state = await lockState(ctx.trx);
-  if (!driveCheckDue(state.last_checked_at, ctx.now)) return { changed: 0 };
-  const source = driveSource();
-  // ohne gültigen Token (oder mit anderer Wurzel) weiß niemand, was sich geändert hat: vollständig neu
-  const result =
-    state.changes_page_token && state.root_folder_id === source.rootId
-      ? await fromDrive(() => source.changes(state.changes_page_token!))
-      : null;
-  if (!result) {
-    await rebuild(ctx.trx, ctx.now);
-    return { changed: 1 };
-  }
-  const at = iso(ctx);
-  const present = result.changed.filter((c) => c.item).map((c) => row(c.item!, at));
-  const gone = result.changed.filter((c) => !c.item).map((c) => c.file_id);
-  for (let i = 0; i < present.length; i += 500)
-    await ctx.trx
-      .insertInto('drive_items')
-      .values(present.slice(i, i + 500))
+      .values(rows.slice(i, i + 500))
       .onConflict((oc) =>
         oc.column('file_id').doUpdateSet((eb) => ({
           parent_id: eb.ref('excluded.parent_id'),
@@ -264,29 +291,126 @@ export async function syncDrive(ctx: Ctx): Promise<{ changed: number }> {
         })),
       )
       .execute();
-  // in Drive endgültig gelöscht oder nicht mehr freigegeben: im Cache als gelöscht führen
-  if (gone.length)
-    await ctx.trx
-      .updateTable('drive_items')
-      .set({ trashed: true, synced_at: at })
-      .where('file_id', 'in', gone)
-      .execute();
-  await ctx.trx
-    .updateTable('drive_sync_state')
-    .set({ changes_page_token: result.token, last_checked_at: at })
-    .execute();
-  return { changed: result.changed.length };
 }
 
-/** Joblauf: wöchentlicher Neuaufbau (3.13 Nr. 4); ohne eingerichtetes Drive passiert nichts */
-export async function weeklyRebuild(db: Kysely<Database>, now: Date): Promise<boolean> {
-  if (!driveSource().configured) return false;
+/** Vollständig neu einlesen: Drive fragen (ohne Transaktion), dann den Cache in einer Transaktion ersetzen */
+async function rebuild(db: Kysely<Database>, now: Date, deadline: number): Promise<number> {
+  const source = driveSource();
+  const { items, token } = await fromDrive(() => source.listAll(deadline));
+  const at = now.toISOString();
   return db.transaction().execute(async (trx) => {
-    const state = await lockState(trx);
-    if (!driveFullSyncDue(state.last_full_sync_at, now)) return false;
-    await rebuild(trx, now);
-    return true;
+    await lockState(trx);
+    const [old, refs] = await Promise.all([
+      trx
+        .selectFrom('drive_items')
+        .select(['file_id', 'parent_id', 'name', 'mime_type', 'modified_time', 'web_url', 'trashed'])
+        .execute(),
+      referencedIds(trx),
+    ]);
+    const fresh = new Map(items.map((i) => [i.file_id, i]));
+    // in Drive gelöscht oder nicht mehr freigegeben, aber verknüpft: als gelöscht weiterführen (Hinweis, letzter Name)
+    const gone = old
+      .filter((o) => !fresh.has(o.file_id) && refs.has(o.file_id))
+      .map((o) => ({ ...o, trashed: true }));
+    const all = [...items, ...gone];
+    const keep = keepIds(all, source.rootId, refs);
+    await trx.deleteFrom('drive_items').execute();
+    await insertItems(
+      trx,
+      all.filter((i) => keep.has(i.file_id)).map((i) => row(i, at)),
+    );
+    await trx
+      .updateTable('drive_sync_state')
+      .set({
+        root_folder_id: source.rootId,
+        changes_page_token: token,
+        last_checked_at: at,
+        last_full_sync_at: at,
+      })
+      .execute();
+    return visibleIds(all, source.rootId).size;
   });
+}
+
+/** „Neu einlesen“ (WF-WIS-10) */
+export async function rebuildDrive(db: Kysely<Database>, now: Date): Promise<{ count: number }> {
+  await claim(db, now, () => true);
+  return { count: await rebuild(db, now, Date.now() + REQUEST_BUDGET_MS) };
+}
+
+/**
+ * Abgleich im Hintergrund: nur geänderte Einträge aktualisieren, neuen Token speichern. Liegt der letzte Versuch
+ * keine Minute zurück, passiert nichts (checked: false).
+ */
+export async function syncDrive(
+  db: Kysely<Database>,
+  now: Date,
+): Promise<{ changed: number; checked: boolean }> {
+  const state = await claim(db, now, (s) => driveCheckDue(s.last_attempt_at ?? s.last_checked_at, now));
+  if (!state) return { changed: 0, checked: false };
+  const source = driveSource();
+  const deadline = Date.now() + REQUEST_BUDGET_MS;
+  const since = state.root_folder_id === source.rootId ? state.changes_page_token : null;
+  // ohne gültigen Token (oder mit anderer Wurzel) weiß niemand, was sich geändert hat: vollständig neu
+  const result = since ? await fromDrive(() => source.changes(since, deadline)) : null;
+  if (!result) {
+    await rebuild(db, now, deadline);
+    return { changed: 1, checked: true };
+  }
+  const at = now.toISOString();
+  await db.transaction().execute(async (trx) => {
+    const current = await lockState(trx);
+    // inzwischen hat ein Neuaufbau oder ein anderer Abgleich geschrieben: dessen Stand gilt
+    if (current?.changes_page_token !== since) return;
+    const present = result.changed.filter((c) => c.item).map((c) => row(c.item!, at));
+    const gone = result.changed.filter((c) => !c.item).map((c) => c.file_id);
+    await insertItems(trx, present);
+    // in Drive endgültig gelöscht oder nicht mehr freigegeben: im Cache als gelöscht führen
+    if (gone.length)
+      await trx
+        .updateTable('drive_items')
+        .set({ trashed: true, synced_at: at })
+        .where('file_id', 'in', gone)
+        .execute();
+    // was aus dem Vereinsordner verschwunden ist und auf das nichts verweist, fliegt aus dem Cache
+    const [items, refs] = await Promise.all([
+      trx
+        .selectFrom('drive_items')
+        .select(['file_id', 'parent_id', 'name', 'mime_type', 'modified_time', 'web_url', 'trashed'])
+        .execute(),
+      referencedIds(trx),
+    ]);
+    const keep = keepIds(items, source.rootId, refs);
+    const drop = items.filter((i) => !keep.has(i.file_id)).map((i) => i.file_id);
+    for (let i = 0; i < drop.length; i += 500)
+      await trx
+        .deleteFrom('drive_items')
+        .where('file_id', 'in', drop.slice(i, i + 500))
+        .execute();
+    await trx
+      .updateTable('drive_sync_state')
+      .set({ changes_page_token: result.token, last_checked_at: at })
+      .execute();
+  });
+  return { changed: result.changed.length, checked: true };
+}
+
+/**
+ * Joblauf: wöchentlicher Neuaufbau (3.13 Nr. 4) – ohne eingerichtetes Drive passiert nichts, nach einem Fehlschlag
+ * frühestens eine Stunde später wieder. deadline: Ende des Zeitbudgets des Joblaufs.
+ */
+export async function weeklyRebuild(db: Kysely<Database>, now: Date, deadline: number): Promise<boolean> {
+  if (!driveSource().configured) return false;
+  const state = await claim(
+    db,
+    now,
+    (s) =>
+      driveFullSyncDue(s.last_full_sync_at, now) &&
+      (!s.last_attempt_at || now.getTime() - new Date(s.last_attempt_at).getTime() >= JOB_RETRY_MS),
+  );
+  if (!state) return false;
+  await rebuild(db, now, deadline);
+  return true;
 }
 
 // ── Dokumente zu Drive-Dateien (F-WIS-05, F-WIS-06) ─────────────────────────
@@ -299,6 +423,7 @@ export async function documentForFile(trx: Trx, fileId: string): Promise<Documen
     .where('archived_at', 'is', null)
     .where((eb) => eb.or([eb('drive_file_id', '=', fileId), eb('url', 'like', `%${fileId}%`)]))
     .orderBy('created_at')
+    .orderBy('id')
     .execute();
   return docs.find((d) => fileIdOf(d) === fileId);
 }
@@ -318,10 +443,11 @@ export async function visibleDriveFile(trx: Trx, url: string): Promise<string | 
 export async function missingDriveDocuments(
   db: Db,
   docs: Pick<DocumentRow, 'id' | 'url' | 'drive_file_id'>[],
+  loaded?: DriveIndex,
 ): Promise<Set<string>> {
   const withFile = docs.filter((d) => fileIdOf(d));
   if (withFile.length === 0) return new Set();
-  const index = await loadIndex(db);
+  const index = loaded ?? (await loadIndex(db));
   return new Set(
     withFile
       .filter((d) =>
@@ -369,11 +495,7 @@ export async function linkDriveFile(
     });
   } else if (!doc.drive_file_id) {
     // vorher „Per Link“ erfasst, als der Cache die Datei noch nicht kannte: jetzt als Drive-Datei führen
-    await ctx.trx
-      .updateTable('documents')
-      .set({ drive_file_id: item.file_id, version: doc.version + 1, updated_at: iso(ctx) })
-      .where('id', '=', doc.id)
-      .execute();
+    await touch(ctx, 'documents', 'document', doc, { drive_file_id: item.file_id });
     await writeHistory(ctx, 'document', doc.id, 'updated', {
       drive_file_id: { old: null, new: item.file_id },
     });
@@ -410,7 +532,7 @@ export async function setEventDriveFolder(
 ): Promise<void> {
   const invalid = () =>
     new AppError('validation', 'Diesen Ordner gibt es im Drive nicht mehr.', { field: 'drive_folder_id' });
-  if (folderId !== null && typeof folderId !== 'string') throw invalid();
+  if (folderId !== null && (typeof folderId !== 'string' || folderId === '')) throw invalid();
   const event = await findEvent(ctx, eventId);
   await checkVersion(ctx, 'event', event, version);
   if (folderId) {

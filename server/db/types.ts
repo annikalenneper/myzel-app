@@ -444,6 +444,8 @@ export interface DriveSyncStateTable {
   changes_page_token: string | null;
   last_checked_at: Timestamp | null;
   last_full_sync_at: Timestamp | null;
+  /** letzter Versuch, auch fehlgeschlagen – höchstens einmal pro Minute erneut */
+  last_attempt_at: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface Database {

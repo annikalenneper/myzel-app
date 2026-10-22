@@ -28,6 +28,9 @@ const CLAIM_MS = 2 * 60_000;
 const BATCH = 40;
 /** Zeitbudget je Lauf für den Versand – eine Netlify Function hat 10 Sekunden, ein Aufruf nach außen höchstens 4 */
 const SEND_BUDGET_MS = 4_500;
+/** [P5] Ende des ganzen Laufs (Drive nach dem Versand); weniger Restzeit als DRIVE_MIN_MS: Drive beim nächsten Lauf */
+const JOB_BUDGET_MS = 9_000;
+const DRIVE_MIN_MS = 3_000;
 /** gesendete und fehlgeschlagene Nachrichten, Jobläufe: so lange aufbewahren (Datensparsamkeit, 9) */
 const KEEP_DAYS = 30;
 const OPEN_STATUSES = ['neu', 'geplant', 'in_arbeit', 'blockiert'] as const;
@@ -350,7 +353,8 @@ async function cleanUp(db: Db, now: Date): Promise<void> {
  */
 export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRun> {
   const started = now.toISOString();
-  const deadline = Date.now() + SEND_BUDGET_MS;
+  const jobStart = Date.now();
+  const deadline = jobStart + SEND_BUDGET_MS;
   const sent: Record<NotificationChannel, number> = { push: 0, telegram: 0 };
   let reminders = 0;
   let retries = 0;
@@ -366,13 +370,6 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
   } catch (e) {
     console.error(e);
     errors.push(`Termin-Erinnerungen: ${reason(e)}`);
-  }
-  try {
-    // [P5] Drive-Cache wöchentlich vollständig neu (3.13 Nr. 4)
-    await weeklyRebuild(db, now);
-  } catch (e) {
-    console.error(e);
-    errors.push(`Drive: ${reason(e)}`);
   }
   try {
     const claimed = await claim(db, now);
@@ -421,6 +418,16 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
     console.error(e);
     errors.push(`Versand: ${reason(e)}`);
   }
+  // [P5] Drive-Cache wöchentlich vollständig neu (3.13 Nr. 4) – nach dem Versand, mit dem restlichen Zeitbudget;
+  // reicht es nicht, kommt der nächste Lauf dran
+  const driveDeadline = jobStart + JOB_BUDGET_MS;
+  if (driveDeadline - Date.now() >= DRIVE_MIN_MS)
+    try {
+      await weeklyRebuild(db, now, driveDeadline);
+    } catch (e) {
+      console.error(e);
+      errors.push(`Drive: ${reason(e)}`);
+    }
   const error = errors.length > 0 ? errors.join(' · ').slice(0, 500) : null;
   const total = sent.push + sent.telegram;
   const count = `${total} ${total === 1 ? 'Nachricht' : 'Nachrichten'} verschickt`;

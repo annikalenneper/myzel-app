@@ -272,7 +272,21 @@ Schritt C – Daten und Server (Checkliste 10.5):
       Testdaten-Schicht laufen auch gegen den Server.
 - [x] check:integrity (Neuaufbau älter als 8 Tage, verknüpfte Dateien und Ordner der Veranstaltungen nicht mehr
       im Drive – auch über gelöschte Elternordner); Smoke-Test: Drive öffnen, Datei mit Aufgabe verknüpfen
-- [ ] Agent-Review
+- [ ] Agent-Review – Runde 1 (22.10.2026, zwei Reviews): 1 hoch, 7 mittel – eingearbeitet (Migration
+      20261023000002): Google wird nie in einer offenen Transaktion gefragt (kurz beanspruchen, fragen, kurz
+      schreiben; gleichzeitige Abgleiche fragen nur einmal), Gesamtbudget 7 s je Anfrage, ein fehlgeschlagener Versuch
+      zählt (höchstens einmal pro Minute erneut, im Joblauf stündlich); Neuaufbau im Joblauf nach dem Versand mit dem
+      Restbudget; doppelte Einträge beim Einlesen zusammengefasst; Versionsprüfung beim Verknüpfen; im Cache nur der
+      Vereinsordner (ausgeschlossene Ordner sind eine Grenze) plus verschwundene Einträge, auf die etwas verweist –
+      so bleibt „In Drive nicht mehr vorhanden“ auch nach „Neu einlesen“; Drive-Index je Anfrage nur einmal geladen.
+      Dazu: leerer Ordnername abgelehnt, ein Dokument je Datei auch strukturell (Unique-Index nur über nicht
+      archivierte), Änderungen ohne Datei-ID übersprungen, check:integrity meldet „noch nie eingelesen“, Abgleich
+      meldet sich in der App nur, wenn wirklich nachgefragt wurde; Veranstaltungs-Detail gleicht nur mit Ordner ab.
+      Server-Tests server/p5/drive.test.ts für Ausfall, Wurzelwechsel, Ausschlüsse, leeren Cache, Verschieben,
+      Joblauf und Gleichzeitigkeit.
+      Annahmen: Der Vereinsordner liegt in „Meine Ablage“ (nicht in einer geteilten Ablage) – sonst bräuchte das
+      Einlesen corpora=drive. check:integrity rechnet ohne GOOGLE_DRIVE_EXCLUDED_FOLDER_IDS und prüft „Per Link“
+      erfasste Dokumente ohne drive_file_id nicht (die App zeigt den Hinweis trotzdem).
 - [ ] Phasenabschluss (10.7)
 
 ### 10.6 Phase 6 – Komfort
