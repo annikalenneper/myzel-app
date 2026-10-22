@@ -297,10 +297,27 @@ function plannedTask(
   return task;
 }
 
+/** Worauf eine Plenum-Aktion zielt – nur Punkte, die gerade auf der Agenda stehen (Entscheidung der Nutzerin, 22.10.2026) */
+const actionTarget = (kind: string) =>
+  kind.startsWith('task_')
+    ? 'task'
+    : kind.startsWith('question_')
+      ? 'question'
+      : kind.startsWith('decision_')
+        ? 'decision'
+        : kind === 'event_status'
+          ? 'event'
+          : kind.startsWith('appointment_')
+            ? 'appointment'
+            : null;
+
 export function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Undoable {
   const input = parse(plenumActionSchema, raw);
   const plenum = openPlenum(ctx, plenumId);
   const db = ctx.db;
+  const target = actionTarget(input.kind);
+  if (target && 'id' in input && !isMarked(db, target, input.id))
+    throw rule('Dieser Punkt steht nicht mehr auf der Agenda.');
   let entity: { type: UndoEntity; row: { id: string; version: number } };
   let line: Line;
   let action = 'plenum';

@@ -619,6 +619,8 @@ export function updateTaskFields(ctx: Ctx, id: string, raw: unknown, version: nu
     if (input.event_id) usableEvent(ctx, input.event_id);
     changes.event_id = { old: task.event_id, new: input.event_id };
     task.event_id = input.event_id;
+    // [P4] aus einer Vorlage angelegt: bei der bisherigen Veranstaltung wieder anlegbar (Entscheidung 22.10.2026)
+    ctx.db.template_applications = ctx.db.template_applications.filter((a) => a.task_id !== id);
   }
   if (input.appointment_id !== undefined && input.appointment_id !== task.appointment_id) {
     if (input.appointment_id) usableAppointment(ctx, input.appointment_id);

@@ -410,9 +410,26 @@ const TABLE_OF = {
   partner: 'partners',
 } as const;
 
+/** Worauf eine Plenum-Aktion zielt – nur Punkte, die gerade auf der Agenda stehen (Entscheidung der Nutzerin, 22.10.2026) */
+const actionTarget = (kind: string) =>
+  kind.startsWith('task_')
+    ? 'task'
+    : kind.startsWith('question_')
+      ? 'question'
+      : kind.startsWith('decision_')
+        ? 'decision'
+        : kind === 'event_status'
+          ? 'event'
+          : kind.startsWith('appointment_')
+            ? 'appointment'
+            : null;
+
 export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Promise<Undoable> {
   const input = parse(plenumActionSchema, raw);
   const plenum = await openPlenum(ctx, plenumId);
+  const target = actionTarget(input.kind);
+  if (target && 'id' in input && !(await isMarked(ctx.trx, target, input.id)))
+    throw rule('Dieser Punkt steht nicht mehr auf der Agenda.');
   // die Teilschritte legen keine eigenen Rückgängig-Einträge an – es bleibt genau einer für die ganze Aktion
   ctx.deferUndo = true;
   let entity: { type: HistoryEntity & keyof typeof TABLE_OF; id: string };

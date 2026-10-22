@@ -86,6 +86,10 @@ export function createPartner(ctx: Ctx, raw: unknown): { id: string } {
   return { id: partner.id };
 }
 
+/** Mail und Telefon von Partnern stehen nicht in der Historie, nur dass sie geändert wurden (Entscheidung 22.10.2026) */
+const HIDDEN_IN_HISTORY = new Set(['email', 'phone']);
+const hiddenChange = { old: '(nicht gespeichert)', new: '(geändert)' };
+
 export function updatePartner(ctx: Ctx, id: string, raw: unknown): void {
   const input = parse(partnerUpdateSchema, raw);
   const partner = findPartner(ctx.db, id);
@@ -106,7 +110,7 @@ export function updatePartner(ctx: Ctx, id: string, raw: unknown): void {
     'internal_contact_member_id',
   ] as const) {
     if (partner[key] === input[key]) continue;
-    changes[key] = { old: partner[key], new: input[key] };
+    changes[key] = HIDDEN_IN_HISTORY.has(key) ? hiddenChange : { old: partner[key], new: input[key] };
     (partner[key] as unknown) = input[key];
   }
   if (Object.keys(changes).length === 0) return;

@@ -113,6 +113,10 @@ async function touchPartner(ctx: Ctx, partner: PartnerRow, set: Partial<PartnerR
   await updatedOne(ctx, result, 'partner', partner);
 }
 
+/** Mail und Telefon von Partnern stehen nicht in der Historie, nur dass sie geändert wurden (Entscheidung 22.10.2026) */
+const HIDDEN_IN_HISTORY = new Set(['email', 'phone']);
+const hiddenChange = { old: '(nicht gespeichert)', new: '(geändert)' };
+
 export async function updatePartner(ctx: Ctx, id: string, raw: unknown): Promise<void> {
   const input = parse(partnerUpdateSchema, raw);
   const partner = await findPartner(ctx.trx, id);
@@ -134,7 +138,7 @@ export async function updatePartner(ctx: Ctx, id: string, raw: unknown): Promise
     'internal_contact_member_id',
   ] as const) {
     if (partner[key] === input[key]) continue;
-    changes[key] = { old: partner[key], new: input[key] };
+    changes[key] = HIDDEN_IN_HISTORY.has(key) ? hiddenChange : { old: partner[key], new: input[key] };
     (set as Record<string, unknown>)[key] = input[key];
   }
   if (Object.keys(changes).length === 0) return;

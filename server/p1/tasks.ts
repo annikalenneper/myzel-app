@@ -256,6 +256,8 @@ export async function updateTaskFields(ctx: Ctx, id: string, raw: unknown, versi
     if (input.event_id) await usableEvent(ctx, input.event_id);
     changes.event_id = { old: task.event_id, new: input.event_id };
     set.event_id = input.event_id;
+    // [P4] aus einer Vorlage angelegt: bei der bisherigen Veranstaltung wieder anlegbar (Entscheidung 22.10.2026)
+    await ctx.trx.deleteFrom('template_applications').where('task_id', '=', id).execute();
   }
   if (input.appointment_id !== undefined && input.appointment_id !== task.appointment_id) {
     if (input.appointment_id) await usableAppointment(ctx, input.appointment_id);
