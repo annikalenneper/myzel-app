@@ -15,6 +15,7 @@ const SERVER_HISTORY = new Set([
   'decision',
   'question',
   'document',
+  'partner',
 ]);
 
 /** Spalten späterer Phasen weglassen */
@@ -152,13 +153,39 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
     if (data.questions.length) await trx.insertInto('questions').values(data.questions).execute();
     const links = data.document_links.filter((l) => l.target_type !== ('partner' as string));
     if (links.length) await trx.insertInto('document_links').values(links).execute();
-    // Markierungen aller Arten, die der Server kennt (Partner kommen mit P4)
-    const marks = data.plenum_marks.filter((m) => !m.partner_id);
-    if (marks.length)
+    // Phase 4: Aufbau/Abbau und Schichtplan, Detailbereiche, Booking, Hauptverantwortliche, Partner, Vorlagen
+    for (const e of data.events.filter((x) => x.setup_at || x.teardown_at || x.shift_plan_document_id))
       await trx
-        .insertInto('plenum_marks')
-        .values(marks.map((m) => without(m, 'partner_id')))
+        .updateTable('events')
+        .set({
+          setup_at: e.setup_at,
+          teardown_at: e.teardown_at,
+          shift_plan_document_id: e.shift_plan_document_id,
+        })
+        .where('id', '=', e.id)
         .execute();
+    if (data.event_details.length)
+      await trx
+        .insertInto('event_details')
+        .values(data.event_details.map((d) => ({ event_id: d.event_id, data: JSON.stringify(d) })))
+        .execute();
+    if (data.event_bookings.length)
+      await trx.insertInto('event_bookings').values(data.event_bookings).execute();
+    if (data.event_leads.length) await trx.insertInto('event_leads').values(data.event_leads).execute();
+    if (data.partners.length) await trx.insertInto('partners').values(data.partners).execute();
+    if (data.event_partners.length)
+      await trx.insertInto('event_partners').values(data.event_partners).execute();
+    if (data.event_templates.length)
+      await trx.insertInto('event_templates').values(data.event_templates).execute();
+    if (data.event_template_items.length)
+      await trx
+        .insertInto('event_template_items')
+        .values(data.event_template_items.map((i) => ({ ...i, position: Math.round(i.position) })))
+        .execute();
+    if (data.template_applications.length)
+      await trx.insertInto('template_applications').values(data.template_applications).execute();
+    // Markierungen aller Arten
+    if (data.plenum_marks.length) await trx.insertInto('plenum_marks').values(data.plenum_marks).execute();
     const history = data.history.filter((h) => SERVER_HISTORY.has(h.entity_type));
     for (let i = 0; i < history.length; i += 200)
       await trx

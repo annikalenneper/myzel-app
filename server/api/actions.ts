@@ -21,6 +21,9 @@ import * as notify from '../p2/notify';
 import * as appts from '../p3/appointments';
 import * as know from '../p3/knowledge';
 import * as plenum from '../p3/plenum';
+import * as p4events from '../p4/events';
+import * as partners from '../p4/partners';
+import * as templates from '../p4/templates';
 
 type Args = unknown[];
 /**
@@ -49,7 +52,6 @@ export const READ_ACTIONS: Record<string, (db: Kysely<Database>, args: Args, now
     getTask: (db, [id]) => reads.getTask(db, s(id)),
     listEvents: (db, _, now) => reads.listEvents(db, now),
     getEvent: (db, [id], now) => reads.getEvent(db, s(id), now),
-    getEventDetail: (db, [id], now) => reads.getEventDetail(db, s(id), now),
   };
 
 export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unknown>> = {
@@ -135,6 +137,29 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
     know.unlinkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
   setMark: (ctx, [target, id, marked]) => know.setMark(ctx, target, s(id), marked === true),
   search: (ctx, [query]) => know.search(ctx.trx, query, ctx.now),
+
+  // [P4] Veranstaltungen ausgebaut, Partner, Vorlagen
+  getEventDetail: (ctx, [id]) => p4events.getEventDetail(ctx.trx, s(id), ctx.now),
+  updateEventDetail: (ctx, [id, input]) => p4events.updateEventDetail(ctx, s(id), input),
+  addBooking: (ctx, [eventId, input]) => p4events.addBooking(ctx, s(eventId), input),
+  updateBooking: (ctx, [id, input]) => p4events.updateBooking(ctx, s(id), input),
+  removeBooking: (ctx, [id]) => p4events.removeBooking(ctx, s(id)),
+  addEventLead: (ctx, [eventId, memberId]) => p4events.addLead(ctx, s(eventId), s(memberId)),
+  removeEventLead: (ctx, [eventId, memberId]) => p4events.removeLead(ctx, s(eventId), s(memberId)),
+  setShiftPlan: (ctx, [eventId, documentId, version]) =>
+    p4events.setShiftPlan(ctx, s(eventId), documentId === null ? null : s(documentId), n(version)),
+  listPartners: (ctx) => partners.listPartners(ctx.trx),
+  getPartner: (ctx, [id]) => partners.getPartner(ctx.trx, s(id)),
+  createPartner: (ctx, [input]) => partners.createPartner(ctx, input),
+  updatePartner: (ctx, [id, input]) => partners.updatePartner(ctx, s(id), input),
+  linkPartner: (ctx, [eventId, partnerId, note]) => partners.linkPartner(ctx, s(eventId), s(partnerId), note),
+  unlinkPartner: (ctx, [eventId, partnerId]) => partners.unlinkPartner(ctx, s(eventId), s(partnerId)),
+  getTemplateDialog: (ctx, [eventId]) => templates.getTemplateDialog(ctx.trx, s(eventId), ctx.now),
+  applyTemplate: (ctx, [eventId, itemIds]) => templates.applyTemplate(ctx, s(eventId), itemIds),
+  listTemplates: (ctx) => templates.listTemplates(ctx.trx),
+  createTemplateItem: (ctx, [templateId, input]) => templates.createTemplateItem(ctx, s(templateId), input),
+  updateTemplateItem: (ctx, [id, input]) => templates.updateTemplateItem(ctx, s(id), input),
+  removeTemplateItem: (ctx, [id]) => templates.removeTemplateItem(ctx, s(id)),
 
   // [P3] Plenum
   getPlenum: (ctx, [id]) => plenum.getPlenum(ctx, s(id)),

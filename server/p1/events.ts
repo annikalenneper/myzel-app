@@ -2,7 +2,6 @@
 import { dropMark } from '../core/marks';
 import { EVENT_STATUS_LABEL } from '../../src/shared/labels';
 import { canTransitionEvent } from '../../src/shared/rules/eventStatus';
-import { AppError } from '../../src/shared/errors';
 import {
   eventCreateSchema,
   eventUpdateSchema,
@@ -35,9 +34,6 @@ export async function findEvent(ctx: Ctx, id: string) {
 
 export async function createEvent(ctx: Ctx, raw: unknown): Promise<{ id: string }> {
   const input = parse(eventCreateSchema, raw);
-  // Aufbau und Abbau kommen mit Phase 4
-  if (input.setup_at || input.teardown_at)
-    throw new AppError('validation', 'Aufbau und Abbau gibt es erst ab Phase 4.', { field: 'setup_at' });
   const now = iso(ctx);
   const event = await ctx.trx
     .insertInto('events')
@@ -47,6 +43,8 @@ export async function createEvent(ctx: Ctx, raw: unknown): Promise<{ id: string 
       description: input.description,
       starts_at: input.starts_at,
       ends_at: input.ends_at,
+      setup_at: input.setup_at,
+      teardown_at: input.teardown_at,
       created_at: now,
       updated_at: now,
       created_by: ctx.actor.id,
@@ -63,9 +61,18 @@ export async function updateEvent(ctx: Ctx, id: string, raw: unknown): Promise<v
   await checkVersion(ctx, 'event', event, input.version);
   const changes: HistoryChanges = {};
   const set: Record<string, unknown> = {};
-  for (const key of ['title', 'type', 'description', 'starts_at', 'ends_at'] as const) {
+  // [P4] mit Aufbau und Abbau
+  for (const key of [
+    'title',
+    'type',
+    'description',
+    'starts_at',
+    'ends_at',
+    'setup_at',
+    'teardown_at',
+  ] as const) {
     const same =
-      key === 'starts_at' || key === 'ends_at'
+      key === 'starts_at' || key === 'ends_at' || key === 'setup_at' || key === 'teardown_at'
         ? (event[key] ? new Date(event[key]).getTime() : null) ===
           (input[key] ? new Date(input[key]).getTime() : null)
         : event[key] === input[key];
@@ -73,8 +80,6 @@ export async function updateEvent(ctx: Ctx, id: string, raw: unknown): Promise<v
     changes[key] = { old: event[key], new: input[key] };
     set[key] = input[key];
   }
-  if (input.setup_at || input.teardown_at)
-    throw new AppError('validation', 'Aufbau und Abbau gibt es erst ab Phase 4.', { field: 'setup_at' });
   if (Object.keys(changes).length === 0) return;
   const result = await ctx.trx
     .updateTable('events')

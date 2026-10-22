@@ -25,6 +25,8 @@ import {
 import type { MemberRow } from '../db/types';
 import { dropChannels } from '../p2/notify';
 import { dropFutureRsvps, futureRsvpCount } from '../p3/appointments';
+import { dropLeads, leadCount } from '../p4/events';
+import { dropPartnerContacts, partnerContactCount } from '../p4/partners';
 import { dropAssignee, dropFollower } from './tasks';
 
 async function findMember(ctx: Ctx, id: string): Promise<MemberRow> {
@@ -159,8 +161,9 @@ export async function getDeactivationImpact(ctx: Ctx, memberId: string): Promise
     following_count: following.length,
     // [P3] Zusagen für künftige Termine; Hauptverantwortliche und Partner-Kontakte kommen mit P4
     future_rsvp_count: await futureRsvpCount(ctx.trx, memberId, ctx.now),
-    lead_count: 0,
-    partner_contact_count: 0,
+    // [P4]
+    lead_count: await leadCount(ctx.trx, memberId),
+    partner_contact_count: await partnerContactCount(ctx.trx, memberId),
   };
   for (const task of assigned) {
     if (task.archived_at || !isActiveTaskStatus(task.status)) continue;
@@ -211,6 +214,9 @@ export async function deactivateMember(ctx: Ctx, memberId: string): Promise<Deac
   await writeHistory(ctx, 'member', memberId, 'deactivated', { active: { old: true, new: false } });
   // [P3] Zusagen für künftige Termine entfallen
   await dropFutureRsvps(ctx, memberId);
+  // [P4] als Hauptverantwortliche und interne Kontaktperson austragen
+  await dropLeads(ctx, memberId);
+  await dropPartnerContacts(ctx, memberId);
   return impact;
 }
 
@@ -380,8 +386,21 @@ export async function restoreTopic(ctx: Ctx, id: string, version: number): Promi
 export async function deleteTopic(ctx: Ctx, id: string): Promise<void> {
   requireAdmin(ctx);
   const topic = await findTopic(ctx, id);
-  // Vorlagen zählen erst ab Phase 4 mit
-  if (await ctx.trx.selectFrom('tasks').select('id').where('topic_id', '=', id).executeTakeFirst())
+  // benutzt ist es, sobald irgendetwas darauf verweist – auch Vorlagen, Terminarten, Termine und Wissen
+  const uses = await Promise.all([
+    ctx.trx.selectFrom('tasks').select('id').where('topic_id', '=', id).executeTakeFirst(),
+    ctx.trx.selectFrom('event_template_items').select('id').where('topic_id', '=', id).executeTakeFirst(),
+    ctx.trx
+      .selectFrom('appointment_types')
+      .select('id')
+      .where('default_topic_id', '=', id)
+      .executeTakeFirst(),
+    ctx.trx.selectFrom('appointments').select('id').where('topic_id', '=', id).executeTakeFirst(),
+    ctx.trx.selectFrom('decisions').select('id').where('topic_id', '=', id).executeTakeFirst(),
+    ctx.trx.selectFrom('questions').select('id').where('topic_id', '=', id).executeTakeFirst(),
+    ctx.trx.selectFrom('documents').select('id').where('topic_id', '=', id).executeTakeFirst(),
+  ]);
+  if (uses.some(Boolean))
     throw rule('Das Thema wird benutzt (auch Vorlagen zählen) und lässt sich deshalb nur archivieren.');
   if (await ctx.trx.selectFrom('topics').select('id').where('parent_id', '=', id).executeTakeFirst())
     throw rule('Das Thema hat Unterkategorien und lässt sich deshalb nicht löschen.');

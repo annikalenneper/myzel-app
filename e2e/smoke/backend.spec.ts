@@ -189,3 +189,35 @@ test('Phase 3: Beschlüsse lesen, Frage stellen – bleibt nach Neuladen', async
   await page.getByRole('tab', { name: 'Fragen' }).click();
   await expect(card).toBeVisible();
 });
+
+test('Phase 4: Party mit Vorlagen-Dialog anlegen, Detailbereich pflegen – bleibt nach Neuladen', async ({
+  page,
+}) => {
+  await signIn(page, authId(1), 'mo@example.org');
+  await page.goto('/events');
+  await page.getByRole('button', { name: 'Veranstaltung anlegen' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Neue Veranstaltung' });
+  await sheet.getByLabel('Titel *').fill('Smoke: Maifest');
+  await sheet.getByLabel('Beginn *').fill('2027-05-01T22:00');
+  await sheet.locator('button[type=submit]').click();
+  const dialog = page.getByRole('dialog', { name: 'Vorlage „Party“' });
+  await expect(dialog.getByRole('checkbox', { name: 'Location anfragen' })).toContainText(
+    'Bis Di, 02.03. · 60 Tage vorher',
+  );
+  await dialog.getByRole('checkbox', { name: 'Baustein Bar' }).click();
+  await dialog.getByRole('button', { name: /^\d+ Aufgaben anlegen$/ }).click();
+  await expect(page.getByTestId('WF-ALL-02')).toContainText('Aufgaben angelegt');
+
+  await page
+    .getByRole('tabpanel')
+    .getByRole('link', { name: /Smoke: Maifest/ })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Smoke: Maifest' })).toBeVisible();
+  const location = page.getByRole('region', { name: 'Location' });
+  await location.getByRole('button', { expanded: false }).click();
+  await location.getByLabel('Kapazität').fill('350');
+  await location.getByLabel('Kapazität').press('Enter');
+  await expect(location).toContainText('bis 350 Personen');
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Location' })).toContainText('bis 350 Personen');
+});

@@ -1,4 +1,5 @@
 // Phase 4 – Vorlagen: YAML-Startinhalt mit Schema, Dialog S-23 (WF-VER-12), Bearbeiten S-55 (WF-ADM-08)
+// Mit MYZEL_API=server laufen dieselben Tests gegen die echten Server-Funktionen auf PGlite (Schritt C, Phase 4).
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { AppError } from '../../shared/errors';
@@ -36,7 +37,10 @@ const items = (dialog: Awaited<ReturnType<MyzelApi['getTemplateDialog']>>) =>
   dialog.blocks.flatMap((b) => b.items);
 
 beforeEach(async () => {
-  api = createMockApi({ storage: memoryStorage(), now: () => now });
+  api =
+    process.env.MYZEL_API === 'server'
+      ? await (await import('../../../server/api/serverApi')).createServerApi({ now: () => now })
+      : createMockApi({ storage: memoryStorage(), now: () => now });
   await api.demo!.signInAs('mo@example.org');
 });
 

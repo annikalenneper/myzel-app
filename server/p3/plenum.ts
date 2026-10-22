@@ -37,6 +37,7 @@ import { findEvent, setEventStatus } from '../p1/events';
 import { addAssignee, createTask, findTask, removeAssignee, setTaskStatus } from '../p1/tasks';
 import { enqueue } from '../p2/notify';
 import * as appts from './appointments';
+import { findPartner } from '../p4/partners';
 import * as know from './knowledge';
 
 const day = (iso: string) => formatDayMonth(new Date(iso));
@@ -77,52 +78,72 @@ export async function agenda(trx: Trx, now: Date): Promise<AgendaItem[]> {
     marks.flatMap((m) => (m[markColumn(t)] ? [m[markColumn(t)]!] : []));
   const none = ['00000000-0000-0000-0000-000000000000'];
   const or = (ids: string[]) => (ids.length ? ids : none);
-  const [tasks, assignees, questions, decisions, events, eventTasks, appointments, documents] =
-    await Promise.all([
-      trx
-        .selectFrom('tasks')
-        .selectAll()
-        .where('id', 'in', or(idsOf('task')))
-        .execute(),
-      trx
-        .selectFrom('task_assignees')
-        .select(['task_id', 'member_id'])
-        .where('task_id', 'in', or(idsOf('task')))
-        .orderBy('assigned_at')
-        .execute(),
-      trx
-        .selectFrom('questions')
-        .selectAll()
-        .where('id', 'in', or(idsOf('question')))
-        .execute(),
-      trx
-        .selectFrom('decisions')
-        .selectAll()
-        .where('id', 'in', or(idsOf('decision')))
-        .execute(),
-      trx
-        .selectFrom('events')
-        .selectAll()
-        .where('id', 'in', or(idsOf('event')))
-        .execute(),
-      trx
-        .selectFrom('tasks')
-        .select('event_id')
-        .where('event_id', 'in', or(idsOf('event')))
-        .where('archived_at', 'is', null)
-        .where('status', 'in', OPEN)
-        .execute(),
-      trx
-        .selectFrom('appointments')
-        .selectAll()
-        .where('id', 'in', or(idsOf('appointment')))
-        .execute(),
-      trx
-        .selectFrom('documents')
-        .selectAll()
-        .where('id', 'in', or(idsOf('document')))
-        .execute(),
-    ]);
+  const [
+    tasks,
+    assignees,
+    questions,
+    decisions,
+    events,
+    eventTasks,
+    appointments,
+    documents,
+    partners,
+    partnerEvents,
+  ] = await Promise.all([
+    trx
+      .selectFrom('tasks')
+      .selectAll()
+      .where('id', 'in', or(idsOf('task')))
+      .execute(),
+    trx
+      .selectFrom('task_assignees')
+      .select(['task_id', 'member_id'])
+      .where('task_id', 'in', or(idsOf('task')))
+      .orderBy('assigned_at')
+      .execute(),
+    trx
+      .selectFrom('questions')
+      .selectAll()
+      .where('id', 'in', or(idsOf('question')))
+      .execute(),
+    trx
+      .selectFrom('decisions')
+      .selectAll()
+      .where('id', 'in', or(idsOf('decision')))
+      .execute(),
+    trx
+      .selectFrom('events')
+      .selectAll()
+      .where('id', 'in', or(idsOf('event')))
+      .execute(),
+    trx
+      .selectFrom('tasks')
+      .select('event_id')
+      .where('event_id', 'in', or(idsOf('event')))
+      .where('archived_at', 'is', null)
+      .where('status', 'in', OPEN)
+      .execute(),
+    trx
+      .selectFrom('appointments')
+      .selectAll()
+      .where('id', 'in', or(idsOf('appointment')))
+      .execute(),
+    trx
+      .selectFrom('documents')
+      .selectAll()
+      .where('id', 'in', or(idsOf('document')))
+      .execute(),
+    trx
+      .selectFrom('partners')
+      .selectAll()
+      .where('id', 'in', or(idsOf('partner')))
+      .execute(),
+    trx
+      .selectFrom('event_partners')
+      .select('partner_id')
+      .where('partner_id', 'in', or(idsOf('partner')))
+      .execute(),
+  ]);
   const today = berlinDate(now);
   const items: AgendaItem[] = [];
   for (const mark of marks) {
@@ -201,6 +222,19 @@ export async function agenda(trx: Trx, now: Date): Promise<AgendaItem[]> {
         label: `Termin · ${WEEKDAYS[d.getDay()]} ${day(a.starts_at)}`,
         tone: 'blau',
         starts_at: a.starts_at,
+      });
+    } else if (target === 'partner') {
+      const partner = partners.find((x) => x.id === id);
+      if (!partner) continue;
+      const count = partnerEvents.filter((ep) => ep.partner_id === partner.id).length;
+      items.push({
+        ...base,
+        title: partner.name,
+        version: partner.version,
+        label: ['Partner', partner.kind, `${count} ${count === 1 ? 'Veranstaltung' : 'Veranstaltungen'}`]
+          .filter(Boolean)
+          .join(' · '),
+        tone: 'violett',
       });
     } else {
       const d = documents.find((x) => x.id === id);
@@ -373,6 +407,7 @@ const TABLE_OF = {
   event: 'events',
   appointment: 'appointments',
   document: 'documents',
+  partner: 'partners',
 } as const;
 
 export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Promise<Undoable> {
@@ -601,7 +636,6 @@ export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Pr
       break;
     }
     case 'sub_task': {
-      if (input.target === 'partner') throw rule('Partner kommen mit einer späteren Phase.');
       if (!(await isMarked(ctx.trx, input.target, input.id)))
         throw rule('Dieser Punkt steht nicht mehr auf der Agenda.');
       const fallbackTopic = plenum.topic_id;
@@ -631,6 +665,10 @@ export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Pr
           appointment_id: a.id,
           event_id: a.event_id,
         });
+      } else if (input.target === 'partner') {
+        const partner = await findPartner(ctx.trx, input.id, false);
+        about = partner.name;
+        task = await plannedTask(ctx, plenum, { ...input, topic_id: fallbackTopic });
       } else {
         const doc = await ctx.trx
           .selectFrom('documents')
@@ -651,13 +689,13 @@ export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Pr
       break;
     }
     case 'discussed': {
-      if (input.target === 'partner') throw rule('Partner kommen mit einer späteren Phase.');
-      const row = (await ctx.trx
+      const found = (await ctx.trx
         .selectFrom(TABLE_OF[input.target])
         .selectAll()
         .where('id', '=', input.id)
-        .executeTakeFirst()) as { id: string; title: string } | undefined;
-      if (!row) throw notFound('Diesen Eintrag');
+        .executeTakeFirst()) as { id: string; title?: string; name?: string } | undefined;
+      if (!found) throw notFound('Diesen Eintrag');
+      const row = { id: found.id, title: found.title ?? found.name ?? '' };
       const changes: HistoryChanges = {};
       if (!(await dropMark(ctx, input.target, input.id, changes)))
         throw rule('Dieser Punkt steht nicht mehr auf der Agenda.');

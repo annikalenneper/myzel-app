@@ -188,7 +188,7 @@ describe('Aktionen', () => {
     await handleAction(local.db, lea, 'getSession', [], now);
     expect(await code(handleAction(local.db, lea, 'toString', [], now))).toBe('rule');
     expect(await code(handleAction(local.db, lea, '__proto__', [], now))).toBe('rule');
-    expect(await code(handleAction(local.db, lea, 'listPartners', [], now))).toBe('rule');
+    expect(await code(handleAction(local.db, lea, 'getDriveFolder', [null], now))).toBe('rule');
   });
 
   it('Fehler werden zu deutschen Sätzen mit passendem Status, ohne technische Details', () => {

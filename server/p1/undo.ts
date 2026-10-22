@@ -40,6 +40,7 @@ const TABLES = {
   decision: 'decisions',
   question: 'questions',
   document: 'documents',
+  partner: 'partners',
 } as const;
 type UndoEntity = keyof typeof TABLES;
 
@@ -313,6 +314,7 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
         await ctx.trx.deleteFrom('task_assignees').where('task_id', '=', op.task_id).execute();
         await ctx.trx.deleteFrom('task_followers').where('task_id', '=', op.task_id).execute();
         await ctx.trx.deleteFrom('plenum_marks').where('task_id', '=', op.task_id).execute();
+        await ctx.trx.deleteFrom('template_applications').where('task_id', '=', op.task_id).execute();
         await ctx.trx
           .deleteFrom('document_links')
           .where('target_type', '=', 'task')
@@ -320,6 +322,64 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .execute();
         await ctx.trx.deleteFrom('tasks').where('id', '=', op.task_id).execute();
         break;
+      // ── Phase 4 ──
+      case 'booking_remove':
+        await ctx.trx.deleteFrom('event_bookings').where('id', '=', op.booking_id).execute();
+        break;
+      case 'booking_restore':
+        await ctx.trx
+          .insertInto('event_bookings')
+          .values(op.row)
+          .onConflict((oc) => oc.doNothing())
+          .execute();
+        break;
+      case 'lead_remove':
+        await ctx.trx
+          .deleteFrom('event_leads')
+          .where('event_id', '=', op.event_id)
+          .where('member_id', '=', op.member_id)
+          .execute();
+        break;
+      case 'lead_restore': {
+        // wer inzwischen deaktiviert ist, kommt nicht zurück (WF-ADM-03)
+        const active = await ctx.trx
+          .selectFrom('members')
+          .select('id')
+          .where('id', '=', op.row.member_id)
+          .where('active', '=', true)
+          .forShare()
+          .executeTakeFirst();
+        if (active)
+          await ctx.trx
+            .insertInto('event_leads')
+            .values(op.row)
+            .onConflict((oc) => oc.doNothing())
+            .execute();
+        break;
+      }
+      case 'event_partner_remove':
+        await ctx.trx
+          .deleteFrom('event_partners')
+          .where('event_id', '=', op.event_id)
+          .where('partner_id', '=', op.partner_id)
+          .execute();
+        break;
+      case 'event_partner_restore': {
+        // ein inzwischen archivierter Partner wird nicht wieder verknüpft (wie linkPartner)
+        const partner = await ctx.trx
+          .selectFrom('partners')
+          .select('archived_at')
+          .where('id', '=', op.row.partner_id)
+          .forShare()
+          .executeTakeFirst();
+        if (partner && !partner.archived_at)
+          await ctx.trx
+            .insertInto('event_partners')
+            .values(op.row)
+            .onConflict((oc) => oc.doNothing())
+            .execute();
+        break;
+      }
       case 'decision_delete':
         // die im selben Schritt angelegte Entscheidung verschwindet wieder – samt Markierung; die Historie bleibt
         await ctx.trx.deleteFrom('plenum_marks').where('decision_id', '=', op.decision_id).execute();
@@ -416,6 +476,16 @@ async function stillUndoable(
       throw rule('Das Plenum ist schon abgeschlossen – das lässt sich nicht mehr rückgängig machen.');
   }
   for (const op of ops) {
+    if (op.kind === 'booking_remove') {
+      const booking = await ctx.trx
+        .selectFrom('event_bookings')
+        .select('version')
+        .where('id', '=', op.booking_id)
+        .forUpdate()
+        .executeTakeFirst();
+      if ((booking?.version ?? 1) > 1)
+        throw rule('Der Act wurde inzwischen bearbeitet – das lässt sich nicht mehr rückgängig machen.');
+    }
     if (op.kind === 'decision_delete') {
       const created = await ctx.trx
         .selectFrom('decisions')

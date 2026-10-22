@@ -5,8 +5,9 @@ import { isActiveTaskStatus } from '../../src/shared/rules/taskStatus';
 import type { HistoryChanges } from '../../src/shared/schema';
 import { iso, lockFor, type Ctx, type Trx } from './context';
 
-/** Arten, die der Server markieren kann; Partner kommen mit P4 */
-export type ServerMarkTarget = 'task' | 'question' | 'decision' | 'event' | 'appointment' | 'document';
+/** Arten, die der Server markieren kann */
+export type ServerMarkTarget =
+  'task' | 'question' | 'decision' | 'event' | 'appointment' | 'document' | 'partner';
 export const SERVER_MARK_TARGETS: readonly ServerMarkTarget[] = [
   'task',
   'question',
@@ -14,6 +15,7 @@ export const SERVER_MARK_TARGETS: readonly ServerMarkTarget[] = [
   'event',
   'appointment',
   'document',
+  'partner',
 ];
 export const markColumn = <T extends ServerMarkTarget>(target: T) => `${target}_id` as `${T}_id`;
 
@@ -113,6 +115,14 @@ export async function markable(trx: Trx, target: ServerMarkTarget, id: string): 
         .where('id', '=', id)
         .executeTakeFirst();
       return !!d && !d.archived_at;
+    }
+    case 'partner': {
+      const p = await trx
+        .selectFrom('partners')
+        .select('archived_at')
+        .where('id', '=', id)
+        .executeTakeFirst();
+      return !!p && !p.archived_at;
     }
   }
 }

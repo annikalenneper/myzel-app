@@ -20,7 +20,8 @@
     "check:integrity": "tsx --env-file=.env server/integrity/checks.ts",
     "build:smoke": "vite build --mode backend --outDir dist-smoke",
     "test:smoke": "playwright test -c playwright.smoke.config.ts",
-    "telegram:webhook": "tsx --env-file=.env server/p2/setupTelegram.ts"
+    "telegram:webhook": "tsx --env-file=.env server/p2/setupTelegram.ts",
+    "db:seed-templates": "tsx --env-file=.env server/p4/seedTemplates.ts"
   },
   "dependencies": {
     "@fontsource-variable/space-grotesk": "^5.3.0",

@@ -1,4 +1,5 @@
 // Phase 4 – Kooperationspartner: anlegen, suchen, verknüpfen, bisherige Veranstaltungen, Plenum, Deaktivieren
+// Mit MYZEL_API=server laufen dieselben Tests gegen die echten Server-Funktionen auf PGlite (Schritt C, Phase 4).
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../shared/errors';
 import type { MyzelApi } from '../api';
@@ -28,7 +29,12 @@ const eventId = async (title: string) => (await api.listEvents()).find((e) => e.
 const memberId = async (name: string) => (await api.listMembers()).find((m) => m.display_name === name)!.id;
 
 beforeEach(async () => {
-  api = createMockApi({ storage: memoryStorage(), now: () => new Date(2026, 9, 11, 12) });
+  api =
+    process.env.MYZEL_API === 'server'
+      ? await (
+          await import('../../../server/api/serverApi')
+        ).createServerApi({ now: () => new Date(2026, 9, 11, 12) })
+      : createMockApi({ storage: memoryStorage(), now: () => new Date(2026, 9, 11, 12) });
   await login('mo');
 });
 

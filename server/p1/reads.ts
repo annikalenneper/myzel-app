@@ -1,14 +1,7 @@
 // Lesen, Phase 1 (F-AUF-01 bis -03, F-AUF-05, F-VER-01, F-VER-03): dieselben Formen wie die Testdaten-Schicht.
 // Felder späterer Phasen liefern hier ihren leeren Wert, bis deren Migrationen kommen.
 import { sql, type Kysely } from 'kysely';
-import type {
-  EventDetail,
-  EventListItem,
-  TaskDetail,
-  TaskListItem,
-  TopicWithUsage,
-} from '../../src/data/api';
-import { emptyEventDetails, sectionSummaries, suggestsFollowUp } from '../../src/shared/rules/eventDetails';
+import type { EventListItem, TaskDetail, TaskListItem, TopicWithUsage } from '../../src/data/api';
 import { berlinDate, isOverdue } from '../../src/shared/rules/due';
 import { isActiveTaskStatus } from '../../src/shared/rules/taskStatus';
 import type { EventRow, HistoryEntry, Member, Task, Topic } from '../../src/shared/schema';
@@ -19,12 +12,8 @@ type Db = Kysely<Database>;
 
 /** Spalten späterer Phasen */
 const memberLater = { notify_own_status: false } as const;
-const eventLater = {
-  setup_at: null,
-  teardown_at: null,
-  shift_plan_document_id: null,
-  drive_folder_id: null,
-} as const;
+/** [P5] Drive-Ordner der Veranstaltung */
+const eventLater = { drive_folder_id: null } as const;
 
 export async function listMembers(db: Db): Promise<Member[]> {
   const rows = await db.selectFrom('members').selectAll().orderBy('created_at').orderBy('id').execute();
@@ -194,21 +183,4 @@ export async function getEvent(db: Db, id: string, now: Date): Promise<EventList
   const event = await db.selectFrom('events').selectAll().where('id', '=', id).executeTakeFirst();
   if (!event) throw notFound('Diese Veranstaltung');
   return (await eventItems(db, [event], now))[0]!;
-}
-
-/** Detailansicht einer Veranstaltung (F-VER-03); Detailbereiche, Booking und Partner bleiben bis Phase 4 leer */
-export async function getEventDetail(db: Db, id: string, now: Date): Promise<EventDetail> {
-  const event = await getEvent(db, id, now);
-  const details = emptyEventDetails(id);
-  return {
-    ...event,
-    details,
-    bookings: [],
-    lead_ids: [],
-    shift_plan_document: null,
-    summaries: sectionSummaries(details, []),
-    suggests_follow_up: suggestsFollowUp(event, now),
-    drive_folder: null,
-    partners: [],
-  };
 }

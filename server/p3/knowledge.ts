@@ -685,12 +685,13 @@ export async function createDocument(ctx: Ctx, raw: unknown): Promise<{ id: stri
 
 // ── Markierung „Fürs Plenum“ für Entscheidungen, Fragen, Dokumente, Veranstaltungen ──
 
-type KnowledgeTarget = 'decision' | 'question' | 'document' | 'event';
+type KnowledgeTarget = 'decision' | 'question' | 'document' | 'event' | 'partner';
 const MARK_TABLE = {
   decision: 'decisions',
   question: 'questions',
   document: 'documents',
   event: 'events',
+  partner: 'partners',
 } as const;
 
 export async function setMark(ctx: Ctx, target: unknown, id: string, marked: boolean): Promise<Undoable> {
@@ -733,7 +734,7 @@ export async function search(trx: Trx, query: unknown, now: Date): Promise<Searc
   const hit = (...texts: (string | null | undefined)[]) => texts.some((t) => t?.toLowerCase().includes(q));
   const when = (isoTime: string) => formatDayMonth(new Date(isoTime));
   const today = berlinDate(now);
-  const [tasks, events, appointments, decisions, questions, documents] = await Promise.all([
+  const [tasks, events, appointments, decisions, questions, documents, partners] = await Promise.all([
     trx
       .selectFrom('tasks')
       .select(['id', 'title', 'description', 'status', 'due_date', 'event_id'])
@@ -773,10 +774,36 @@ export async function search(trx: Trx, query: unknown, now: Date): Promise<Searc
       .orderBy('created_at')
       .execute(),
     trx.selectFrom('documents').selectAll().where('archived_at', 'is', null).orderBy('title').execute(),
+    trx
+      .selectFrom('partners')
+      .selectAll()
+      .where('archived_at', 'is', null)
+      .where((eb) =>
+        eb.or([
+          eb('name', 'ilike', like),
+          eb('kind', 'ilike', like),
+          eb('description', 'ilike', like),
+          eb('contact_person', 'ilike', like),
+          eb('notes', 'ilike', like),
+        ]),
+      )
+      .orderBy('name')
+      .execute(),
   ]);
   const eventTitle = (id: string | null) => (id ? events.find((e) => e.id === id)?.title : undefined);
   const foundDocs = documents.filter((d) => hit(d.title, d.description, ...(d.tags as string[])));
   const docItems = await documentItems(trx, foundDocs);
+  const partnerLinks = partners.length
+    ? await trx
+        .selectFrom('event_partners')
+        .select('partner_id')
+        .where(
+          'partner_id',
+          'in',
+          partners.map((p) => p.id),
+        )
+        .execute()
+    : [];
   const groups: [SearchGroupKey, string, SearchGroup['items']][] = [
     [
       'aufgaben',
@@ -847,6 +874,21 @@ export async function search(trx: Trx, query: unknown, now: Date): Promise<Searc
         link: d.url,
         external: true,
       })),
+    ],
+    [
+      'partner',
+      'Partner',
+      partners.map((p) => {
+        const count = partnerLinks.filter((ep) => ep.partner_id === p.id).length;
+        return {
+          id: p.id,
+          title: p.name,
+          meta: [p.kind, `${count} ${count === 1 ? 'Veranstaltung' : 'Veranstaltungen'}`]
+            .filter(Boolean)
+            .join(' · '),
+          link: `/partner/${p.id}`,
+        };
+      }),
     ],
   ];
   return groups.map(([key, title, items]) => ({ key, title, items })).filter((g) => g.items.length > 0);

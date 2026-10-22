@@ -10,6 +10,8 @@ import type {
   DocumentLinkTarget,
   QuestionStatus,
   RsvpAnswer,
+  EventBooking,
+  EventDetails,
   EventStatus,
   EventType,
   HistoryChanges,
@@ -64,6 +66,10 @@ export interface EventsTable {
   updated_at: Timestamp;
   created_by: string;
   version: Generated<number>;
+  /** [P4] Aufbau, Abbau, Schichtplan */
+  setup_at: Timestamp | null;
+  teardown_at: Timestamp | null;
+  shift_plan_document_id: string | null;
 }
 
 export interface TasksTable {
@@ -124,6 +130,8 @@ export interface PlenumMarksTable {
   event_id: string | null;
   appointment_id: string | null;
   document_id: string | null;
+  /** [P4] */
+  partner_id: string | null;
   position: number;
   note: string | null;
   marked_by: string;
@@ -142,7 +150,8 @@ export interface HistoryTable {
     | 'appointment_type'
     | 'decision'
     | 'question'
-    | 'document';
+    | 'document'
+    | 'partner';
   entity_id: string;
   actor_member_id: string;
   action: string;
@@ -278,6 +287,90 @@ export interface QuestionsTable {
   version: Generated<number>;
 }
 
+// ── Phase 4: Veranstaltungen ────────────────────────────────────────────────
+export interface EventDetailsTable {
+  event_id: string;
+  data: ColumnType<EventDetails, string, string>;
+}
+
+export interface EventBookingsTable {
+  id: Generated<string>;
+  event_id: string;
+  act_name: string;
+  act_type: EventBooking['act_type'];
+  contact: string | null;
+  status: EventBooking['status'];
+  fee: string | null;
+  tech_requirements: string | null;
+  notes: string | null;
+  created_at: CreatedAt;
+  created_by: string;
+  version: Generated<number>;
+}
+
+export interface EventLeadsTable {
+  event_id: string;
+  member_id: string;
+  added_by: string;
+  added_at: Timestamp;
+}
+
+export interface PartnersTable {
+  id: Generated<string>;
+  name: string;
+  kind: string | null;
+  description: string | null;
+  contact_person: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  notes: string | null;
+  internal_contact_member_id: string | null;
+  archived_at: Timestamp | null;
+  created_at: CreatedAt;
+  updated_at: Timestamp;
+  created_by: string;
+  version: Generated<number>;
+}
+
+export interface EventPartnersTable {
+  event_id: string;
+  partner_id: string;
+  role_note: string | null;
+  added_by: string;
+  added_at: Timestamp;
+}
+
+export interface EventTemplatesTable {
+  id: Generated<string>;
+  event_type: EventType;
+  name: string;
+  updated_at: Timestamp;
+  version: Generated<number>;
+}
+
+export interface EventTemplateItemsTable {
+  id: Generated<string>;
+  template_id: string;
+  block: string;
+  title: string;
+  description: string | null;
+  offset_days: number;
+  default_priority: Priority;
+  topic_id: string;
+  position: number;
+  archived_at: Timestamp | null;
+  version: Generated<number>;
+}
+
+export interface TemplateApplicationsTable {
+  event_id: string;
+  template_item_id: string;
+  task_id: string;
+  applied_by: string;
+  applied_at: Timestamp;
+}
+
 // ── Phase 2: Erinnerungen ───────────────────────────────────────────────────
 export interface PushSubscriptionsTable {
   id: Generated<string>;
@@ -356,6 +449,14 @@ export interface Database {
   document_links: DocumentLinksTable;
   decisions: DecisionsTable;
   questions: QuestionsTable;
+  event_details: EventDetailsTable;
+  event_bookings: EventBookingsTable;
+  event_leads: EventLeadsTable;
+  partners: PartnersTable;
+  event_partners: EventPartnersTable;
+  event_templates: EventTemplatesTable;
+  event_template_items: EventTemplateItemsTable;
+  template_applications: TemplateApplicationsTable;
 }
 
 export type MemberRow = Selectable<MembersTable>;
@@ -365,5 +466,9 @@ export type AppointmentTypeRow = Selectable<AppointmentTypesTable>;
 export type DecisionRow = Selectable<DecisionsTable>;
 export type QuestionRow = Selectable<QuestionsTable>;
 export type DocumentRow = Selectable<DocumentsTable>;
+export type EventRow = Selectable<EventsTable>;
+export type BookingRow = Selectable<EventBookingsTable>;
+export type PartnerRow = Selectable<PartnersTable>;
+export type TemplateItemRow = Selectable<EventTemplateItemsTable>;
 export type NewTask = Insertable<TasksTable>;
 export type TaskUpdate = Updateable<TasksTable>;

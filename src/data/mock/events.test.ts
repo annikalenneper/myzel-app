@@ -1,4 +1,5 @@
 // Phase 4 – Veranstaltungen ausgebaut: Detailbereiche, Booking, Hauptverantwortliche, Schichtplan, Nachbereitung
+// Mit MYZEL_API=server laufen dieselben Tests gegen die echten Server-Funktionen auf PGlite (Schritt C, Phase 4).
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../shared/errors';
 import { sectionSummaries, suggestsFollowUp, emptyEventDetails } from '../../shared/rules/eventDetails';
@@ -31,7 +32,10 @@ const memberId = async (name: string) => (await api.listMembers()).find((m) => m
 
 beforeEach(async () => {
   clock = new Date(2026, 9, 11, 12, 0, 0);
-  api = createMockApi({ storage: memoryStorage(), now: () => clock });
+  api =
+    process.env.MYZEL_API === 'server'
+      ? await (await import('../../../server/api/serverApi')).createServerApi({ now: () => clock })
+      : createMockApi({ storage: memoryStorage(), now: () => clock });
   await login('mo');
 });
 

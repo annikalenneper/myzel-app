@@ -4,8 +4,8 @@ Geführt vom Agenten. Quelle der Anforderungen: docs/ANFORDERUNGEN.md.
 
 ## Status
 
-**Aktuell: Schritt C für Phase 3 (Plenum-Zyklus): Server, Migration und Tests stehen (22.10.2026), als Nächstes
-Agent-Review. Phase 1 und 2 Schritt C fertig mit je zwei Review-Runden ohne offene Befunde hoher oder mittlerer
+**Aktuell: Schritt C für Phase 4 (Veranstaltungen): Server, Migration und Tests stehen (22.10.2026), als Nächstes
+Agent-Review. Phase 1 bis 3 Schritt C fertig mit je zwei Review-Runden ohne offene Befunde hoher oder mittlerer
 Schwere; offen dort nur, was erst mit dem Deploy geht (Mail-Link-Test, Telegram-Bot, cron-job.org, Push auf
 Geräten).**
 Reihenfolge seit 12.10.2026: erst das ganze Frontend (Schritt A für P1 bis P6), dann
@@ -214,13 +214,19 @@ Schritt A – Oberfläche mit Testdaten:
 
 Schritt C – Daten und Server (Checkliste 10.4):
 
-- [ ] Datenmodell: Detailbereiche, event_bookings, partners, event_partners, event_leads, setup_at,
-      teardown_at, shift_plan_document_id, event_templates, event_template_items (+YAML-Seed mit Schema),
-      plenum_marks für Partner
-- [ ] Detailbereiche (F-VER-04), Partner (F-VER-05), Hauptverantwortliche, Schichtplan, Nachbereitung (4.2)
-- [ ] Vorlagen mit Häkchen-Dialog (F-VER-06, -07)
-- [ ] „Mitglied deaktivieren“ um Hauptverantwortliche und Partner-Kontakt erweitern
-- [ ] check:integrity; Tests
+- [x] Datenmodell (Migration 20261022000005, im Entwicklungsprojekt eingespielt): event_details (jsonb nach
+      eventDetailsSchema, eine Zeile je Veranstaltung), event_bookings, event_leads, partners, event_partners,
+      setup_at, teardown_at, shift_plan_document_id, event_templates, event_template_items (archivieren statt
+      löschen), template_applications; plenum_marks für Partner. Startinhalt der Vorlagen per
+      `npm run db:seed-templates` aus der YAML-Datei (im Entwicklungsprojekt: 23 Vorlagenaufgaben)
+- [x] Detailbereiche mit feldweiser Konfliktprüfung (F-VER-04), Partner (F-VER-05), Hauptverantwortliche,
+      Schichtplan, Vorschlag „In Nachbereitung“; Vorlagen-Dialog ohne Duplikate mit Fristen nach Kölner Kalender
+      (F-VER-06, -07), Vorlagen bearbeiten (server/p4). Die Tests der Testdaten-Schicht für Veranstaltungen,
+      Partner und Vorlagen laufen auch gegen den Server.
+- [x] „Mitglied deaktivieren“ trägt Hauptverantwortliche und Partner-Kontakt aus
+- [x] check:integrity (Deaktivierte als Hauptverantwortliche/Kontakt, Vorlagenaufgaben an der richtigen
+      Veranstaltung, Detailbereiche); Smoke-Test: Party mit Vorlagen-Dialog, Detailbereich pflegen
+- [ ] Agent-Review
 - [ ] Phasenabschluss (10.7)
 
 ### 10.5 Phase 5 – Wissen & Drive

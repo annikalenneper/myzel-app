@@ -7,7 +7,7 @@ import { AppError, validationErrorFromZod } from '../../src/shared/errors';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
 import type { HistoryChanges } from '../../src/shared/schema';
 import type { Selectable } from 'kysely';
-import type { Database, HistoryTable, MemberRow, PlenumMarksTable } from '../db/types';
+import type { Database, EventBookingsTable, HistoryTable, MemberRow, PlenumMarksTable } from '../db/types';
 
 export type Trx = Transaction<Database>;
 export type HistoryEntity = HistoryTable['entity_type'];
@@ -32,7 +32,7 @@ export type InverseOp =
   | { kind: 'mark_restore'; row: Selectable<PlenumMarksTable> }
   | {
       kind: 'mark_remove';
-      target: 'task' | 'question' | 'decision' | 'event' | 'appointment' | 'document';
+      target: 'task' | 'question' | 'decision' | 'event' | 'appointment' | 'document' | 'partner';
       id: string;
     }
   | { kind: 'blocker_remove'; task_id: string; blocker_task_id: string }
@@ -49,6 +49,22 @@ export type InverseOp =
   | { kind: 'task_delete'; task_id: string }
   | { kind: 'task_fields'; task_id: string; due_date: string | null; origin_plenum_id: string | null }
   | { kind: 'decision_delete'; decision_id: string }
+  // [P4]
+  | { kind: 'booking_remove'; booking_id: string }
+  | { kind: 'booking_restore'; row: Selectable<EventBookingsTable> }
+  | { kind: 'lead_remove'; event_id: string; member_id: string }
+  | { kind: 'lead_restore'; row: { event_id: string; member_id: string; added_by: string; added_at: string } }
+  | { kind: 'event_partner_remove'; event_id: string; partner_id: string }
+  | {
+      kind: 'event_partner_restore';
+      row: {
+        event_id: string;
+        partner_id: string;
+        role_note: string | null;
+        added_by: string;
+        added_at: string;
+      };
+    }
   | { kind: 'decision_state'; decision_id: string; status: string; superseded_by_id: string | null }
   | {
       kind: 'question_state';

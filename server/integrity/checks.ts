@@ -75,6 +75,8 @@ export const CHECKS: IntegrityCheck[] = [
           where a.archived_at is not null or a.status <> 'geplant' or ty.has_plenum_features
         union all select 'Dokument', d.title, 'archiviert' from plenum_marks pm join documents d on d.id = pm.document_id
           where d.archived_at is not null
+        union all select 'Partner', p.name, 'archiviert' from plenum_marks pm join partners p on p.id = pm.partner_id
+          where p.archived_at is not null
       ) x`,
   },
   {
@@ -128,11 +130,35 @@ export const CHECKS: IntegrityCheck[] = [
             union all select 'appointment', 'Termin', id, title from appointments
             union all select 'decision', 'Eintrag', id, title from decisions
             union all select 'question', 'Frage', id, title from questions
-            union all select 'document', 'Dokument', id, title from documents) x
+            union all select 'document', 'Dokument', id, title from documents
+            union all select 'partner', 'Partner', id, name from partners) x
       where not exists (select 1 from history h
         where h.entity_type = x.typ and h.entity_id = x.id and h.action like 'created%')
         -- Startbestand der Migration (Systemeintrag, Grundthemen) entsteht ohne Historie
         and not (x.typ = 'topic' and exists (select 1 from topics tp where tp.id = x.id and tp.created_by is null))`,
+  },
+  // ── Phase 4: Veranstaltungen ──
+  {
+    name: 'Keine deaktivierten Hauptverantwortlichen oder Kontaktpersonen',
+    level: 'fehler',
+    query: sql`select m.display_name || ' bei „' || x.name || '“ (' || x.rolle || ')' as label from (
+        select l.member_id, e.title as name, 'hauptverantwortlich' as rolle from event_leads l join events e on e.id = l.event_id
+        union all select p.internal_contact_member_id, p.name, 'Kontaktperson' from partners p where p.internal_contact_member_id is not null
+      ) x join members m on m.id = x.member_id where not m.active`,
+  },
+  {
+    name: 'Aufgaben aus Vorlagen gehören zur Veranstaltung, für die sie angelegt wurden',
+    level: 'fehler',
+    query: sql`select ${task} || ' (Veranstaltung geändert)' as label
+      from template_applications a join tasks t on t.id = a.task_id
+      where t.event_id is distinct from a.event_id`,
+  },
+  {
+    name: 'Detailbereiche passen zu ihrer Veranstaltung',
+    level: 'fehler',
+    query: sql`select e.title || ': Detailbereiche ohne passende Kennung' as label
+      from event_details d join events e on e.id = d.event_id
+      where d.data ->> 'event_id' is distinct from d.event_id::text`,
   },
   // ── Phase 2: Erinnerungen ──
   {

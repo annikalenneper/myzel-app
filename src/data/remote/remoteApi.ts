@@ -49,6 +49,26 @@ const P1_ACTIONS = [
   'startTelegramLink',
   'unlinkTelegram',
   'getSystemStatus',
+  // [P4] Veranstaltungen ausgebaut
+  'listPartners',
+  'getPartner',
+  'getTemplateDialog',
+  'listTemplates',
+  'updateEventDetail',
+  'addBooking',
+  'updateBooking',
+  'removeBooking',
+  'addEventLead',
+  'removeEventLead',
+  'setShiftPlan',
+  'createPartner',
+  'updatePartner',
+  'linkPartner',
+  'unlinkPartner',
+  'applyTemplate',
+  'createTemplateItem',
+  'updateTemplateItem',
+  'removeTemplateItem',
   // [P3] Plenum-Zyklus
   'listAppointmentTypes',
   'listAppointments',
@@ -112,6 +132,10 @@ const READS = new Set([
   'listDocuments',
   'search',
   'getPlenum',
+  'listPartners',
+  'getPartner',
+  'getTemplateDialog',
+  'listTemplates',
 ]);
 
 export interface RemoteOptions {
