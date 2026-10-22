@@ -27,6 +27,8 @@ type Item = Omit<DriveItem, 'synced_at'>;
 
 /** Zeit für Google je Anfrage der App – unter dem Zeitlimit der Netlify Function (10 s) */
 const REQUEST_BUDGET_MS = 7_000;
+/** „Neu einlesen“ kurz nacheinander (zweiter Klick, Joblauf): nur einmal */
+const REBUILD_GAP_MS = 10_000;
 /** nach einem Fehlschlag im Joblauf frühestens nach einer Stunde erneut neu einlesen */
 const JOB_RETRY_MS = 3_600_000;
 
@@ -253,7 +255,8 @@ async function claim(
 /** Drive-IDs, auf die Dokumente oder Veranstaltungen verweisen – sie bleiben im Cache, auch wenn sie verschwinden */
 async function referencedIds(trx: Trx): Promise<Set<string>> {
   const [docs, events] = await Promise.all([
-    trx.selectFrom('documents').select(['url', 'drive_file_id']).where('archived_at', 'is', null).execute(),
+    // auch archivierte: nach dem Wiederherstellen soll der Hinweis „nicht mehr vorhanden“ noch stimmen
+    trx.selectFrom('documents').select(['url', 'drive_file_id']).execute(),
     trx.selectFrom('events').select('drive_folder_id').where('drive_folder_id', 'is not', null).execute(),
   ]);
   const ids = new Set<string>();
@@ -334,7 +337,14 @@ async function rebuild(db: Kysely<Database>, now: Date, deadline: number): Promi
 
 /** „Neu einlesen“ (WF-WIS-10) */
 export async function rebuildDrive(db: Kysely<Database>, now: Date): Promise<{ count: number }> {
-  await claim(db, now, () => true);
+  if (!driveSource().configured) throw rule('Das Drive ist noch nicht eingerichtet.');
+  // läuft gerade schon ein Einlesen (anderer Klick, Joblauf): nicht doppelt, den Stand danach zeigen
+  const claimed = await claim(
+    db,
+    now,
+    (s) => !s.last_attempt_at || now.getTime() - new Date(s.last_attempt_at).getTime() >= REBUILD_GAP_MS,
+  );
+  if (!claimed) return { count: (await loadIndex(db)).byId.size };
   return { count: await rebuild(db, now, Date.now() + REQUEST_BUDGET_MS) };
 }
 
@@ -346,9 +356,11 @@ export async function syncDrive(
   db: Kysely<Database>,
   now: Date,
 ): Promise<{ changed: number; checked: boolean }> {
+  const source = driveSource();
+  // nicht eingerichtet: nichts beanspruchen, der Cache bleibt, wie er ist
+  if (!source.configured) return { changed: 0, checked: false };
   const state = await claim(db, now, (s) => driveCheckDue(s.last_attempt_at ?? s.last_checked_at, now));
   if (!state) return { changed: 0, checked: false };
-  const source = driveSource();
   const deadline = Date.now() + REQUEST_BUDGET_MS;
   const since = state.root_folder_id === source.rootId ? state.changes_page_token : null;
   // ohne gültigen Token (oder mit anderer Wurzel) weiß niemand, was sich geändert hat: vollständig neu
@@ -362,6 +374,11 @@ export async function syncDrive(
     const current = await lockState(trx);
     // inzwischen hat ein Neuaufbau oder ein anderer Abgleich geschrieben: dessen Stand gilt
     if (current?.changes_page_token !== since) return;
+    const before = await trx
+      .selectFrom('drive_items')
+      .select(['file_id', 'parent_id', 'name', 'mime_type', 'modified_time', 'web_url', 'trashed'])
+      .execute();
+    const visibleBefore = visibleIds(before, source.rootId);
     const present = result.changed.filter((c) => c.item).map((c) => row(c.item!, at));
     const gone = result.changed.filter((c) => !c.item).map((c) => c.file_id);
     await insertItems(trx, present);
@@ -387,9 +404,15 @@ export async function syncDrive(
         .deleteFrom('drive_items')
         .where('file_id', 'in', drop.slice(i, i + 500))
         .execute();
+    // ein Ordner, der eben erst sichtbar wurde (hereingeschoben, aus einem ausgeschlossenen Ordner geholt): Drive
+    // meldet seinen Inhalt nicht mit – ohne Token liest der nächste Abgleich alles neu ein
+    const visibleNow = visibleIds(items, source.rootId);
+    const appeared = present.some(
+      (i) => isFolder(i) && visibleNow.has(i.file_id) && !visibleBefore.has(i.file_id),
+    );
     await trx
       .updateTable('drive_sync_state')
-      .set({ changes_page_token: result.token, last_checked_at: at })
+      .set({ changes_page_token: appeared ? null : result.token, last_checked_at: at })
       .execute();
   });
   return { changed: result.changed.length, checked: true };

@@ -121,6 +121,19 @@ describe('Drive auf dem Server', () => {
     expect((await docs()).find((d) => d.title === 'Code of Conduct')!.drive_missing).toBe(true);
   });
 
+  it('ein hereingeschobener Ordner bringt seinen Inhalt mit (nächster Abgleich liest neu ein)', async () => {
+    process.env.GOOGLE_DRIVE_EXCLUDED_FOLDER_IDS = 'drive-verein';
+    await act('rebuildDrive');
+    expect(await search('Hausordnung')).toEqual([]);
+    // „Leitlinien“ wandert aus dem ausgeschlossenen Ordner „Verein“ an die Wurzel – Drive meldet nur den Ordner
+    const leitlinien = fake.items.find((i) => i.file_id === 'drive-leitlinien')!;
+    fake.put({ ...leitlinien, parent_id: fake.rootId });
+    const later = (minutes: number) => new Date(now.getTime() + minutes * 60_000);
+    await handleAction(local.db, login, 'syncDrive', [], later(1));
+    await handleAction(local.db, login, 'syncDrive', [], later(2));
+    expect((await search('Hausordnung')).map((e) => e.path)).toEqual(['Leitlinien']);
+  });
+
   it('aus dem Vereinsordner verschoben: verschwindet aus Verzeichnis und Cache, Verknüpftes mit Hinweis', async () => {
     const outside = (id: string) => {
       const item = fake.items.find((i) => i.file_id === id)!;

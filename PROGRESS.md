@@ -272,7 +272,7 @@ Schritt C – Daten und Server (Checkliste 10.5):
       Testdaten-Schicht laufen auch gegen den Server.
 - [x] check:integrity (Neuaufbau älter als 8 Tage, verknüpfte Dateien und Ordner der Veranstaltungen nicht mehr
       im Drive – auch über gelöschte Elternordner); Smoke-Test: Drive öffnen, Datei mit Aufgabe verknüpfen
-- [ ] Agent-Review – Runde 1 (22.10.2026, zwei Reviews): 1 hoch, 7 mittel – eingearbeitet (Migration
+- [x] Agent-Review – Runde 1 (22.10.2026, zwei Reviews): 1 hoch, 7 mittel – eingearbeitet (Migration
       20261023000002): Google wird nie in einer offenen Transaktion gefragt (kurz beanspruchen, fragen, kurz
       schreiben; gleichzeitige Abgleiche fragen nur einmal), Gesamtbudget 7 s je Anfrage, ein fehlgeschlagener Versuch
       zählt (höchstens einmal pro Minute erneut, im Joblauf stündlich); Neuaufbau im Joblauf nach dem Versand mit dem
@@ -287,6 +287,12 @@ Schritt C – Daten und Server (Checkliste 10.5):
       Annahmen: Der Vereinsordner liegt in „Meine Ablage“ (nicht in einer geteilten Ablage) – sonst bräuchte das
       Einlesen corpora=drive. check:integrity rechnet ohne GOOGLE_DRIVE_EXCLUDED_FOLDER_IDS und prüft „Per Link“
       erfasste Dokumente ohne drive_file_id nicht (die App zeigt den Hinweis trotzdem).
+      Runde 2 (22.10.2026): Befunde aus Runde 1 behoben; 0 hoch, 1 mittel – ein hereingeschobener Ordner (z. B. aus
+      einem ausgeschlossenen) stand ohne Inhalt da, weil Drive nur den Ordner meldet; jetzt liest der nächste Abgleich
+      neu ein (auch bei neu angelegten Ordnern, ein Neueinlesen dauert gut 2 s) – eingearbeitet mit Test; niedrige
+      eingearbeitet: „Neu einlesen“ kurz nacheinander nur einmal, ohne eingerichtetes Drive klare Meldung statt
+      „nicht erreichbar“, archivierte Dokumente halten ihren Drive-Eintrag. Ergebnis: keine Befunde hoher oder
+      mittlerer Schwere offen.
 - [ ] Phasenabschluss (10.7)
 
 ### 10.6 Phase 6 – Komfort
