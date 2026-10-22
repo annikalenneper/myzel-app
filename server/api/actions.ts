@@ -23,9 +23,12 @@ import * as know from '../p3/knowledge';
 import * as plenum from '../p3/plenum';
 
 type Args = unknown[];
-/** IDs aus der Anfrage: keine gültige ID heißt „gibt es nicht“ (statt eines Datenbankfehlers) */
+/**
+ * IDs aus der Anfrage: keine gültige ID heißt „gibt es nicht“ (statt eines Datenbankfehlers). Nur für eigene IDs
+ * (UUID) – Drive-IDs [P5] und andere Fremd-IDs brauchen eine eigene Prüfung.
+ */
 const s = (v: unknown) => {
-  if (!idSchema.safeParse(v).success) throw notFound('Dieser Eintrag');
+  if (!idSchema.safeParse(v).success) throw notFound('Diesen Eintrag');
   return v as string;
 };
 /** Ziel einer Verknüpfung: nur die bekannten Arten, als Text */

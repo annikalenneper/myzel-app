@@ -4,6 +4,7 @@
 import type { ZodType } from 'zod';
 import { AppError, validationErrorFromZod } from '../../shared/errors';
 import { EVENT_STATUS_LABEL, TASK_STATUS_LABEL } from '../../shared/labels';
+import { canRsvp } from '../../shared/rules/appointments';
 import { wouldCreateBlockerCycle } from '../../shared/rules/blockers';
 import { UNDO_WINDOW_MS } from '../../shared/rules/undo';
 import { isOverdue, toIsoDate } from '../../shared/rules/due';
@@ -955,7 +956,7 @@ export function undo(ctx: Ctx, token: string): void {
               : record.entity_type === 'partner'
                 ? db.partners.find((p) => p.id === record.entity_id)
                 : db.documents.find((d) => d.id === record.entity_id);
-  if (!entity) throw notFound('Dieser Eintrag');
+  if (!entity) throw notFound('Diesen Eintrag');
   // Aktionen im Plenum: nach dem Abschluss ist die Zusammenfassung verschickt (WF-PLE-19)
   const plenumIds = new Set(
     db.history
@@ -1175,12 +1176,17 @@ export function undo(ctx: Ctx, token: string): void {
         }
         break;
       }
-      case 'rsvp_restore':
+      case 'rsvp_restore': {
+        // nur, solange Zu- und Absagen noch möglich sind (wie auf dem Server)
+        const appointment = db.appointments.find((a) => a.id === op.appointment_id);
+        if (!appointment || !canRsvp(appointment, ctx.now))
+          throw rule('Für diesen Termin sind keine Zu- und Absagen mehr möglich.');
         db.appointment_rsvps = db.appointment_rsvps.filter(
           (r) => !(r.appointment_id === op.appointment_id && r.member_id === op.member_id),
         );
         if (op.row) db.appointment_rsvps.push(op.row);
         break;
+      }
       case 'appointment_state': {
         const appointment = db.appointments.find((a) => a.id === op.appointment_id);
         if (appointment) appointment.status = op.status;

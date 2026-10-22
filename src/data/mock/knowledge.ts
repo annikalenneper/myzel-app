@@ -472,6 +472,7 @@ function targetExists(db: Db, type: DocumentLinkTarget, id: string): boolean {
 /** WF-AUF-13 / WF-WIS-06: Verknüpfung einzeln hinzufügen */
 export function linkDocument(ctx: Ctx, documentId: string, type: DocumentLinkTarget, targetId: string): void {
   const document = findDocument(ctx.db, documentId);
+  if (document.archived_at) throw rule('Archivierte Dokumente lassen sich nicht verknüpfen.');
   if (!targetExists(ctx.db, type, targetId)) throw notFound('Das Ziel der Verknüpfung');
   if (
     ctx.db.document_links.some(
@@ -557,6 +558,7 @@ export function setMark(
   if (!entity) throw notFound('Diesen Eintrag');
   if (isMarked(db, target, id) === marked) return { undo_token: '' };
   if (marked) {
+    if (entity.archived_at) throw rule('Archivierte Einträge lassen sich nicht fürs Plenum markieren.');
     if (target === 'decision' && (entity as Decision).status !== 'gueltig')
       throw rule('Nur gültige Einträge lassen sich fürs Plenum markieren.');
     if (target === 'question' && (entity as Question).status !== 'offen')

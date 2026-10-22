@@ -67,7 +67,7 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
     .where('id', '=', record.entity_id)
     .forUpdate()
     .executeTakeFirst();
-  if (!entity) throw notFound('Dieser Eintrag');
+  if (!entity) throw notFound('Diesen Eintrag');
   const stored = record.ops as InverseOp[];
   const ops = [...stored.filter((op) => !LAST.has(op.kind)), ...stored.filter((op) => LAST.has(op.kind))];
   await stillUndoable(ctx, record.history_ids as string[], ops, entity.id);
