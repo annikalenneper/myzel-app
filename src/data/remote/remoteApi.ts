@@ -107,6 +107,14 @@ const P1_ACTIONS = [
   'plenumAdd',
   'updateProtocol',
   'closePlenum',
+  // [P5] Wissen & Drive
+  'getDriveFolder',
+  'searchDrive',
+  'recentDrive',
+  'syncDrive',
+  'rebuildDrive',
+  'linkDriveFile',
+  'setEventDriveFolder',
 ] as const;
 /** schreibende Aktionen melden sich danach bei allen Ansichten (subscribe); Lesen nie – sonst lädt die Ansicht endlos */
 const READS = new Set([
@@ -136,6 +144,9 @@ const READS = new Set([
   'getPartner',
   'getTemplateDialog',
   'listTemplates',
+  'getDriveFolder',
+  'searchDrive',
+  'recentDrive',
 ]);
 
 export interface RemoteOptions {

@@ -51,6 +51,7 @@ import {
 import { addMark, dropMark, isMarked } from '../core/marks';
 import type { DecisionRow, DocumentRow, QuestionRow } from '../db/types';
 import { historyOf } from '../p1/reads';
+import { documentForFile, missingDriveDocuments, visibleDriveFile } from '../p5/drive';
 import { isPlenum } from './appointments';
 
 const dayText = (isoDate: string) => {
@@ -526,7 +527,7 @@ const TARGET_NOUN: Record<DocumentLinkTarget, [one: string, many: string]> = {
 export async function documentItems(trx: Trx, rows: DocumentRow[]): Promise<DocumentListItem[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((d) => d.id);
-  const [links, protocols, sources, marks] = await Promise.all([
+  const [links, protocols, sources, marks, missing] = await Promise.all([
     trx.selectFrom('document_links').selectAll().where('document_id', 'in', ids).execute(),
     trx
       .selectFrom('appointments')
@@ -535,6 +536,8 @@ export async function documentItems(trx: Trx, rows: DocumentRow[]): Promise<Docu
       .execute(),
     trx.selectFrom('decisions').select('source_document_id').where('source_document_id', 'in', ids).execute(),
     trx.selectFrom('plenum_marks').select('document_id').where('document_id', 'in', ids).execute(),
+    // [P5] verknüpfte Dateien, die in Drive verschwunden sind (3.13)
+    missingDriveDocuments(trx, rows),
   ]);
   return rows.map((d) => {
     const own = links.filter((l) => l.document_id === d.id);
@@ -556,8 +559,7 @@ export async function documentItems(trx: Trx, rows: DocumentRow[]): Promise<Docu
       link_count: total,
       link_summary: summary,
       marked: marks.some((m) => m.document_id === d.id),
-      // [P5] erst mit dem Drive-Cache bekannt
-      drive_missing: false,
+      drive_missing: missing.has(d.id),
     };
   });
 }
@@ -646,18 +648,12 @@ export async function createDocument(ctx: Ctx, raw: unknown): Promise<{ id: stri
   const input = parse(documentCreateSchema, raw);
   if (input.topic_id) await checkTopic(ctx, input.topic_id);
   // Link auf eine Datei aus dem Vereins-Drive: ein Eintrag je Datei (F-WIS-06)
+  // – auch wenn der Cache die Datei gerade nicht kennt (neu oder verschoben)
   const fileId = driveFileIdFromUrl(input.url);
-  if (fileId) {
-    const docs = await ctx.trx
-      .selectFrom('documents')
-      .select(['id', 'url', 'drive_file_id'])
-      .where('archived_at', 'is', null)
-      .execute();
-    const existing = docs.find((d) => (d.drive_file_id ?? driveFileIdFromUrl(d.url)) === fileId);
-    if (existing) {
-      if (input.link) await linkDocument(ctx, existing.id, input.link.target_type, input.link.target_id);
-      return { id: existing.id, created: false };
-    }
+  const existing = fileId ? await documentForFile(ctx.trx, fileId) : undefined;
+  if (existing) {
+    if (input.link) await linkDocument(ctx, existing.id, input.link.target_type, input.link.target_id);
+    return { id: existing.id, created: false };
   }
   const now = iso(ctx);
   const document = await ctx.trx
@@ -665,8 +661,7 @@ export async function createDocument(ctx: Ctx, raw: unknown): Promise<{ id: stri
     .values({
       title: input.title,
       url: input.url,
-      // [P5] erst mit dem Drive-Cache bekannt
-      drive_file_id: null,
+      drive_file_id: await visibleDriveFile(ctx.trx, input.url),
       doc_type: input.doc_type,
       topic_id: input.topic_id,
       tags: JSON.stringify([...new Set(input.tags)]),

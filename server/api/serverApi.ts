@@ -8,11 +8,14 @@ import { emailInputSchema } from '../../src/shared/schema';
 import { inTransaction, resolveActor } from '../core/context';
 import { createLocalDb, type LocalDb } from '../db/localDb';
 import { PGliteDialect } from '../db/pgliteDialect';
-import { seedFromMock } from '../db/seedFromMock';
+import { seedDrive, seedFromMock } from '../db/seedFromMock';
 import type { Database } from '../db/types';
 import * as members from '../p1/members';
 import { sessionFor } from '../p1/session';
 import * as notify from '../p2/notify';
+import { missingDriveDocuments } from '../p5/drive';
+import type { FakeDrive } from '../p5/source';
+import { DRIVE_EVENT_FOLDER_ID } from '../../src/data/mock/seed';
 import { JOB_WARNING_MINUTES } from '../../src/shared/rules/notifications';
 import { READ_ACTIONS, WRITE_ACTIONS } from './actions';
 
@@ -43,6 +46,8 @@ async function freshDb(now: Date): Promise<Kysely<Database>> {
 
 export interface ServerApiOptions {
   now?: () => Date;
+  /** bekommt das nachgebaute Vereins-Drive, sobald es (neu) entsteht – Tests ändern darüber Dateien in Drive */
+  onDrive?: (drive: FakeDrive) => void;
 }
 
 export async function createServerApi(options: ServerApiOptions = {}): Promise<MyzelApi> {
@@ -55,6 +60,12 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
     keys: TEST_PUSH_KEYS,
   };
   let db = await freshDb(now());
+  const newDrive = () => {
+    const created = seedDrive(now());
+    options.onDrive?.(created);
+    return created;
+  };
+  let drive = newDrive();
   const listeners = new Set<() => void>();
   /** wie Supabase Auth: je Mail-Adresse eine feste Login-ID, die beim ersten Login entsteht */
   const authIds = new Map<string, string>();
@@ -169,6 +180,7 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
       },
       async reset() {
         db = await freshDb(now());
+        drive = newDrive();
         emit();
       },
       async completeTelegramLink() {
@@ -199,8 +211,37 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
         emit();
       },
       outage: () => false,
-      driveAddFile: later,
-      driveTrashLinkedFile: later,
+      async driveAddFile() {
+        await resolveActor(db, authUserId);
+        const n = drive.items.filter((i) => i.file_id.startsWith('drive-neu-')).length;
+        const id = `drive-neu-${crypto.randomUUID()}`;
+        const name = `Neue Notiz ${n + 1}`;
+        drive.put({
+          file_id: id,
+          parent_id: DRIVE_EVENT_FOLDER_ID,
+          name,
+          mime_type: 'application/vnd.google-apps.document',
+          modified_time: now().toISOString(),
+          web_url: `https://docs.google.com/document/d/${id}`,
+        });
+        return name;
+      },
+      async driveTrashLinkedFile() {
+        await resolveActor(db, authUserId);
+        const docs = await db
+          .selectFrom('documents')
+          .select(['id', 'title', 'url', 'drive_file_id'])
+          .where('drive_file_id', 'is not', null)
+          .where('archived_at', 'is', null)
+          .orderBy('created_at')
+          .orderBy('id')
+          .execute();
+        const missing = await missingDriveDocuments(db, docs);
+        const doc = docs.find((d) => !missing.has(d.id));
+        if (!doc) return null;
+        drive.trash(doc.drive_file_id!);
+        return doc.title;
+      },
       telegramPress: later,
       exportYaml: later,
     },

@@ -4,8 +4,8 @@ Geführt vom Agenten. Quelle der Anforderungen: docs/ANFORDERUNGEN.md.
 
 ## Status
 
-**Aktuell: Schritt C für Phase 4 (Veranstaltungen): Server, Migration und Tests stehen (22.10.2026), als Nächstes
-Agent-Review. Phase 1 bis 3 Schritt C fertig mit je zwei Review-Runden ohne offene Befunde hoher oder mittlerer
+**Aktuell: Schritt C Phase 5 (Drive): Server, Migration und Tests stehen, echtes Vereins-Drive angebunden
+(22.10.2026); als Nächstes Agent-Review. Phase 1 bis 4 Schritt C fertig mit je zwei Review-Runden ohne offene Befunde hoher oder mittlerer
 Schwere; offen dort nur, was erst mit dem Deploy geht (Mail-Link-Test, Telegram-Bot, cron-job.org, Push auf
 Geräten).**
 Reihenfolge seit 12.10.2026: erst das ganze Frontend (Schritt A für P1 bis P6), dann
@@ -188,8 +188,7 @@ Schritt C – Daten und Server (Checkliste 10.3):
       Rückgängig einer Zusage und Archiviertes). Offen, niedrig: Smoke-Test für „Plenum abschließen“ über die
       Oberfläche (über die Server-Tests gedeckt); seltene Verklemmung zwischen Rückgängig und gleichzeitiger
       Plenum-Aktion am selben Objekt wird einmal wiederholt.
-      Offen zur Durchsicht: Sollen alle Agenda-Aktionen ein markiertes Ziel verlangen? Heute prüfen das nur
-      „Aufgabe dazu anlegen“ und „Besprochen“ (wie in der Testdaten-Schicht).
+      Geklärt (22.10.2026): Alle Agenda-Aktionen verlangen einen Punkt, der noch auf der Agenda steht.
 - [ ] Phasenabschluss (10.7)
 
 ### 10.4 Phase 4 – Veranstaltungen
@@ -260,11 +259,20 @@ Schritt A – Oberfläche mit Testdaten:
 
 Schritt C – Daten und Server (Checkliste 10.5):
 
-- [ ] Test mit dem echten Vereins-Drive; Dienstkonto einrichten (Zugriff aus HerrRINGOO übernehmen)
-- [ ] Datenmodell: drive_items, drive_sync_state, events.drive_folder_id
-- [ ] Inhaltsverzeichnis mit Cache und Abgleich (F-WIS-04, -08), Verknüpfen (F-WIS-05), Drive-Ordner in
-      der Veranstaltung (F-VER-03), „im Drive suchen“ (F-WIS-06)
-- [ ] check:integrity (Abgleich-Alter, fehlende verknüpfte Dateien); Tests
+- [x] Test mit dem echten Vereins-Drive (22.10.2026): Dienstkonto myzel-app@myzel-app.iam.gserviceaccount.com
+      (Projekt myzel-app, Drive-API aktiv, nur lesend), Wurzel „MYZEL_DOCS“ freigegeben; Einlesen 332 Einträge
+      (62 Ordner) in gut 2 s, Changes-API antwortet. Schlüssel in .env als eine Zeile, in Netlify vorhanden
+- [ ] Datenmodell (Migration 20261023000001): drive_items, drive_sync_state (eine Zeile), events.drive_folder_id;
+      Lesen für aktive Mitglieder – offen: im Entwicklungsprojekt einspielen (Nutzerin, `npx supabase db push`)
+- [x] Inhaltsverzeichnis aus dem Cache, Abgleich über die Changes-API höchstens einmal pro Minute mit Sperre gegen
+      doppelte Abfragen, Neuaufbau bei ungültigem Token, „Neu einlesen“ und wöchentlich im Joblauf (F-WIS-04, -08);
+      Verknüpfen mit einem Eintrag je Datei (F-WIS-05, -06), „In Drive nicht mehr vorhanden“ auch für Inhalte
+      gelöschter Ordner, Drive-Ordner der Veranstaltung (F-VER-03); Quelle austauschbar (server/p5/source.ts:
+      Google über das Dienstkonto, nachgebautes Drive für Tests und Smoke-Server). Die Drive-Tests der
+      Testdaten-Schicht laufen auch gegen den Server.
+- [x] check:integrity (Neuaufbau älter als 8 Tage, verknüpfte Dateien und Ordner der Veranstaltungen nicht mehr
+      im Drive – auch über gelöschte Elternordner); Smoke-Test: Drive öffnen, Datei mit Aufgabe verknüpfen
+- [ ] Agent-Review
 - [ ] Phasenabschluss (10.7)
 
 ### 10.6 Phase 6 – Komfort
@@ -313,9 +321,9 @@ Zur Durchsicht (Schritt B); geklärt sein müssen sie vor Schritt C.
 | 1   | 11.10.2026 | Technischer Stack (2.1) so in Ordnung?                                              | geklärt | Ja, wie in 2.1 (11.10.2026)                                                                                                                                                                          |
 | 2   | 11.10.2026 | Wo liegt das Repo (GitHub-Account/Organisation)? Name der Netlify-Site oder Domain? | geklärt | Repo: github.com/annikalenneper/myzel-app (öffentlich); Netlify-Site myzel-app, https://myzel-app.netlify.app/ (19.10.2026)                                                                          |
 | 3   | 11.10.2026 | Wem gehört das Supabase-Projekt? Zweite Person mit Zugang?                          | geklärt | Projekt https://wyfsorojbcijkedlnmji.supabase.co, Region eu-west-1 (Irland, EU, bestätigt); Inhaberin: die Nutzerin; zweite Person folgt später – vor dem Deploy (Schritt D) nachfragen (20.10.2026) |
-| 4   | 11.10.2026 | Mitgliederliste (Name + Google-Mail) und wer Admin ist                              | offen   |                                                                                                                                                                                                      |
+| 4   | 11.10.2026 | Mitgliederliste (Name + Google-Mail) und wer Admin ist                              | geklärt | Liste lokal in mitgliederliste.md (nie im Repo), Import mit dem Deploy (22.10.2026)                                                                                                                  |
 | 5   | 11.10.2026 | Veranstaltungsarten: Party, Konzert, Workshop, Soli-Event, Sonstiges?               | geklärt | Party, Workshop, Soli-Event, Sonstiges – ohne Konzert (20.10.2026)                                                                                                                                   |
-| 6   | 11.10.2026 | Unterkategorien „Verein“ bestätigen (3.2)                                           | offen   |                                                                                                                                                                                                      |
+| 6   | 11.10.2026 | Unterkategorien „Verein“ bestätigen (3.2)                                           | geklärt | Ja, wie in 3.2 (22.10.2026)                                                                                                                                                                          |
 | 7   | 11.10.2026 | Uhrzeit für tägliche Fristerinnerungen ab P2 (Vorschlag 9:00 Uhr)                   | geklärt | 9:00 Uhr (20.10.2026)                                                                                                                                                                                |
 | 8   | 11.10.2026 | Backup bis Phase 6: wöchentlicher Dump nötig?                                       | geklärt | Nein – durchziehen bis zur echten Nutzung; dann sichert der nächtliche Export (20.10.2026)                                                                                                           |
 | 9   | 11.10.2026 | Ortsangabe des Lagers für den Bautag; übliches Format des Plenums                   | geklärt | Adresse von der Nutzerin genannt, steht bewusst nicht im öffentlichen Repo – beim Einrichten unter Terminarten als Standardort des Bautags eintragen; Plenum meist online (20.10.2026)               |

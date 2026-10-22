@@ -6,7 +6,8 @@ import { createLocalDb, type LocalDb } from '../db/localDb';
 import { report, runChecks } from './checks';
 
 let local: LocalDb;
-const now = new Date(2026, 9, 21, 12);
+// echte Uhrzeit: einige Prüfungen vergleichen mit now() der Datenbank (z. B. abgelaufene Rückgängig-Einträge)
+const now = new Date();
 const LEA_AUTH = '11111111-1111-4111-8111-111111111111';
 const lea = { authUserId: LEA_AUTH, email: 'lea@example.org' };
 const act = (action: string, ...args: unknown[]) => handleAction(local.db, lea, action, args, now);
@@ -117,6 +118,29 @@ describe('check:integrity', () => {
       'Lea (Push)',
     ]);
     expect(found['Erfolgreicher Joblauf in den letzten 2 Stunden']).toEqual(['noch kein Lauf']);
+  });
+
+  it('Phase 5: alter Drive-Cache, verschwundene verknüpfte Dateien und Ordner', async () => {
+    await local.pg.exec(`
+      insert into drive_sync_state (root_folder_id, last_full_sync_at) values ('wurzel', now() - interval '9 days');
+      insert into drive_items (file_id, parent_id, name, mime_type, modified_time, web_url, trashed, synced_at) values
+        ('wurzel', null, 'Myzel', 'application/vnd.google-apps.folder', now(), 'https://drive.google.com/drive/folders/wurzel', false, now()),
+        ('ordner', 'wurzel', 'Soli', 'application/vnd.google-apps.folder', now(), 'https://drive.google.com/drive/folders/ordner', true, now()),
+        ('datei', 'ordner', 'Plan', 'application/pdf', now(), 'https://drive.google.com/file/d/datei', false, now()),
+        ('da', 'wurzel', 'Satzung', 'application/pdf', now(), 'https://drive.google.com/file/d/da', false, now());
+      insert into documents (title, url, drive_file_id, doc_type, tags, created_by)
+        select 'Plan', 'https://drive.google.com/file/d/datei', 'datei', 'sonstiges', '[]', id from members where email = 'lea@example.org';
+      insert into documents (title, url, drive_file_id, doc_type, tags, created_by)
+        select 'Satzung', 'https://drive.google.com/file/d/da', 'da', 'sonstiges', '[]', id from members where email = 'lea@example.org';
+      update events set drive_folder_id = 'ordner';
+    `);
+    const found = Object.fromEntries(await failing());
+    expect(found['Drive-Cache in den letzten 8 Tagen vollständig neu eingelesen']![0]).toMatch(/^zuletzt /);
+    // der Inhalt eines gelöschten Ordners zählt mit als verschwunden
+    expect(found['Verknüpfte Drive-Dateien und Ordner der Veranstaltungen sind im Drive vorhanden']).toEqual([
+      'Dokument „Plan“',
+      'Ordner der Veranstaltung „Soli-Abend“',
+    ]);
   });
 
   it('läuft nur lesend', async () => {

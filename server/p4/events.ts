@@ -32,8 +32,9 @@ import {
 import type { BookingRow, EventRow } from '../db/types';
 import { findEvent } from '../p1/events';
 import { getEvent } from '../p1/reads';
+import { eventDriveFolder } from '../p5/drive';
 
-async function touchEvent(ctx: Ctx, event: EventRow, set: Partial<EventRow> = {}): Promise<void> {
+export async function touchEvent(ctx: Ctx, event: EventRow, set: Partial<EventRow> = {}): Promise<void> {
   const result = await ctx.trx
     .updateTable('events')
     .set({ ...set, version: event.version + 1, updated_at: iso(ctx) } as never)
@@ -122,8 +123,7 @@ export async function getEventDetail(trx: Trx, id: string, now: Date): Promise<E
     shift_plan_document: doc ?? null,
     summaries: sectionSummaries(details, bookings, partnerItems),
     suggests_follow_up: suggestsFollowUp(event, now),
-    // [P5] Drive-Ordner kommt mit dem Drive-Cache
-    drive_folder: null,
+    drive_folder: await eventDriveFolder(trx, event.drive_folder_id),
     partners: partnerItems,
   };
 }

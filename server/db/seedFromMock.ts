@@ -1,7 +1,9 @@
 // Nur Tests und lokale Entwicklung: dieselben Testdaten wie die Testdaten-Schicht (src/data/mock/seed.ts), soweit
 // Phase 1 sie kennt. So laufen die Tests der Testdaten-Schicht unverändert auch gegen die Server-Funktionen.
 import { sql, type Kysely } from 'kysely';
+import { DRIVE_ROOT_ID } from '../../src/data/mock/server';
 import { seedDb } from '../../src/data/mock/seed';
+import { FakeDrive, setDriveSource } from '../p5/source';
 import type { Database } from './types';
 
 /** Historie der Arten, die der Server schon kennt (Serien und Partner kommen mit P4 und P6) */
@@ -242,5 +244,22 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
         )
         .execute();
     if (data.job_runs.length) await trx.insertInto('job_runs').values(data.job_runs).execute();
+
+    // Phase 5: Drive-Cache und Abgleich-Stand wie nach dem Seed-Abgleich; der Token passt zu FakeDrive (server/p5)
+    if (data.drive_items.length) await trx.insertInto('drive_items').values(data.drive_items).execute();
+    await trx.insertInto('drive_sync_state').values(data.drive_sync_state).execute();
+    for (const e of data.events.filter((x) => x.drive_folder_id))
+      await trx
+        .updateTable('events')
+        .set({ drive_folder_id: e.drive_folder_id })
+        .where('id', '=', e.id)
+        .execute();
   });
+}
+
+/** Nachgebautes Vereins-Drive zu den Testdaten (gleicher Stand wie der Cache nach seedFromMock), als Quelle gesetzt */
+export function seedDrive(now: Date): FakeDrive {
+  const drive = new FakeDrive(seedDb(now).drive_remote, DRIVE_ROOT_ID);
+  setDriveSource(drive);
+  return drive;
 }

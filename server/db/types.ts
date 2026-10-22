@@ -70,6 +70,8 @@ export interface EventsTable {
   setup_at: Timestamp | null;
   teardown_at: Timestamp | null;
   shift_plan_document_id: string | null;
+  /** [P5] Ordner im Vereins-Drive */
+  drive_folder_id: string | null;
 }
 
 export interface TasksTable {
@@ -424,6 +426,26 @@ export interface JobRunsTable {
   retries: Generated<number>;
 }
 
+/** [P5] Drive-Cache (3.13): nur Metadaten */
+export interface DriveItemsTable {
+  file_id: string;
+  parent_id: string | null;
+  name: string;
+  mime_type: string;
+  modified_time: Timestamp;
+  web_url: string;
+  trashed: boolean;
+  synced_at: Timestamp;
+}
+
+export interface DriveSyncStateTable {
+  id: Generated<boolean>;
+  root_folder_id: string;
+  changes_page_token: string | null;
+  last_checked_at: Timestamp | null;
+  last_full_sync_at: Timestamp | null;
+}
+
 export interface Database {
   members: MembersTable;
   topics: TopicsTable;
@@ -457,6 +479,8 @@ export interface Database {
   event_templates: EventTemplatesTable;
   event_template_items: EventTemplateItemsTable;
   template_applications: TemplateApplicationsTable;
+  drive_items: DriveItemsTable;
+  drive_sync_state: DriveSyncStateTable;
 }
 
 export type MemberRow = Selectable<MembersTable>;

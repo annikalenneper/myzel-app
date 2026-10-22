@@ -24,6 +24,7 @@ import * as plenum from '../p3/plenum';
 import * as p4events from '../p4/events';
 import * as partners from '../p4/partners';
 import * as templates from '../p4/templates';
+import * as drive from '../p5/drive';
 
 type Args = unknown[];
 /**
@@ -52,6 +53,10 @@ export const READ_ACTIONS: Record<string, (db: Kysely<Database>, args: Args, now
     getTask: (db, [id]) => reads.getTask(db, s(id)),
     listEvents: (db, _, now) => reads.listEvents(db, now),
     getEvent: (db, [id], now) => reads.getEvent(db, s(id), now),
+    // [P5] Drive-Verzeichnis – sofort aus dem Cache, ohne Drive zu fragen (Drive-IDs prüft drive.ts selbst)
+    getDriveFolder: (db, [folderId]) => drive.getDriveFolder(db, folderId ?? null),
+    searchDrive: (db, [query]) => drive.searchDrive(db, query),
+    recentDrive: (db) => drive.recentDrive(db),
   };
 
 export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unknown>> = {
@@ -160,6 +165,13 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   createTemplateItem: (ctx, [templateId, input]) => templates.createTemplateItem(ctx, s(templateId), input),
   updateTemplateItem: (ctx, [id, input]) => templates.updateTemplateItem(ctx, s(id), input),
   removeTemplateItem: (ctx, [id]) => templates.removeTemplateItem(ctx, s(id)),
+
+  // [P5] Drive: Abgleich, Neu einlesen, Verknüpfen, Ordner der Veranstaltung
+  syncDrive: (ctx) => drive.syncDrive(ctx),
+  rebuildDrive: (ctx) => drive.rebuildDrive(ctx),
+  linkDriveFile: (ctx, [input]) => drive.linkDriveFile(ctx, input),
+  setEventDriveFolder: (ctx, [eventId, folderId, version]) =>
+    drive.setEventDriveFolder(ctx, s(eventId), folderId ?? null, n(version)),
 
   // [P3] Plenum
   getPlenum: (ctx, [id]) => plenum.getPlenum(ctx, s(id)),

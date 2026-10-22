@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 import { bearerToken, respond } from '../../server/api/http';
 import { createLocalDb } from '../../server/db/localDb';
-import { seedFromMock } from '../../server/db/seedFromMock';
+import { seedDrive, seedFromMock } from '../../server/db/seedFromMock';
 
 const PORT = Number(process.env.SMOKE_PORT ?? 4174);
 const ROOT = join(import.meta.dirname, '../../dist-smoke');
@@ -23,6 +23,8 @@ const TYPES: Record<string, string> = {
 
 const local = await createLocalDb();
 await seedFromMock(local.db, new Date());
+// Drive: nachgebaut mit denselben Testdaten – die Smoke-Tests fragen nie das echte Vereins-Drive
+seedDrive(new Date());
 
 async function loginFrom(req: Request) {
   const [kind, authUserId, email] = (bearerToken(req) ?? '').split(':');

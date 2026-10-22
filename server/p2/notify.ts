@@ -18,6 +18,7 @@ import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
 import { NOTIFICATION_CHANNELS, type JobRun, type NotificationChannel } from '../../src/shared/schema';
 import { parse, requireAdmin, rule, type Ctx, type Trx } from '../core/context';
 import type { Database } from '../db/types';
+import { weeklyRebuild } from '../p5/drive';
 
 type Db = Kysely<Database>;
 export const TELEGRAM_CODE_MINUTES = 15;
@@ -365,6 +366,13 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
   } catch (e) {
     console.error(e);
     errors.push(`Termin-Erinnerungen: ${reason(e)}`);
+  }
+  try {
+    // [P5] Drive-Cache wöchentlich vollständig neu (3.13 Nr. 4)
+    await weeklyRebuild(db, now);
+  } catch (e) {
+    console.error(e);
+    errors.push(`Drive: ${reason(e)}`);
   }
   try {
     const claimed = await claim(db, now);

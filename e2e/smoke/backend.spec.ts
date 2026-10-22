@@ -221,3 +221,29 @@ test('Phase 4: Party mit Vorlagen-Dialog anlegen, Detailbereich pflegen – blei
   await page.reload();
   await expect(page.getByRole('region', { name: 'Location' })).toContainText('bis 350 Personen');
 });
+
+test('Phase 5: Drive aus dem Cache, Datei mit einer Aufgabe verknüpfen – bleibt nach Neuladen', async ({
+  page,
+}) => {
+  await signIn(page, authId(1), 'mo@example.org');
+  await page.goto('/wissen/drive');
+  const list = page.getByRole('list', { name: 'Drive-Inhalt' });
+  await expect(page.getByRole('navigation', { name: 'Ordnerpfad' })).toHaveText('Myzel Drive');
+  await list.getByRole('button', { name: /^Veranstaltungen/ }).click();
+  await list.getByRole('button', { name: /^2026-12 Winterrave/ }).click();
+  await expect(list.getByRole('link', { name: /Schichtplan Winterrave/ })).toBeVisible();
+
+  await page.getByLabel('Im Drive suchen').fill('Getränkeliste');
+  await page.getByRole('button', { name: 'Verknüpfen: Getränkeliste' }).click();
+  const screen = page.getByRole('dialog', { name: 'Dokument verknüpfen' });
+  await screen
+    .getByRole('button', { name: /Nur erfassen/ })
+    .first()
+    .click();
+  await screen.getByLabel('Ziel suchen').fill('Brauerei');
+  await screen.getByRole('button', { name: /Getränke bei der Brauerei bestellen/ }).click();
+  await screen.getByRole('button', { name: 'Verknüpfen', exact: true }).click();
+  await expect(page.getByTestId('WF-ALL-02')).toContainText('Dokument verknüpft');
+  await page.reload();
+  await expect(list.getByRole('listitem').filter({ hasText: 'Getränkeliste' })).toContainText('1 Aufgabe');
+});

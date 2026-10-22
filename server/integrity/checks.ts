@@ -188,6 +188,27 @@ export const CHECKS: IntegrityCheck[] = [
     query: sql`select count(*) || ' Einträge älter als einen Tag' as label from undo_actions
       where created_at < now() - interval '1 day' having count(*) > 0`,
   },
+  // ── Phase 5: Drive ──
+  {
+    name: 'Drive-Cache in den letzten 8 Tagen vollständig neu eingelesen',
+    level: 'hinweis',
+    query: sql`select coalesce('zuletzt ' || to_char(last_full_sync_at at time zone 'Europe/Berlin', 'DD.MM. HH24:MI'), 'noch nie') as label
+      from drive_sync_state where coalesce(last_full_sync_at, '1970-01-01') < now() - interval '8 days'`,
+  },
+  {
+    name: 'Verknüpfte Drive-Dateien und Ordner der Veranstaltungen sind im Drive vorhanden',
+    level: 'hinweis',
+    query: sql`with recursive live (file_id) as (
+        select d.file_id from drive_items d join drive_sync_state s on s.root_folder_id = d.file_id where not d.trashed
+        union
+        select d.file_id from drive_items d join live l on d.parent_id = l.file_id where not d.trashed
+      )
+      select 'Dokument „' || title || '“' as label from documents
+        where archived_at is null and drive_file_id is not null and drive_file_id not in (select file_id from live)
+      union all
+      select 'Ordner der Veranstaltung „' || title || '“' from events
+        where archived_at is null and drive_folder_id is not null and drive_folder_id not in (select file_id from live)`,
+  },
 ];
 
 export interface IntegrityResult {

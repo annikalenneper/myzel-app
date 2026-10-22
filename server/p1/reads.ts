@@ -12,8 +12,6 @@ type Db = Kysely<Database>;
 
 /** Spalten späterer Phasen */
 const memberLater = { notify_own_status: false } as const;
-/** [P5] Drive-Ordner der Veranstaltung */
-const eventLater = { drive_folder_id: null } as const;
 
 export async function listMembers(db: Db): Promise<Member[]> {
   const rows = await db.selectFrom('members').selectAll().orderBy('created_at').orderBy('id').execute();
@@ -125,11 +123,7 @@ export async function getTask(db: Db, id: string): Promise<TaskDetail> {
   return { ...item!, blockers, comments, history };
 }
 
-async function eventItems(
-  db: Db,
-  events: Omit<EventRow, keyof typeof eventLater>[],
-  now: Date,
-): Promise<EventListItem[]> {
+async function eventItems(db: Db, events: EventRow[], now: Date): Promise<EventListItem[]> {
   if (events.length === 0) return [];
   const ids = events.map((e) => e.id);
   const today = berlinDate(now);
@@ -156,7 +150,6 @@ async function eventItems(
     const own = tasks.filter((t) => t.event_id === e.id);
     return {
       ...e,
-      ...eventLater,
       task_total: own.length,
       task_done: own.filter((t) => t.status === 'erledigt').length,
       task_overdue: own.filter((t) => isOverdue(t.due_date, t.status, today)).length,

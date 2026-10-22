@@ -16,3 +16,6 @@ playwright-report/
 # Anforderungen und Prototyp nur lokal: beschreiben das Kollektiv; der Prototyp enthält echt aussehende Mail-Adressen
 docs/ANFORDERUNGEN.md
 docs/prototype/
+
+# Echte Mitgliederliste (Namen, Mail-Adressen): nur lokal, Import mit dem Deploy
+mitgliederliste.md
