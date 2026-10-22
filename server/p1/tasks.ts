@@ -39,9 +39,10 @@ import {
   type Undoable,
 } from '../core/context';
 import type { TaskRow } from '../db/types';
+import * as marks from '../core/marks';
 import { notify } from '../p2/notify';
 
-async function findTask(ctx: Ctx, id: string, { lock = true } = {}): Promise<TaskRow> {
+export async function findTask(ctx: Ctx, id: string, { lock = true } = {}): Promise<TaskRow> {
   let q = ctx.trx.selectFrom('tasks').selectAll().where('id', '=', id);
   if (lock) q = q.forUpdate();
   const task = await q.executeTakeFirst();
@@ -92,6 +93,18 @@ async function usableEvent(ctx: Ctx, id: string): Promise<void> {
     .executeTakeFirst();
   if (!event)
     throw new AppError('validation', 'Diese Veranstaltung gibt es nicht mehr.', { field: 'event_id' });
+}
+
+async function usableAppointment(ctx: Ctx, id: string): Promise<void> {
+  const appointment = await ctx.trx
+    .selectFrom('appointments')
+    .select('id')
+    .where('id', '=', id)
+    .where('archived_at', 'is', null)
+    .forShare()
+    .executeTakeFirst();
+  if (!appointment)
+    throw new AppError('validation', 'Diesen Termin gibt es nicht mehr.', { field: 'appointment_id' });
 }
 
 export async function selectableMember(ctx: Ctx, id: string): Promise<{ id: string; display_name: string }> {
@@ -157,45 +170,14 @@ async function follow(ctx: Ctx, taskId: string, memberId: string): Promise<boole
   return true;
 }
 
-async function isMarked(ctx: Ctx, taskId: string): Promise<boolean> {
-  return !!(await ctx.trx
-    .selectFrom('plenum_marks')
-    .select('id')
-    .where('task_id', '=', taskId)
-    .executeTakeFirst());
-}
+const isMarked = (ctx: Ctx, taskId: string) => marks.isMarked(ctx.trx, 'task', taskId);
 
 /** Statusänderungen und Archivieren entfernen die Markierung „Fürs Plenum“ (3.14). */
-export async function dropMark(ctx: Ctx, taskId: string, changes: HistoryChanges): Promise<boolean> {
-  const mark = await ctx.trx
-    .deleteFrom('plenum_marks')
-    .where('task_id', '=', taskId)
-    .returningAll()
-    .executeTakeFirst();
-  if (!mark) return false;
-  ctx.inverse.push({ kind: 'mark_restore', row: mark });
-  changes.plenum_mark = { old: true, new: false };
-  return true;
-}
+export const dropMark = (ctx: Ctx, taskId: string, changes: HistoryChanges) =>
+  marks.dropMark(ctx, 'task', taskId, changes);
 
 /** Neu Markiertes kommt ans Ende der Agenda. */
-async function addMark(ctx: Ctx, taskId: string): Promise<void> {
-  await lockFor(ctx, 'plenum_marks');
-  const max = await ctx.trx
-    .selectFrom('plenum_marks')
-    .select(ctx.trx.fn.max('position').as('max'))
-    .executeTakeFirst();
-  await ctx.trx
-    .insertInto('plenum_marks')
-    .values({
-      task_id: taskId,
-      position: Number(max?.max ?? 0) + 1,
-      marked_by: ctx.actor.id,
-      marked_at: iso(ctx),
-    })
-    .execute();
-  ctx.inverse.push({ kind: 'mark_remove', target: 'task', id: taskId });
-}
+const addMark = (ctx: Ctx, taskId: string) => marks.addMark(ctx, 'task', taskId);
 
 const taskState = (task: TaskRow) =>
   ({
@@ -211,8 +193,7 @@ export async function createTask(ctx: Ctx, raw: unknown): Promise<{ id: string }
   const input = parse(taskCreateSchema, raw);
   await usableTopic(ctx, input.topic_id);
   if (input.event_id) await usableEvent(ctx, input.event_id);
-  if (input.appointment_id)
-    throw new AppError('validation', 'Termine gibt es erst ab Phase 3.', { field: 'appointment_id' });
+  if (input.appointment_id) await usableAppointment(ctx, input.appointment_id);
   const now = iso(ctx);
   const task = await ctx.trx
     .insertInto('tasks')
@@ -220,6 +201,8 @@ export async function createTask(ctx: Ctx, raw: unknown): Promise<{ id: string }
       title: input.title,
       topic_id: input.topic_id,
       event_id: input.event_id,
+      appointment_id: input.appointment_id,
+      origin_plenum_id: null,
       priority: input.priority,
       due_date: input.due_date,
       created_at: now,
@@ -274,8 +257,11 @@ export async function updateTaskFields(ctx: Ctx, id: string, raw: unknown, versi
     changes.event_id = { old: task.event_id, new: input.event_id };
     set.event_id = input.event_id;
   }
-  if (input.appointment_id)
-    throw new AppError('validation', 'Termine gibt es erst ab Phase 3.', { field: 'appointment_id' });
+  if (input.appointment_id !== undefined && input.appointment_id !== task.appointment_id) {
+    if (input.appointment_id) await usableAppointment(ctx, input.appointment_id);
+    changes.appointment_id = { old: task.appointment_id, new: input.appointment_id };
+    set.appointment_id = input.appointment_id;
+  }
   if (Object.keys(changes).length === 0) return;
   await touchTask(ctx, task, set);
   await follow(ctx, id, ctx.actor.id);

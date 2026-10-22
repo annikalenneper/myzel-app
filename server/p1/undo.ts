@@ -1,6 +1,7 @@
-// Rückgängig (WF-ALL-02), Phase 1: die gespeicherten Gegenschritte einer Aktion, 30 Sekunden lang, nur für die
+// Rückgängig (WF-ALL-02): die gespeicherten Gegenschritte einer Aktion, 30 Sekunden lang, nur für die
 // Person, die gehandelt hat; ebenfalls in der Historie. Hat die Aktion die Zeile selbst geändert, darf inzwischen
 // niemand anderes daran gewesen sein (Optimistic Locking wie überall).
+import { sql } from 'kysely';
 import { isActiveTaskStatus } from '../../src/shared/rules/taskStatus';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
 import {
@@ -14,6 +15,7 @@ import {
   type InverseOp,
 } from '../core/context';
 import type { HistoryChanges } from '../../src/shared/schema';
+import { markable, markColumn, markTarget } from '../core/marks';
 import { topicStillActive } from './tasks';
 
 const ROW_KINDS = new Set<InverseOp['kind']>([
@@ -21,7 +23,27 @@ const ROW_KINDS = new Set<InverseOp['kind']>([
   'assignee_add',
   'assignee_remove',
   'event_status',
+  // [P3]
+  'appointment_state',
+  'decision_state',
+  'question_state',
+  'task_fields',
+  'appointment_times',
 ]);
+
+/** Tabelle je Art, die ein Rückgängig betreffen kann */
+const TABLES = {
+  task: 'tasks',
+  event: 'events',
+  appointment: 'appointments',
+  decision: 'decisions',
+  question: 'questions',
+  document: 'documents',
+} as const;
+type UndoEntity = keyof typeof TABLES;
+
+/** Im selben Schritt Angelegtes verschwindet zuletzt – nachdem alle Verweise darauf zurückgesetzt sind */
+const LAST = new Set<InverseOp['kind']>(['task_delete', 'decision_delete']);
 
 export async function undo(ctx: Ctx, token: string): Promise<void> {
   const record = await ctx.trx
@@ -35,8 +57,9 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
     throw rule('Das lässt sich nicht mehr rückgängig machen.');
   await ctx.trx.deleteFrom('undo_actions').where('token', '=', token).execute();
 
-  const table = record.entity_type === 'task' ? 'tasks' : record.entity_type === 'event' ? 'events' : null;
-  if (!table) throw rule('Das lässt sich nicht mehr rückgängig machen.');
+  if (!Object.hasOwn(TABLES, record.entity_type)) throw rule('Das lässt sich nicht mehr rückgängig machen.');
+  const entityType = record.entity_type as UndoEntity;
+  const table = TABLES[entityType];
   const entity = await ctx.trx
     .selectFrom(table)
     .select(['id', 'version'])
@@ -44,10 +67,11 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
     .forUpdate()
     .executeTakeFirst();
   if (!entity) throw notFound('Dieser Eintrag');
-  const ops = record.ops as InverseOp[];
+  const stored = record.ops as InverseOp[];
+  const ops = [...stored.filter((op) => !LAST.has(op.kind)), ...stored.filter((op) => LAST.has(op.kind))];
+  await stillUndoable(ctx, record.history_ids as string[], ops, entity.id);
   const touchesRow = ops.some((op) => ROW_KINDS.has(op.kind));
-  if (touchesRow)
-    await checkVersion(ctx, record.entity_type as 'task' | 'event', entity, record.version_after);
+  if (touchesRow) await checkVersion(ctx, entityType, entity, record.version_after);
 
   // was das Rückgängig zurücksetzt, steht als alt → neu in der Historie (3.10)
   const changes: HistoryChanges = {};
@@ -123,13 +147,9 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
         break;
       }
       case 'mark_restore': {
-        // nur an einer Aufgabe, die (nach den Gegenschritten davor) aktiv ist – sonst bleibt sie unmarkiert
-        const task = await ctx.trx
-          .selectFrom('tasks')
-          .select(['status', 'archived_at'])
-          .where('id', '=', op.row.task_id!)
-          .executeTakeFirst();
-        if (!task || task.archived_at || !isActiveTaskStatus(task.status)) break;
+        // nur, wenn das Objekt (nach den Gegenschritten davor) markierbar ist – sonst bleibt es unmarkiert
+        const target = markTarget(op.row);
+        if (!(await markable(ctx.trx, target, op.row[markColumn(target)]!))) break;
         // der Punkt steht wieder an alter Stelle – ist sie inzwischen vergeben, am Ende
         await lockFor(ctx, 'plenum_marks');
         const taken = await ctx.trx
@@ -153,7 +173,7 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
         // nur die Markierung dieser Aktion – eine inzwischen von jemand anderem gesetzte bleibt
         await ctx.trx
           .deleteFrom('plenum_marks')
-          .where('task_id', '=', op.id)
+          .where(markColumn(op.target), '=', op.id)
           .where('marked_by', '=', record.actor_id)
           .where('marked_at', '=', record.created_at)
           .execute();
@@ -179,6 +199,104 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .execute();
         break;
       }
+      // ── Phase 3 ──
+      case 'rsvp_restore':
+        await ctx.trx
+          .deleteFrom('appointment_rsvps')
+          .where('appointment_id', '=', op.appointment_id)
+          .where('member_id', '=', op.member_id)
+          .execute();
+        if (op.row) await ctx.trx.insertInto('appointment_rsvps').values(op.row).execute();
+        break;
+      case 'appointment_state': {
+        const before = await ctx.trx
+          .selectFrom('appointments')
+          .select('status')
+          .where('id', '=', op.appointment_id)
+          .executeTakeFirstOrThrow();
+        if (before.status !== op.status) changes.status = { old: before.status, new: op.status };
+        await ctx.trx
+          .updateTable('appointments')
+          .set({ status: op.status as never })
+          .where('id', '=', op.appointment_id)
+          .execute();
+        await ctx.trx
+          .deleteFrom('appointment_attendees')
+          .where('appointment_id', '=', op.appointment_id)
+          .execute();
+        if (op.attendees.length)
+          await ctx.trx.insertInto('appointment_attendees').values(op.attendees).execute();
+        break;
+      }
+      case 'appointment_times':
+        await ctx.trx
+          .updateTable('appointments')
+          .set({ starts_at: op.starts_at, ends_at: op.ends_at })
+          .where('id', '=', op.appointment_id)
+          .execute();
+        break;
+      case 'task_fields':
+        await ctx.trx
+          .updateTable('tasks')
+          .set({ due_date: op.due_date, origin_plenum_id: op.origin_plenum_id })
+          .where('id', '=', op.task_id)
+          .execute();
+        break;
+      case 'decision_state': {
+        const before = await ctx.trx
+          .selectFrom('decisions')
+          .select('status')
+          .where('id', '=', op.decision_id)
+          .executeTakeFirstOrThrow();
+        if (before.status !== op.status) changes.status = { old: before.status, new: op.status };
+        await ctx.trx
+          .updateTable('decisions')
+          .set({ status: op.status as never, superseded_by_id: op.superseded_by_id })
+          .where('id', '=', op.decision_id)
+          .execute();
+        break;
+      }
+      case 'question_state': {
+        const before = await ctx.trx
+          .selectFrom('questions')
+          .select('status')
+          .where('id', '=', op.question_id)
+          .executeTakeFirstOrThrow();
+        if (before.status !== op.status) changes.status = { old: before.status, new: op.status };
+        await ctx.trx
+          .updateTable('questions')
+          .set({
+            status: op.status as never,
+            answer: op.answer,
+            answered_in_plenum_id: op.answered_in_plenum_id,
+            resulting_decision_id: op.resulting_decision_id,
+          })
+          .where('id', '=', op.question_id)
+          .execute();
+        break;
+      }
+      case 'task_delete':
+        // die im selben Schritt angelegte Aufgabe verschwindet wieder; ihre Historie bleibt (unveränderlich)
+        await ctx.trx.deleteFrom('task_assignees').where('task_id', '=', op.task_id).execute();
+        await ctx.trx.deleteFrom('task_followers').where('task_id', '=', op.task_id).execute();
+        await ctx.trx.deleteFrom('plenum_marks').where('task_id', '=', op.task_id).execute();
+        await ctx.trx
+          .deleteFrom('document_links')
+          .where('target_type', '=', 'task')
+          .where('target_id', '=', op.task_id)
+          .execute();
+        await ctx.trx.deleteFrom('tasks').where('id', '=', op.task_id).execute();
+        break;
+      case 'decision_delete':
+        // die im selben Schritt angelegte Entscheidung verschwindet wieder – samt Markierung; die Historie bleibt
+        await ctx.trx.deleteFrom('plenum_marks').where('decision_id', '=', op.decision_id).execute();
+        await ctx.trx
+          .deleteFrom('document_links')
+          .where('target_type', '=', 'decision')
+          .where('target_id', '=', op.decision_id)
+          .execute();
+        await ctx.trx.deleteFrom('decisions').where('id', '=', op.decision_id).execute();
+        break;
     }
   }
   // Nachrichten der zurückgenommenen Aktion, die noch nicht raus sind, werden nicht mehr verschickt
@@ -191,6 +309,8 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
       // was ein Joblauf gerade verschickt, ist schon unterwegs
       .where('locked_until', 'is', null)
       .execute();
+  // eine im selben Schritt angelegte Aufgabe ist wieder weg – dann gibt es nichts mehr zu vermerken
+  if (ops.some((op) => op.kind === 'task_delete' && op.task_id === entity.id)) return;
   if (table === 'tasks')
     await taskStillValid(
       ctx,
@@ -203,7 +323,7 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
       .set({ version: entity.version + 1, updated_at: iso(ctx) })
       .where('id', '=', entity.id)
       .execute();
-  await writeHistory(ctx, record.entity_type as 'task' | 'event', entity.id, 'undo', {
+  await writeHistory(ctx, entityType, entity.id, 'undo', {
     ...changes,
     undone: { old: record.label, new: null },
     history_ids: { old: record.history_ids, new: null },
@@ -228,4 +348,84 @@ async function taskStillValid(ctx: Ctx, taskId: string, restoresInArbeit: boolea
     .executeTakeFirst();
   if (!assignee)
     throw rule('Die Person ist inzwischen nicht mehr aktiv – das lässt sich nicht mehr rückgängig machen.');
+}
+
+/**
+ * Was sich nicht mehr zurücknehmen lässt: Aktionen eines abgeschlossenen Plenums (die Zusammenfassung ist verschickt,
+ * WF-PLE-19) und im selben Schritt Angelegtes, das inzwischen jemand weiterverwendet.
+ */
+async function stillUndoable(
+  ctx: Ctx,
+  historyIds: string[],
+  ops: InverseOp[],
+  entityId: string,
+): Promise<void> {
+  if (historyIds.length > 0) {
+    const closed = await ctx.trx
+      .selectFrom('history as h')
+      .innerJoin('appointments as a', (join) =>
+        join.on(sql`a.id::text`, '=', sql`h.changes -> 'plenum_id' ->> 'new'`),
+      )
+      .select('a.id')
+      .where('h.id', 'in', historyIds)
+      .where('a.status', '=', 'abgeschlossen')
+      .executeTakeFirst();
+    if (closed)
+      throw rule('Das Plenum ist schon abgeschlossen – das lässt sich nicht mehr rückgängig machen.');
+  }
+  for (const op of ops) {
+    if (op.kind === 'decision_delete') {
+      const created = await ctx.trx
+        .selectFrom('decisions')
+        .select(['id', 'version'])
+        .where('id', '=', op.decision_id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!created) continue;
+      const [successorOf, linked, marked] = await Promise.all([
+        ctx.trx
+          .selectFrom('decisions')
+          .select('id')
+          .where('superseded_by_id', '=', created.id)
+          .where('id', '<>', entityId)
+          .executeTakeFirst(),
+        ctx.trx
+          .selectFrom('document_links')
+          .select('document_id')
+          .where('target_type', '=', 'decision')
+          .where('target_id', '=', created.id)
+          .executeTakeFirst(),
+        ctx.trx
+          .selectFrom('plenum_marks')
+          .select('id')
+          .where('decision_id', '=', created.id)
+          .executeTakeFirst(),
+      ]);
+      if (created.version > 1 || successorOf || linked || marked)
+        throw rule(
+          'Der neue Eintrag wird inzwischen weiterverwendet – das lässt sich nicht mehr rückgängig machen.',
+        );
+    }
+    if (op.kind === 'task_delete') {
+      const [foreign, comment, blocker] = await Promise.all([
+        ctx.trx
+          .selectFrom('history')
+          .select('id')
+          .where('entity_type', '=', 'task')
+          .where('entity_id', '=', op.task_id)
+          .$if(historyIds.length > 0, (q) => q.where('id', 'not in', historyIds))
+          .executeTakeFirst(),
+        ctx.trx.selectFrom('comments').select('id').where('task_id', '=', op.task_id).executeTakeFirst(),
+        ctx.trx
+          .selectFrom('task_blockers')
+          .select('task_id')
+          .where((eb) => eb.or([eb('task_id', '=', op.task_id), eb('blocker_task_id', '=', op.task_id)]))
+          .executeTakeFirst(),
+      ]);
+      if (foreign || comment || blocker)
+        throw rule(
+          'Eine der neuen Aufgaben wurde inzwischen bearbeitet – das lässt sich nicht mehr rückgängig machen.',
+        );
+    }
+  }
 }

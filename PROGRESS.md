@@ -4,9 +4,10 @@ Geführt vom Agenten. Quelle der Anforderungen: docs/ANFORDERUNGEN.md.
 
 ## Status
 
-**Aktuell: Schritt C für Phase 2 (Erinnerungen). Phase 1 Schritt C fertig mit zwei Review-Runden ohne offene
-Befunde hoher oder mittlerer Schwere (21.10.2026); offen dort nur der Mail-Link-Test der Nutzerin. Phase 2: Server,
-Versand und Functions stehen (22.10.2026); als Nächstes Agent-Review.**
+**Aktuell: Schritt C für Phase 3 (Plenum-Zyklus): Server, Migration und Tests stehen (22.10.2026), als Nächstes
+Agent-Review. Phase 1 und 2 Schritt C fertig mit je zwei Review-Runden ohne offene Befunde hoher oder mittlerer
+Schwere; offen dort nur, was erst mit dem Deploy geht (Mail-Link-Test, Telegram-Bot, cron-job.org, Push auf
+Geräten).**
 Reihenfolge seit 12.10.2026: erst das ganze Frontend (Schritt A für P1 bis P6), dann
 Durchsicht (B), Daten und Server (C), Deploy am Ende (D).
 
@@ -162,16 +163,20 @@ Schritt A – Oberfläche mit Testdaten:
 
 Schritt C – Daten und Server (Checkliste 10.3):
 
-- [ ] Datenmodell: appointment_types (+Seed), appointments, appointment_rsvps, appointment_attendees,
-      tasks.appointment_id und origin_plenum_id, decisions, questions, documents mit task_documents und
-      weiteren Verknüpfungen; plenum_marks für Fragen, Entscheidungen, Veranstaltungen, Termine, Dokumente
-- [ ] Admin-Bereich Terminarten (F-TER-06); Navigation um Termine und Wissen erweitern
-- [ ] Termine: F-TER-01, -04, -05
-- [ ] Plenum: F-PLE-01 bis -04 und F-AUF-08, inkl. Nachtragen alter Plenen
-- [ ] Wissen: F-WIS-01, -02, F-FRA-01, -02, F-WIS-03, F-AUF-05 (Dokumente), F-WIS-07, F-WIS-06
-- [ ] Ereignisse aus 6.2 mit Phase P3
-- [ ] „Mitglied deaktivieren“ um künftige Zusagen erweitern
-- [ ] check:integrity; Tests
+- [x] Datenmodell (Migration 20261022000003, im Entwicklungsprojekt eingespielt): appointment_types mit den fünf
+      Arten als Startbestand, appointments, appointment_rsvps, appointment_attendees, tasks.appointment_id und
+      origin_plenum_id, decisions (Quelle Pflicht, auch als Check-Constraint), questions, documents mit
+      document_links; plenum_marks für Fragen, Entscheidungen, Veranstaltungen, Termine und Dokumente
+- [x] Admin-Bereich Terminarten (F-TER-06); Termine F-TER-01, -04, -05; Plenum F-PLE-01 bis -04 und F-AUF-08 mit
+      genau einem Rückgängig je Plenum-Aktion; Wissen F-WIS-01, -02, F-FRA-01, -02, F-WIS-03, F-AUF-05, F-WIS-06
+      (server/p3). Die Tests der Testdaten-Schicht für Termine, Plenum und Wissen laufen auch gegen den Server.
+- [x] Ereignisse aus 6.2 mit Phase P3: Einladung, Erinnerung 3 Tage und 1 Stunde vorher (Joblauf), abgesagt und
+      verschoben, Plenum-Zusammenfassung; Server rechnet Texte in Kölner Zeit (server/core/berlin.ts)
+- [x] „Mitglied deaktivieren“ entfernt künftige Zusagen (in derselben Transaktion)
+- [x] check:integrity (Markierungen aller Arten, Quelle Plenum, Kreise bei ersetzten Einträgen, verwaiste
+      Dokument-Verknüpfungen, Zusagen Deaktivierter); Smoke-Tests: Zusage, Plenum-Agenda mit Einplanen und
+      Rückgängig, Frage stellen
+- [ ] Agent-Review
 - [ ] Phasenabschluss (10.7)
 
 ### 10.4 Phase 4 – Veranstaltungen

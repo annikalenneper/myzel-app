@@ -1,5 +1,6 @@
 // Startet den Smoke-Server über Vites Modul-Runner: so gelten dieselben Importe wie in App und Tests
 // (z. B. YAML-Vorlagen als `?raw`), ohne eigenen Build der Server-Funktionen.
+import '../../server/core/berlin';
 import { createServer, createServerModuleRunner } from 'vite';
 
 const vite = await createServer({

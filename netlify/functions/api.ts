@@ -1,5 +1,6 @@
 // Netlify Function: alle Server-Funktionen der App unter /api/<aktion> (ANFORDERUNGEN 7.2).
 // Prüft den Supabase-Login (Bearer-Token) und führt die Aktion mit dieser Person aus – nie mit einer mitgeschickten ID.
+import '../../server/core/berlin';
 import { createClient } from '@supabase/supabase-js';
 import type { Config, Context } from '@netlify/functions';
 import type { Login } from '../../server/api/handle';

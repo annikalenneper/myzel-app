@@ -158,7 +158,7 @@ describe('Aktionen', () => {
     expect(history[0]?.actor_member_id).toBe('a0000000-0000-4000-8000-000000000001');
   });
 
-  it('Detailansicht einer Veranstaltung: Bereiche späterer Phasen kommen leer', async () => {
+  it('Detailansicht einer Veranstaltung: Bereiche späterer Phasen kommen leer, Dokumente aus Phase 3', async () => {
     await handleAction(local.db, lea, 'getSession', [], now);
     await local.pg.exec(`
       insert into events (id, title, type, starts_at, created_by)
@@ -173,14 +173,22 @@ describe('Aktionen', () => {
       now,
     )) as { title: string; bookings: unknown[]; partners: unknown[]; drive_folder: unknown };
     expect(detail).toMatchObject({ title: 'Soli-Abend', bookings: [], partners: [], drive_folder: null });
-    expect(await handleAction(local.db, lea, 'listLinkedDocuments', ['task', 'x'], now)).toEqual([]);
+    expect(
+      await handleAction(
+        local.db,
+        lea,
+        'listLinkedDocuments',
+        ['event', 'e0000000-0000-4000-8000-000000000001'],
+        now,
+      ),
+    ).toEqual([]);
   });
 
   it('unbekannte und eingeschleuste Aktionsnamen werden abgewiesen', async () => {
     await handleAction(local.db, lea, 'getSession', [], now);
     expect(await code(handleAction(local.db, lea, 'toString', [], now))).toBe('rule');
     expect(await code(handleAction(local.db, lea, '__proto__', [], now))).toBe('rule');
-    expect(await code(handleAction(local.db, lea, 'listAppointments', [], now))).toBe('rule');
+    expect(await code(handleAction(local.db, lea, 'listPartners', [], now))).toBe('rule');
   });
 
   it('Fehler werden zu deutschen Sätzen mit passendem Status, ohne technische Details', () => {

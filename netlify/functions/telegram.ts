@@ -1,5 +1,6 @@
 // Netlify Function: Webhook des Telegram-Bots (6.4). Telegram schickt das Secret im Header
 // „X-Telegram-Bot-Api-Secret-Token“ mit (gesetzt per `npm run telegram:webhook`); ohne passendes Secret passiert nichts.
+import '../../server/core/berlin';
 import { timingSafeEqual } from 'node:crypto';
 import type { Config } from '@netlify/functions';
 import { database } from '../../server/db/connection';

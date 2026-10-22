@@ -24,6 +24,7 @@ import {
 } from '../core/context';
 import type { MemberRow } from '../db/types';
 import { dropChannels } from '../p2/notify';
+import { dropFutureRsvps, futureRsvpCount } from '../p3/appointments';
 import { dropAssignee, dropFollower } from './tasks';
 
 async function findMember(ctx: Ctx, id: string): Promise<MemberRow> {
@@ -156,8 +157,8 @@ export async function getDeactivationImpact(ctx: Ctx, memberId: string): Promise
     tasks_without_assignee: [],
     tasks_shared_count: 0,
     following_count: following.length,
-    // spätere Phasen: Zusagen (P3), Hauptverantwortliche und Partner-Kontakte (P4)
-    future_rsvp_count: 0,
+    // [P3] Zusagen für künftige Termine; Hauptverantwortliche und Partner-Kontakte kommen mit P4
+    future_rsvp_count: await futureRsvpCount(ctx.trx, memberId, ctx.now),
     lead_count: 0,
     partner_contact_count: 0,
   };
@@ -208,6 +209,8 @@ export async function deactivateMember(ctx: Ctx, memberId: string): Promise<Deac
   await dropChannels(ctx.trx, memberId);
   await touchMember(ctx, member, { active: false });
   await writeHistory(ctx, 'member', memberId, 'deactivated', { active: { old: true, new: false } });
+  // [P3] Zusagen für künftige Termine entfallen
+  await dropFutureRsvps(ctx, memberId);
   return impact;
 }
 

@@ -2,7 +2,7 @@
 // und die Tests (createServerApi). Lesende Aktionen laufen ohne Transaktion, schreibende in genau einer.
 // Was erst eine spätere Phase bringt, steht hier noch nicht: der Aufruf endet dann mit einer verständlichen Meldung.
 import type { Kysely } from 'kysely';
-import type { EventStatus } from '../../src/shared/schema';
+import type { DocumentLinkTarget, EventStatus, RsvpAnswer } from '../../src/shared/schema';
 import type { Ctx } from '../core/context';
 import type { Database } from '../db/types';
 import * as events from '../p1/events';
@@ -11,6 +11,9 @@ import * as reads from '../p1/reads';
 import * as tasks from '../p1/tasks';
 import { undo } from '../p1/undo';
 import * as notify from '../p2/notify';
+import * as appts from '../p3/appointments';
+import * as know from '../p3/knowledge';
+import * as plenum from '../p3/plenum';
 
 type Args = unknown[];
 const s = (v: unknown) => v as string;
@@ -27,7 +30,6 @@ export const READ_ACTIONS: Record<string, (db: Kysely<Database>, args: Args, now
     listEvents: (db, _, now) => reads.listEvents(db, now),
     getEvent: (db, [id], now) => reads.getEvent(db, s(id), now),
     getEventDetail: (db, [id], now) => reads.getEventDetail(db, s(id), now),
-    listLinkedDocuments: () => reads.listLinkedDocuments(),
   };
 
 export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unknown>> = {
@@ -74,4 +76,52 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   startTelegramLink: (ctx) => notify.startTelegramLink(ctx, botUsername()),
   unlinkTelegram: (ctx) => notify.unlinkTelegram(ctx),
   getSystemStatus: (ctx) => notify.systemStatus(ctx),
+
+  // [P3] Termine, Terminarten (Lesen über die handelnde Person: eigene Zusage)
+  listAppointmentTypes: (ctx) => appts.listAppointmentTypes(ctx),
+  createAppointmentType: (ctx, [input]) => appts.createAppointmentType(ctx, input),
+  updateAppointmentType: (ctx, [id, input]) => appts.updateAppointmentType(ctx, s(id), input),
+  archiveAppointmentType: (ctx, [id, version]) => appts.archiveAppointmentType(ctx, s(id), n(version), true),
+  restoreAppointmentType: (ctx, [id, version]) => appts.archiveAppointmentType(ctx, s(id), n(version), false),
+  deleteAppointmentType: (ctx, [id]) => appts.deleteAppointmentType(ctx, s(id)),
+  listAppointments: (ctx) => appts.listAppointments(ctx),
+  getAppointment: (ctx, [id]) => appts.getAppointment(ctx.trx, s(id), ctx.actor.id),
+  createAppointment: (ctx, [input]) => appts.createAppointment(ctx, input),
+  updateAppointment: (ctx, [id, input]) => appts.updateAppointment(ctx, s(id), input),
+  setRsvp: (ctx, [id, answer]) => appts.setRsvp(ctx, s(id), (answer ?? null) as RsvpAnswer | null),
+  cancelAppointment: (ctx, [id, version]) => appts.cancelAppointment(ctx, s(id), n(version)),
+  markAppointmentHappened: (ctx, [id, attendees, version]) =>
+    appts.markHappened(ctx, s(id), attendees as unknown[], n(version)),
+  setAttendee: (ctx, [id, memberId, present]) => appts.setAttendee(ctx, s(id), s(memberId), present === true),
+  setAppointmentMark: (ctx, [id, marked]) => appts.setAppointmentMark(ctx, s(id), marked === true),
+
+  // [P3] Wissen
+  listDecisions: (ctx) => know.listDecisions(ctx.trx),
+  getDecision: (ctx, [id]) => know.getDecision(ctx.trx, s(id)),
+  createDecision: (ctx, [input]) => know.createDecision(ctx, input),
+  replaceDecision: (ctx, [id, input]) => know.replaceDecision(ctx, s(id), input),
+  revokeDecision: (ctx, [id, note, version]) => know.revokeDecision(ctx, s(id), note, n(version)),
+  listQuestions: (ctx) => know.listQuestions(ctx.trx),
+  getQuestion: (ctx, [id]) => know.getQuestion(ctx.trx, s(id)),
+  createQuestion: (ctx, [input]) => know.createQuestion(ctx, input),
+  clarifyQuestion: (ctx, [id, input]) => know.clarifyQuestion(ctx, s(id), input),
+  discardQuestion: (ctx, [id, version]) => know.discardQuestion(ctx, s(id), n(version)),
+  listDocuments: (ctx) => know.listDocuments(ctx.trx),
+  listLinkedDocuments: (ctx, [target, id]) =>
+    know.linkedDocuments(ctx.trx, target as DocumentLinkTarget, s(id)),
+  createDocument: (ctx, [input]) => know.createDocument(ctx, input),
+  linkDocument: (ctx, [documentId, target, targetId]) =>
+    know.linkDocument(ctx, s(documentId), target as DocumentLinkTarget, s(targetId)),
+  unlinkDocument: (ctx, [documentId, target, targetId]) =>
+    know.unlinkDocument(ctx, s(documentId), target as DocumentLinkTarget, s(targetId)),
+  setMark: (ctx, [target, id, marked]) => know.setMark(ctx, target, s(id), marked === true),
+  search: (ctx, [query]) => know.search(ctx.trx, query, ctx.now),
+
+  // [P3] Plenum
+  getPlenum: (ctx, [id]) => plenum.getPlenum(ctx, s(id)),
+  plenumAction: (ctx, [id, input]) => plenum.plenumAction(ctx, s(id), input),
+  moveAgendaItem: (ctx, [markId, toIndex]) => plenum.moveMark(ctx, markId, toIndex),
+  plenumAdd: (ctx, [id, input]) => plenum.plenumAdd(ctx, s(id), input),
+  updateProtocol: (ctx, [id, input]) => plenum.updateProtocol(ctx, s(id), input),
+  closePlenum: (ctx, [id, attendees, version]) => plenum.closePlenum(ctx, s(id), attendees, n(version)),
 };

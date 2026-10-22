@@ -6,7 +6,8 @@ import type { ZodType } from 'zod';
 import { AppError, validationErrorFromZod } from '../../src/shared/errors';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
 import type { HistoryChanges } from '../../src/shared/schema';
-import type { Database, HistoryTable, MemberRow } from '../db/types';
+import type { Selectable } from 'kysely';
+import type { Database, HistoryTable, MemberRow, PlenumMarksTable } from '../db/types';
 
 export type Trx = Transaction<Database>;
 export type HistoryEntity = HistoryTable['entity_type'];
@@ -28,20 +29,42 @@ export type InverseOp =
     }
   | { kind: 'follower_remove'; task_id: string; member_id: string }
   | { kind: 'follower_add'; task_id: string; member_id: string }
+  | { kind: 'mark_restore'; row: Selectable<PlenumMarksTable> }
   | {
-      kind: 'mark_restore';
-      row: {
-        id: string;
-        task_id: string | null;
-        position: number;
-        note: string | null;
-        marked_by: string;
-        marked_at: string;
-      };
+      kind: 'mark_remove';
+      target: 'task' | 'question' | 'decision' | 'event' | 'appointment' | 'document';
+      id: string;
     }
-  | { kind: 'mark_remove'; target: 'task'; id: string }
   | { kind: 'blocker_remove'; task_id: string; blocker_task_id: string }
-  | { kind: 'event_status'; event_id: string; status: string };
+  | { kind: 'event_status'; event_id: string; status: string }
+  // [P3]
+  | { kind: 'rsvp_restore'; appointment_id: string; member_id: string; row: AppointmentRsvp | null }
+  | {
+      kind: 'appointment_state';
+      appointment_id: string;
+      status: string;
+      attendees: { appointment_id: string; member_id: string }[];
+    }
+  | { kind: 'appointment_times'; appointment_id: string; starts_at: string; ends_at: string | null }
+  | { kind: 'task_delete'; task_id: string }
+  | { kind: 'task_fields'; task_id: string; due_date: string | null; origin_plenum_id: string | null }
+  | { kind: 'decision_delete'; decision_id: string }
+  | { kind: 'decision_state'; decision_id: string; status: string; superseded_by_id: string | null }
+  | {
+      kind: 'question_state';
+      question_id: string;
+      status: string;
+      answer: string | null;
+      answered_in_plenum_id: string | null;
+      resulting_decision_id: string | null;
+    };
+
+type AppointmentRsvp = {
+  appointment_id: string;
+  member_id: string;
+  answer: 'ja' | 'nein';
+  answered_at: string;
+};
 
 export interface Ctx {
   trx: Trx;
@@ -52,6 +75,8 @@ export interface Ctx {
   historyIds: string[];
   /** [P2] Nachrichten dieser Aktion in der Outbox – „Rückgängig“ zieht noch wartende zurück */
   outbox: string[];
+  /** [P3] Teilschritte einer zusammengesetzten Aktion legen keinen eigenen Rückgängig-Eintrag an */
+  deferUndo?: boolean;
 }
 
 export const iso = (ctx: Ctx) => ctx.now.toISOString();
@@ -145,7 +170,8 @@ export async function registerUndo(
   entity: { id: string; version: number },
   label: string,
 ): Promise<Undoable> {
-  if (ctx.inverse.length === 0) return { undo_token: '' };
+  // eine zusammengesetzte Aktion (z. B. im Plenum) legt am Ende genau einen Eintrag für alles an
+  if (ctx.inverse.length === 0 || ctx.deferUndo) return { undo_token: '' };
   const cutoff = new Date(ctx.now.getTime() - UNDO_WINDOW_MS).toISOString();
   await ctx.trx.deleteFrom('undo_actions').where('created_at', '<', cutoff).execute();
   const token = crypto.randomUUID();

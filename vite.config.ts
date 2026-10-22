@@ -39,6 +39,8 @@ export default defineConfig({
     environment: 'node',
     // Datenbank-Tests legen je Test ein frisches Postgres (PGlite) an – unter voller Last dauert das
     hookTimeout: 30_000,
+    // wie die Server-Funktionen (server/core/berlin.ts) und die Playwright-Tests: Kölner Zeit, auch in der CI
+    env: { TZ: 'Europe/Berlin' },
     testTimeout: 30_000,
     projects: [
       { extends: true, test: { name: 'app', include: ['src/**/*.test.ts', 'server/**/*.test.ts'] } },
@@ -47,8 +49,14 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'server',
-          include: ['src/data/mock/mockApi.test.ts', 'src/data/mock/notify.test.ts'],
-          env: { MYZEL_API: 'server' },
+          include: [
+            'src/data/mock/mockApi.test.ts',
+            'src/data/mock/notify.test.ts',
+            'src/data/mock/appointments.test.ts',
+            'src/data/mock/plenum.test.ts',
+            'src/data/mock/knowledge.test.ts',
+          ],
+          env: { MYZEL_API: 'server', TZ: 'Europe/Berlin' },
         },
       },
     ],

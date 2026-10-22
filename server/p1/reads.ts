@@ -2,7 +2,6 @@
 // Felder späterer Phasen liefern hier ihren leeren Wert, bis deren Migrationen kommen.
 import { sql, type Kysely } from 'kysely';
 import type {
-  DocumentListItem,
   EventDetail,
   EventListItem,
   TaskDetail,
@@ -20,7 +19,6 @@ type Db = Kysely<Database>;
 
 /** Spalten späterer Phasen */
 const memberLater = { notify_own_status: false } as const;
-const taskLater = { appointment_id: null, origin_plenum_id: null } as const;
 const eventLater = {
   setup_at: null,
   teardown_at: null,
@@ -49,10 +47,7 @@ export async function listTopics(db: Db): Promise<TopicWithUsage[]> {
   });
 }
 
-async function taskItems(
-  db: Db,
-  tasks: Omit<Task, 'appointment_id' | 'origin_plenum_id'>[],
-): Promise<TaskListItem[]> {
+async function taskItems(db: Db, tasks: Task[]): Promise<TaskListItem[]> {
   if (tasks.length === 0) return [];
   const ids = tasks.map((t) => t.id);
   const [assignees, followers, blockers, comments, marks] = await Promise.all([
@@ -81,7 +76,6 @@ async function taskItems(
   const marked = new Set(marks.map((m) => m.task_id));
   return tasks.map((t) => ({
     ...t,
-    ...taskLater,
     assignee_ids: assignees.filter((a) => a.task_id === t.id).map((a) => a.member_id),
     follower_ids: followers.filter((f) => f.task_id === t.id).map((f) => f.member_id),
     blocker_titles: blockers.filter((b) => b.task_id === t.id).map((b) => b.title),
@@ -150,7 +144,7 @@ async function eventItems(
   if (events.length === 0) return [];
   const ids = events.map((e) => e.id);
   const today = berlinDate(now);
-  const [tasks, followUp] = await Promise.all([
+  const [tasks, followUp, marks] = await Promise.all([
     db
       .selectFrom('tasks')
       .select(['event_id', 'status', 'due_date'])
@@ -167,6 +161,7 @@ async function eventItems(
       .where(sql<boolean>`changes -> 'status' ->> 'new' = 'in_nachbereitung'`)
       .groupBy('entity_id')
       .execute(),
+    db.selectFrom('plenum_marks').select('event_id').where('event_id', 'in', ids).execute(),
   ]);
   return events.map((e) => {
     const own = tasks.filter((t) => t.event_id === e.id);
@@ -176,8 +171,7 @@ async function eventItems(
       task_total: own.length,
       task_done: own.filter((t) => t.status === 'erledigt').length,
       task_overdue: own.filter((t) => isOverdue(t.due_date, t.status, today)).length,
-      // Veranstaltungen sind erst ab P3 markierbar
-      marked: false,
+      marked: marks.some((m) => m.event_id === e.id),
       follow_up_since:
         e.status === 'in_nachbereitung'
           ? (followUp.find((f) => f.entity_id === e.id)?.since ?? e.updated_at)
@@ -217,9 +211,4 @@ export async function getEventDetail(db: Db, id: string, now: Date): Promise<Eve
     drive_folder: null,
     partners: [],
   };
-}
-
-/** Verknüpfte Dokumente kommen mit Phase 5 – bis dahin gibt es keine */
-export async function listLinkedDocuments(): Promise<DocumentListItem[]> {
-  return [];
 }

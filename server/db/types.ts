@@ -2,6 +2,14 @@
 // Zeitstempel kommen als ISO-Text aus der Datenbank, Datumsfelder als YYYY-MM-DD (siehe connection.ts).
 import type { ColumnType, Generated, Insertable, Selectable, Updateable } from 'kysely';
 import type {
+  AppointmentFormat,
+  AppointmentStatus,
+  DecisionKind,
+  DecisionStatus,
+  DocType,
+  DocumentLinkTarget,
+  QuestionStatus,
+  RsvpAnswer,
   EventStatus,
   EventType,
   HistoryChanges,
@@ -76,6 +84,9 @@ export interface TasksTable {
   updated_at: Timestamp;
   created_by: string;
   version: Generated<number>;
+  /** [P3] Termin und Herkunft aus einem Plenum */
+  appointment_id: string | null;
+  origin_plenum_id: string | null;
 }
 
 export interface TaskAssigneesTable {
@@ -107,6 +118,12 @@ export interface CommentsTable {
 export interface PlenumMarksTable {
   id: Generated<string>;
   task_id: string | null;
+  /** [P3] */
+  question_id: string | null;
+  decision_id: string | null;
+  event_id: string | null;
+  appointment_id: string | null;
+  document_id: string | null;
   position: number;
   note: string | null;
   marked_by: string;
@@ -116,7 +133,16 @@ export interface PlenumMarksTable {
 export interface HistoryTable {
   id: Generated<string>;
   seq: Generated<string>;
-  entity_type: 'task' | 'event' | 'member' | 'topic';
+  entity_type:
+    | 'task'
+    | 'event'
+    | 'member'
+    | 'topic'
+    | 'appointment'
+    | 'appointment_type'
+    | 'decision'
+    | 'question'
+    | 'document';
   entity_id: string;
   actor_member_id: string;
   action: string;
@@ -136,6 +162,120 @@ export interface UndoActionsTable {
   history_ids: ColumnType<string[], string, never>;
   /** [P2] Nachrichten der Aktion, die „Rückgängig“ noch zurückzieht */
   outbox_ids: ColumnType<string[], string | undefined, never>;
+}
+
+// ── Phase 3: Plenum-Zyklus ──────────────────────────────────────────────────
+export interface AppointmentTypesTable {
+  id: Generated<string>;
+  key: string;
+  label: string;
+  default_topic_id: string;
+  default_format: AppointmentFormat;
+  default_location: string | null;
+  has_plenum_features: boolean;
+  color: string;
+  sort_order: number;
+  archived_at: Timestamp | null;
+  created_at: CreatedAt;
+  updated_at: Timestamp;
+  created_by: string | null;
+  version: Generated<number>;
+}
+
+export interface AppointmentsTable {
+  id: Generated<string>;
+  type_id: string;
+  title: string;
+  topic_id: string;
+  event_id: string | null;
+  starts_at: Timestamp;
+  ends_at: Timestamp | null;
+  format: AppointmentFormat;
+  location: string | null;
+  online_url: string | null;
+  status: Generated<AppointmentStatus>;
+  is_exception: Generated<boolean>;
+  protocol_document_id: string | null;
+  protocol_member_id: string | null;
+  notes: string | null;
+  archived_at: Timestamp | null;
+  created_at: CreatedAt;
+  updated_at: Timestamp;
+  created_by: string;
+  version: Generated<number>;
+}
+
+export interface AppointmentRsvpsTable {
+  appointment_id: string;
+  member_id: string;
+  answer: RsvpAnswer;
+  answered_at: Timestamp;
+}
+
+export interface AppointmentAttendeesTable {
+  appointment_id: string;
+  member_id: string;
+}
+
+export interface DocumentsTable {
+  id: Generated<string>;
+  title: string;
+  url: string;
+  drive_file_id: string | null;
+  doc_type: DocType;
+  topic_id: string | null;
+  tags: ColumnType<string[], string, string>;
+  description: string | null;
+  archived_at: Timestamp | null;
+  created_at: CreatedAt;
+  updated_at: Timestamp;
+  created_by: string;
+  version: Generated<number>;
+}
+
+export interface DocumentLinksTable {
+  document_id: string;
+  target_type: DocumentLinkTarget;
+  target_id: string;
+}
+
+export interface DecisionsTable {
+  id: Generated<string>;
+  title: string;
+  description: string | null;
+  kind: DecisionKind;
+  topic_id: string;
+  /** YYYY-MM-DD */
+  decided_on: string;
+  status: Generated<DecisionStatus>;
+  superseded_by_id: string | null;
+  source_plenum_id: string | null;
+  source_document_id: string | null;
+  source_note: string | null;
+  archived_at: Timestamp | null;
+  created_at: CreatedAt;
+  updated_at: Timestamp;
+  created_by: string;
+  version: Generated<number>;
+}
+
+export interface QuestionsTable {
+  id: Generated<string>;
+  title: string;
+  description: string | null;
+  topic_id: string;
+  event_id: string | null;
+  urgency: Generated<Priority>;
+  status: Generated<QuestionStatus>;
+  raised_by: string;
+  answer: string | null;
+  answered_in_plenum_id: string | null;
+  resulting_decision_id: string | null;
+  archived_at: Timestamp | null;
+  created_at: CreatedAt;
+  updated_at: Timestamp;
+  created_by: string;
+  version: Generated<number>;
 }
 
 // ── Phase 2: Erinnerungen ───────────────────────────────────────────────────
@@ -208,9 +348,22 @@ export interface Database {
   telegram_link_codes: TelegramLinkCodesTable;
   notification_outbox: NotificationOutboxTable;
   job_runs: JobRunsTable;
+  appointment_types: AppointmentTypesTable;
+  appointments: AppointmentsTable;
+  appointment_rsvps: AppointmentRsvpsTable;
+  appointment_attendees: AppointmentAttendeesTable;
+  documents: DocumentsTable;
+  document_links: DocumentLinksTable;
+  decisions: DecisionsTable;
+  questions: QuestionsTable;
 }
 
 export type MemberRow = Selectable<MembersTable>;
 export type TaskRow = Selectable<TasksTable>;
+export type AppointmentRow = Selectable<AppointmentsTable>;
+export type AppointmentTypeRow = Selectable<AppointmentTypesTable>;
+export type DecisionRow = Selectable<DecisionsTable>;
+export type QuestionRow = Selectable<QuestionsTable>;
+export type DocumentRow = Selectable<DocumentsTable>;
 export type NewTask = Insertable<TasksTable>;
 export type TaskUpdate = Updateable<TasksTable>;

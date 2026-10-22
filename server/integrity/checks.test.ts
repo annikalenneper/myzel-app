@@ -54,11 +54,9 @@ describe('check:integrity', () => {
     const found = Object.fromEntries(await failing());
     expect(found['Keine Zyklen bei Abhängigkeiten']).toHaveLength(2);
     expect(found['Keine aktive Aufgabe in einem archivierten Thema']).toHaveLength(3);
-    expect(
-      found[
-        'Jede Aufgabe, Veranstaltung, jedes Mitglied und Thema hat ihren Eintrag „angelegt“ in der Historie'
-      ],
-    ).toEqual(['Aufgabe „Ohne Spur“ ohne Historie']);
+    expect(found['Alles Angelegte hat seinen Eintrag „angelegt“ in der Historie']).toEqual([
+      'Aufgabe „Ohne Spur“ ohne Historie',
+    ]);
     expect(report(await runChecks(local.db))).toMatch(/FEHLER .*Zyklen[\s\S]*3 Prüfung\(en\) mit Fehlern/);
   });
 

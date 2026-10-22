@@ -1,4 +1,5 @@
 // Phase 3 – Plenum: Agenda (3.14, F-PLE-03), Aktionen je Art (F-PLE-05), Ergebnis, Protokoll, Abschluss
+// Mit MYZEL_API=server laufen dieselben Tests gegen die echten Server-Funktionen auf PGlite (Schritt C, Phase 3).
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../shared/errors';
 import type { AgendaItem, MyzelApi } from '../api';
@@ -35,7 +36,10 @@ const results = async () => Object.fromEntries((await plenum()).results.map((g) 
 
 beforeEach(async () => {
   clock = new Date(2026, 9, 11, 12, 0, 0);
-  api = createMockApi({ storage: memoryStorage(), now: () => clock });
+  api =
+    process.env.MYZEL_API === 'server'
+      ? await (await import('../../../server/api/serverApi')).createServerApi({ now: () => clock })
+      : createMockApi({ storage: memoryStorage(), now: () => clock });
   await login('mo');
   plenumId = (await api.listAppointments()).find((a) => a.title === 'Plenum Oktober')!.id;
 });

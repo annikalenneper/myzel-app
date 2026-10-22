@@ -309,6 +309,38 @@ describe('Review Phase 2: robuster Versand', () => {
   });
 });
 
+describe('Phase 3: Termine im Joblauf', () => {
+  it('Einladung beim Anlegen, Erinnerung 3 Tage vorher genau einmal – an Zusagen und ohne Antwort', async () => {
+    const type = await local.db
+      .selectFrom('appointment_types')
+      .select('id')
+      .where('label', '=', 'Bautag')
+      .executeTakeFirstOrThrow();
+    // Sa 12.07.2026, 10:00 in Köln – zwei Tage nach „jetzt“
+    await as(LEA, 'createAppointment', {
+      type_id: type.id,
+      title: 'Bautag Juli',
+      starts_at: '2026-07-12T08:00:00.000Z',
+      ends_at: null,
+      format: 'vor_ort',
+      location: 'Lager',
+      online_url: null,
+      event_id: null,
+    });
+    const invitation = (await outbox()).filter((o) => o.event_type === 'termin_einladung');
+    expect(invitation.map((o) => o.text)).toEqual([
+      'Bautag Juli am So, 12.07., 10 Uhr (vor Ort) – kommst du?',
+      'Bautag Juli am So, 12.07., 10 Uhr (vor Ort) – kommst du?',
+    ]);
+    later(31_000);
+    await runJob(local.db, now, recorder().senders);
+    await runJob(local.db, now, recorder().senders);
+    const reminders = (await outbox()).filter((o) => o.event_type === 'termin_erinnerung');
+    expect(reminders.map((o) => o.channel)).toEqual(['push', 'telegram']);
+    expect(reminders[0]!.text).toBe('Nicht vergessen: Bautag Juli am So, 12.07., 10 Uhr.');
+  });
+});
+
 describe('Telegram-Bot (6.4)', () => {
   const replies: string[] = [];
   const update = (chat: string, text: string) =>

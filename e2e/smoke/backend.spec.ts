@@ -138,3 +138,54 @@ test('Phase 2: Telegram über den Einmal-Code verknüpfen, Systemstatus für Adm
   await expect(page.getByText('Push-Abos')).toBeVisible();
   await expect(page.getByText('7 / 11')).toBeVisible();
 });
+
+test('Phase 3: Zusage am Termin, Plenum-Agenda, Einplanen mit Ergebnis und Rückgängig', async ({ page }) => {
+  await signIn(page, authId(1), 'mo@example.org');
+  await page.goto('/termine');
+  await expect(page.getByRole('heading', { name: 'Termine' })).toBeVisible();
+  const bautag = page.getByRole('article').filter({ hasText: 'Bautag Oktober' });
+  await expect(bautag).toContainText('4 ✓');
+  await bautag.getByRole('button', { name: 'Komme', exact: true }).click();
+  await expect(bautag).toContainText('5 ✓');
+  await page.reload();
+  await expect(page.getByRole('article').filter({ hasText: 'Bautag Oktober' })).toContainText('5 ✓');
+
+  await page.getByRole('article').filter({ hasText: 'Plenum Oktober' }).getByRole('link').first().click();
+  await expect(page.getByRole('heading', { name: 'Plenum Oktober' })).toBeVisible();
+  const item = (title: string) => page.getByRole('article', { name: new RegExp(`^${title}`) });
+  // frühere Smoke-Tests haben Aufgaben „Fürs Plenum“ angelegt – gezählt wird relativ
+  const agendaTab = page.getByRole('tab', { name: /^Agenda · \d+/ });
+  const before = Number((await agendaTab.textContent())!.match(/\d+/)![0]);
+  await expect(item('Awareness-Team')).toContainText('Entscheidung · Gültig');
+  const task = item('Vereinshaftpflicht');
+  await task.getByRole('button', { name: 'Einplanen' }).click();
+  await task.getByRole('button', { name: 'Jule' }).click();
+  await task.getByTestId('WF-PLE-07').getByRole('button', { name: 'Einplanen' }).click();
+  await expect(page.getByTestId('WF-ALL-02')).toContainText('Eingeplant');
+  await expect(page.getByRole('tab', { name: new RegExp(`Agenda · ${before - 1}`) })).toBeVisible();
+  await expect(item('Vereinshaftpflicht')).toHaveCount(0);
+  await page.getByRole('tab', { name: /Ergebnis · 1/ }).click();
+  await expect(page.getByRole('region', { name: 'Aufgaben' })).toContainText(
+    'Eingeplant: Vereinshaftpflicht verlängern · Jule',
+  );
+  await page.getByTestId('WF-ALL-02').getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByRole('tab', { name: /Ergebnis · 0/ })).toBeVisible();
+});
+
+test('Phase 3: Beschlüsse lesen, Frage stellen – bleibt nach Neuladen', async ({ page }) => {
+  await signIn(page, authId(1), 'mo@example.org');
+  await page.goto('/wissen');
+  await expect(page.getByRole('heading', { name: 'Wissen' })).toBeVisible();
+  await expect(page.getByText('5 Einträge')).toBeVisible();
+  await page.getByRole('tab', { name: 'Fragen' }).click();
+  await page.getByRole('button', { name: 'Frage stellen' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Neue Frage' });
+  await sheet.getByLabel('Frage *').fill('Smoke: Wer hat den Zweitschlüssel?');
+  await sheet.getByLabel('Thema *').selectOption({ label: 'Lager & Material' });
+  await sheet.locator('button[type=submit]').click();
+  const card = page.getByRole('article').filter({ hasText: 'Smoke: Wer hat den Zweitschlüssel?' });
+  await expect(card).toContainText(/fürs Plenum/i);
+  await page.reload();
+  await page.getByRole('tab', { name: 'Fragen' }).click();
+  await expect(card).toBeVisible();
+});

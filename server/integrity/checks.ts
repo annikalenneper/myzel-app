@@ -59,14 +59,76 @@ export const CHECKS: IntegrityCheck[] = [
       from plenum_marks pm join tasks t on t.id = pm.task_id
       where t.archived_at is not null or t.status not in (${active})`,
   },
+  // ── Phase 3: Plenum-Zyklus ──
   {
-    name: 'Jede Aufgabe, Veranstaltung, jedes Mitglied und Thema hat ihren Eintrag „angelegt“ in der Historie',
+    name: 'Markierung „Fürs Plenum“ nur an offenen Fragen, gültigen Einträgen, laufenden Veranstaltungen und geplanten Terminen',
+    level: 'fehler',
+    query: sql`select x.art || ' „' || x.name || '“ (' || x.status || ')' as label from (
+        select 'Frage' as art, q.title as name, q.status from plenum_marks pm join questions q on q.id = pm.question_id
+          where q.archived_at is not null or q.status <> 'offen'
+        union all select 'Eintrag', d.title, d.status from plenum_marks pm join decisions d on d.id = pm.decision_id
+          where d.archived_at is not null or d.status <> 'gueltig'
+        union all select 'Veranstaltung', e.title, e.status from plenum_marks pm join events e on e.id = pm.event_id
+          where e.archived_at is not null or e.status in ('abgeschlossen', 'abgesagt')
+        union all select 'Termin', a.title, a.status from plenum_marks pm join appointments a on a.id = pm.appointment_id
+          join appointment_types ty on ty.id = a.type_id
+          where a.archived_at is not null or a.status <> 'geplant' or ty.has_plenum_features
+        union all select 'Dokument', d.title, 'archiviert' from plenum_marks pm join documents d on d.id = pm.document_id
+          where d.archived_at is not null
+      ) x`,
+  },
+  {
+    name: 'Quelle „Plenum“ und Herkunft aus dem Plenum zeigen auf einen Plenum-Termin',
+    level: 'fehler',
+    query: sql`select x.art || ' „' || x.name || '“' as label from (
+        select 'Eintrag' as art, d.title as name, d.source_plenum_id as plenum_id from decisions d where d.source_plenum_id is not null
+        union all select 'Aufgabe', t.title, t.origin_plenum_id from tasks t where t.origin_plenum_id is not null
+        union all select 'Frage', q.title, q.answered_in_plenum_id from questions q where q.answered_in_plenum_id is not null
+      ) x join appointments a on a.id = x.plenum_id join appointment_types ty on ty.id = a.type_id
+      where not ty.has_plenum_features`,
+  },
+  {
+    name: 'Keine Kreise bei ersetzten Entscheidungen',
+    level: 'fehler',
+    query: sql`with recursive chain (start_id, id) as (
+        select id, superseded_by_id from decisions where superseded_by_id is not null
+        union
+        select c.start_id, d.superseded_by_id from chain c join decisions d on d.id = c.id where d.superseded_by_id is not null
+      )
+      select distinct '„' || d.title || '“ ersetzt sich über einen Kreis selbst' as label
+      from chain c join decisions d on d.id = c.start_id where c.id = c.start_id`,
+  },
+  {
+    name: 'Dokument-Verknüpfungen zeigen auf vorhandene Ziele',
+    level: 'fehler',
+    query: sql`select '„' || d.title || '“ → ' || l.target_type || ' fehlt' as label
+      from document_links l join documents d on d.id = l.document_id
+      where not exists (
+        select 1 from tasks x where l.target_type = 'task' and x.id = l.target_id
+        union all select 1 from events x where l.target_type = 'event' and x.id = l.target_id
+        union all select 1 from appointments x where l.target_type = 'appointment' and x.id = l.target_id
+        union all select 1 from decisions x where l.target_type = 'decision' and x.id = l.target_id
+      )`,
+  },
+  {
+    name: 'Deaktivierte haben keine Zusagen für künftige Termine',
+    level: 'fehler',
+    query: sql`select m.display_name || ' bei „' || a.title || '“' as label
+      from appointment_rsvps r join members m on m.id = r.member_id join appointments a on a.id = r.appointment_id
+      where not m.active and a.status = 'geplant' and a.starts_at > now()`,
+  },
+  {
+    name: 'Alles Angelegte hat seinen Eintrag „angelegt“ in der Historie',
     level: 'fehler',
     query: sql`select x.art || ' „' || x.name || '“ ohne Historie' as label
       from (select 'task' as typ, 'Aufgabe' as art, id, title as name from tasks
             union all select 'event', 'Veranstaltung', id, title from events
             union all select 'member', 'Mitglied', id, display_name from members where not is_system
-            union all select 'topic', 'Thema', id, name from topics) x
+            union all select 'topic', 'Thema', id, name from topics
+            union all select 'appointment', 'Termin', id, title from appointments
+            union all select 'decision', 'Eintrag', id, title from decisions
+            union all select 'question', 'Frage', id, title from questions
+            union all select 'document', 'Dokument', id, title from documents) x
       where not exists (select 1 from history h
         where h.entity_type = x.typ and h.entity_id = x.id and h.action = 'created')
         -- Startbestand der Migration (Systemeintrag, Grundthemen) entsteht ohne Historie

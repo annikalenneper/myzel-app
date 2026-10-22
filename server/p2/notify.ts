@@ -5,6 +5,7 @@
 import { sql, type ExpressionBuilder, type Kysely } from 'kysely';
 import { z } from 'zod';
 import type { NotificationSettings, SystemStatus } from '../../src/data/api';
+import { appointmentReminderMessages, yesAndOpen } from '../../src/shared/rules/appointments';
 import { berlinDate, berlinHour } from '../../src/shared/rules/due';
 import {
   DAILY_REMINDER_HOUR,
@@ -157,6 +158,51 @@ async function enqueueDueReminders(db: Db, now: Date): Promise<number> {
       followerIds: followers.filter((f) => f.task_id === task.id).map((f) => f.member_id),
     }));
     return enqueue(trx, now, dueReminderMessages(items, berlinDate(now)));
+  });
+}
+
+/**
+ * [P3] Termin-Erinnerungen 3 Tage und 1 Stunde vorher an Zusagen und ohne Antwort (6.2) – jeder Lauf, höchstens
+ * 15 Minuten Abweichung; der dedupe_key (Termin, Person, Beginn) verhindert Wiederholungen.
+ */
+async function enqueueAppointmentReminders(db: Db, now: Date): Promise<number> {
+  return db.transaction().execute(async (trx) => {
+    const soon = new Date(now.getTime() + 3 * 24 * 3_600_000).toISOString();
+    const appointments = await trx
+      .selectFrom('appointments')
+      .selectAll()
+      .where('archived_at', 'is', null)
+      .where('status', '=', 'geplant')
+      .where('starts_at', '>', now.toISOString())
+      .where('starts_at', '<=', soon)
+      .execute();
+    if (appointments.length === 0) return 0;
+    const [people, rsvps] = await Promise.all([
+      trx
+        .selectFrom('members')
+        .select('id')
+        .where('active', '=', true)
+        .where('is_system', '=', false)
+        .execute(),
+      trx
+        .selectFrom('appointment_rsvps')
+        .selectAll()
+        .where(
+          'appointment_id',
+          'in',
+          appointments.map((a) => a.id),
+        )
+        .execute(),
+    ]);
+    const ids = people.map((p) => p.id);
+    const items = appointments.map((appointment) => ({
+      appointment,
+      recipientIds: yesAndOpen(
+        rsvps.filter((r) => r.appointment_id === appointment.id),
+        ids,
+      ),
+    }));
+    return enqueue(trx, now, appointmentReminderMessages(items, now));
   });
 }
 
@@ -315,6 +361,12 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
     errors.push(`Fristerinnerungen: ${reason(e)}`);
   }
   try {
+    reminders += await enqueueAppointmentReminders(db, now);
+  } catch (e) {
+    console.error(e);
+    errors.push(`Termin-Erinnerungen: ${reason(e)}`);
+  }
+  try {
     const claimed = await claim(db, now);
     for (const [i, entry] of claimed.entries()) {
       if (Date.now() > deadline) {
@@ -375,7 +427,7 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
       : total === 0
         ? 'Nichts zu tun'
         : reminders > 0
-          ? `${reminders} Fristerinnerungen eingereiht, ${count}`
+          ? `${reminders} Erinnerungen eingereiht, ${count}`
           : count,
     error,
     sent_push: sent.push,

@@ -1,4 +1,5 @@
 // Veranstaltungen schlank, Phase 1 (F-VER-01 bis -03; WF-VER-02 bis -04) – wie die Testdaten-Schicht.
+import { dropMark } from '../core/marks';
 import { EVENT_STATUS_LABEL } from '../../src/shared/labels';
 import { canTransitionEvent } from '../../src/shared/rules/eventStatus';
 import { AppError } from '../../src/shared/errors';
@@ -99,7 +100,8 @@ export async function setEventStatus(
     );
   ctx.inverse.push({ kind: 'event_status', event_id: id, status: event.status });
   const changes: HistoryChanges = { status: { old: event.status, new: status } };
-  // Veranstaltungen sind erst ab P3 markierbar – hier gibt es nichts zu entfernen
+  // [P3] ein Statuswechsel entfernt die Markierung „Fürs Plenum“ (3.14)
+  await dropMark(ctx, 'event', id, changes);
   const result = await ctx.trx
     .updateTable('events')
     .set({ status, version: event.version + 1, updated_at: iso(ctx) })

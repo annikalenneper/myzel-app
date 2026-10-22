@@ -1,5 +1,6 @@
 // Netlify Function: Joblauf alle 15 Minuten (E-07), aufgerufen von cron-job.org mit geheimem Schlüssel im Header
 // „Authorization: Bearer <CRON_SECRET>“. Antwortet mit einer kurzen Zusammenfassung für das Protokoll dort.
+import '../../server/core/berlin';
 import { timingSafeEqual } from 'node:crypto';
 import type { Config } from '@netlify/functions';
 import { bearerToken } from '../../server/api/http';
