@@ -147,8 +147,9 @@ export const CHECKS: IntegrityCheck[] = [
       ) x join members m on m.id = x.member_id where not m.active`,
   },
   {
-    name: 'Aufgaben aus Vorlagen gehören zur Veranstaltung, für die sie angelegt wurden',
-    level: 'fehler',
+    // erlaubt, aber auffällig: die Vorlagenaufgabe gilt bei der ersten Veranstaltung weiter als angelegt
+    name: 'Aufgaben aus Vorlagen hängen noch an der Veranstaltung, für die sie angelegt wurden',
+    level: 'hinweis',
     query: sql`select ${task} || ' (Veranstaltung geändert)' as label
       from template_applications a join tasks t on t.id = a.task_id
       where t.event_id is distinct from a.event_id`,

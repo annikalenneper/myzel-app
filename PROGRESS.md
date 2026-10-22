@@ -226,7 +226,14 @@ Schritt C – Daten und Server (Checkliste 10.4):
 - [x] „Mitglied deaktivieren“ trägt Hauptverantwortliche und Partner-Kontakt aus
 - [x] check:integrity (Deaktivierte als Hauptverantwortliche/Kontakt, Vorlagenaufgaben an der richtigen
       Veranstaltung, Detailbereiche); Smoke-Test: Party mit Vorlagen-Dialog, Detailbereich pflegen
-- [ ] Agent-Review
+- [x] Agent-Review (22.10.2026): 0 hoch, 1 mittel – check:integrity meldete eine erlaubt umgehängte Vorlagenaufgabe
+      als Fehler (jetzt Hinweis); dazu Detailbereiche auf jeder Ebene aufgefüllt, Sperrreihenfolge bei Acts und
+      Vorlagen vereinheitlicht. Offen, niedrig: Partner-Liste liefert Mail und Telefon mit, beide stehen alt → neu in
+      der Historie; Website ohne Adressprüfung (die Oberfläche setzt https:// davor); Beschreibung aus der Vorlage
+      nicht im Eintrag „angelegt“.
+      Zur Durchsicht: Hängt jemand eine Aufgabe aus einer Vorlage an eine andere Veranstaltung, gilt die
+      Vorlagenaufgabe bei der ersten weiter als angelegt (wie in der Testdaten-Schicht). Soll sie dort wieder
+      anlegbar werden?
 - [ ] Phasenabschluss (10.7)
 
 ### 10.5 Phase 5 – Wissen & Drive

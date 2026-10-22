@@ -44,15 +44,30 @@ async function touchEvent(ctx: Ctx, event: EventRow, set: Partial<EventRow> = {}
   Object.assign(event, set, { version: event.version + 1 });
 }
 
+/** Gespeicherte Detailbereiche, auf jeder Ebene mit den leeren Werten aufgefüllt (z. B. neue Rahmen-Punkte) */
 async function detailsOf(trx: Trx, eventId: string): Promise<EventDetails> {
   const row = await trx
     .selectFrom('event_details')
     .select('data')
     .where('event_id', '=', eventId)
     .executeTakeFirst();
-  return row
-    ? { ...emptyEventDetails(eventId), ...(row.data as EventDetails), event_id: eventId }
-    : emptyEventDetails(eventId);
+  const empty = emptyEventDetails(eventId);
+  if (!row) return empty;
+  const stored = row.data as Partial<EventDetails>;
+  const merged = { ...empty } as Record<string, unknown>;
+  for (const [key, value] of Object.entries(empty)) {
+    const saved = (stored as Record<string, unknown>)[key];
+    if (value && typeof value === 'object' && saved && typeof saved === 'object') {
+      const level = { ...(value as Record<string, unknown>), ...(saved as Record<string, unknown>) };
+      // Rahmen: je Punkt Status und Notiz
+      if (key === 'frame')
+        for (const [item, def] of Object.entries(value as Record<string, object>))
+          level[item] = { ...def, ...((saved as Record<string, object>)[item] ?? {}) };
+      merged[key] = level;
+    } else if (saved !== undefined) merged[key] = saved;
+  }
+  merged.event_id = eventId;
+  return merged as EventDetails;
 }
 
 export async function getEventDetail(trx: Trx, id: string, now: Date): Promise<EventDetail> {
@@ -233,8 +248,15 @@ export async function updateBooking(ctx: Ctx, id: string, raw: unknown): Promise
 }
 
 export async function removeBooking(ctx: Ctx, id: string): Promise<Undoable> {
+  // erst die Veranstaltung sperren, dann den Act – dieselbe Reihenfolge wie im Rückgängig
+  const ref = await ctx.trx
+    .selectFrom('event_bookings')
+    .select('event_id')
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (!ref) throw notFound('Diesen Act');
+  const event = await findEvent(ctx, ref.event_id);
   const booking = await findBooking(ctx.trx, id);
-  const event = await findEvent(ctx, booking.event_id);
   await ctx.trx.deleteFrom('event_bookings').where('id', '=', id).execute();
   ctx.inverse.push({ kind: 'booking_restore', row: booking });
   await writeHistory(ctx, 'event', event.id, 'booking_removed', {

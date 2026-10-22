@@ -215,8 +215,25 @@ export async function createTemplateItem(
   return { id: item.id };
 }
 
+/** erst die Vorlage sperren, dann die Aufgabe darin – dieselbe Reihenfolge wie beim Anlegen */
+async function lockTemplateOf(ctx: Ctx, itemId: string): Promise<void> {
+  const ref = await ctx.trx
+    .selectFrom('event_template_items')
+    .select('template_id')
+    .where('id', '=', itemId)
+    .executeTakeFirst();
+  if (!ref) throw notFound('Diese Vorlagenaufgabe');
+  await ctx.trx
+    .selectFrom('event_templates')
+    .select('id')
+    .where('id', '=', ref.template_id)
+    .forUpdate()
+    .execute();
+}
+
 export async function updateTemplateItem(ctx: Ctx, id: string, raw: unknown): Promise<void> {
   const input = parse(templateItemUpdateSchema, raw);
+  await lockTemplateOf(ctx, id);
   const item = await findItem(ctx.trx, id);
   if (item.version !== input.version)
     throw new AppError('conflict', 'Jemand hat diese Vorlagenaufgabe inzwischen geändert.');
@@ -239,6 +256,7 @@ export async function updateTemplateItem(ctx: Ctx, id: string, raw: unknown): Pr
 
 /** Wirkt nur auf künftige Dialoge; schon angelegte Aufgaben bleiben, wie sie sind (WF-ADM-08) */
 export async function removeTemplateItem(ctx: Ctx, id: string): Promise<void> {
+  await lockTemplateOf(ctx, id);
   const item = await findItem(ctx.trx, id);
   await ctx.trx
     .updateTable('event_template_items')
