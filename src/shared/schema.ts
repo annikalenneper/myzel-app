@@ -831,7 +831,9 @@ export const documentCreateSchema = z.object({
   url: z
     .string()
     .trim()
-    .pipe(z.url({ protocol: /^https?$/, error: 'Bitte einen Link eingeben, der mit https:// beginnt.' })),
+    .pipe(z.url({ protocol: /^https?$/, error: 'Bitte einen Link eingeben, der mit https:// beginnt.' }))
+    // „HTTPS://…“ wie „https://…“ speichern
+    .transform((v) => v.replace(/^https?:/i, (scheme) => scheme.toLowerCase())),
   doc_type: z.enum(DOC_TYPES, 'Bitte einen Typ wählen.'),
   topic_id: idSchema.nullable().default(null),
   tags: z

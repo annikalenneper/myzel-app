@@ -130,7 +130,7 @@ export const CHECKS: IntegrityCheck[] = [
             union all select 'question', 'Frage', id, title from questions
             union all select 'document', 'Dokument', id, title from documents) x
       where not exists (select 1 from history h
-        where h.entity_type = x.typ and h.entity_id = x.id and h.action = 'created')
+        where h.entity_type = x.typ and h.entity_id = x.id and h.action like 'created%')
         -- Startbestand der Migration (Systemeintrag, Grundthemen) entsteht ohne Historie
         and not (x.typ = 'topic' and exists (select 1 from topics tp where tp.id = x.id and tp.created_by is null))`,
   },

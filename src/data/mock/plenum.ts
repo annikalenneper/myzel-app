@@ -457,6 +457,8 @@ export function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Undoable
     }
     case 'appointment_move': {
       const a = appts.findAppointment(db, input.id);
+      if (appts.isPlenum(db, a))
+        throw rule('Ein Plenum lässt sich nicht aus einem Plenum heraus verschieben.');
       if (a.status !== 'geplant') throw rule('Nur geplante Termine lassen sich verschieben.');
       ctx.inverse.push({
         kind: 'appointment_times',
@@ -488,6 +490,7 @@ export function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Undoable
     }
     case 'appointment_cancel': {
       const a = appts.findAppointment(db, input.id);
+      if (appts.isPlenum(db, a)) throw rule('Ein Plenum lässt sich nicht aus einem Plenum heraus absagen.');
       ctx.inverse.push({
         kind: 'appointment_state',
         appointment_id: a.id,

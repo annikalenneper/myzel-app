@@ -607,6 +607,7 @@ async function targetExists(trx: Trx, type: DocumentLinkTarget, id: string): Pro
 /** WF-AUF-13 / WF-WIS-06: Verknüpfung einzeln hinzufügen */
 export async function linkDocument(ctx: Ctx, documentId: string, type: DocumentLinkTarget, targetId: string) {
   const document = await findDocument(ctx.trx, documentId);
+  if (document.archived_at) throw rule('Archivierte Dokumente lassen sich nicht verknüpfen.');
   if (!Object.hasOwn(TARGET_TABLE, type) || !(await targetExists(ctx.trx, type, targetId)))
     throw notFound('Das Ziel der Verknüpfung');
   const inserted = await ctx.trx
@@ -706,6 +707,7 @@ export async function setMark(ctx: Ctx, target: unknown, id: string, marked: boo
   if (!entity) throw notFound('Diesen Eintrag');
   if ((await isMarked(ctx.trx, kind, id)) === marked) return { undo_token: '' };
   if (marked) {
+    if (entity.archived_at) throw rule('Archivierte Einträge lassen sich nicht fürs Plenum markieren.');
     if (kind === 'decision' && entity.status !== 'gueltig')
       throw rule('Nur gültige Einträge lassen sich fürs Plenum markieren.');
     if (kind === 'question' && entity.status !== 'offen')

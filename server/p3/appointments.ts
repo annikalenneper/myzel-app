@@ -16,7 +16,9 @@ import {
   invitationMessages,
   yesAndOpen,
 } from '../../src/shared/rules/appointments';
+import { z } from 'zod';
 import {
+  idSchema,
   appointmentCreateSchema,
   appointmentTypeCreateSchema,
   appointmentTypeUpdateSchema,
@@ -120,11 +122,13 @@ export async function createAppointmentType(ctx: Ctx, raw: unknown): Promise<{ i
   const type = await ctx.trx
     .insertInto('appointment_types')
     .values({
-      key: input.label
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_|_$/g, ''),
+      // nur aus Sonderzeichen: ein eigener Schlüssel statt eines leeren
+      key:
+        input.label
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '') || `typ_${crypto.randomUUID().slice(0, 8)}`,
       label: input.label,
       default_topic_id: input.default_topic_id,
       default_format: input.default_format,
@@ -486,9 +490,11 @@ export async function cancelAppointment(
   return { notified: recipients.length };
 }
 
+const attendeeList = z.array(idSchema).max(500);
+
 export async function replaceAttendees(ctx: Ctx, id: string, memberIds: readonly unknown[]): Promise<void> {
+  if (!attendeeList.safeParse(memberIds).success) throw rule('Unbekannte Person in der Teilnahmeliste.');
   const unique = [...new Set(memberIds)];
-  if (unique.some((m) => typeof m !== 'string')) throw rule('Unbekannte Person in der Teilnahmeliste.');
   const known = unique.length
     ? await ctx.trx
         .selectFrom('members')

@@ -2,7 +2,14 @@
 // und die Tests (createServerApi). Lesende Aktionen laufen ohne Transaktion, schreibende in genau einer.
 // Was erst eine spätere Phase bringt, steht hier noch nicht: der Aufruf endet dann mit einer verständlichen Meldung.
 import type { Kysely } from 'kysely';
-import type { DocumentLinkTarget, EventStatus, RsvpAnswer } from '../../src/shared/schema';
+import {
+  DOCUMENT_LINK_TARGETS,
+  idSchema,
+  type DocumentLinkTarget,
+  type EventStatus,
+  type RsvpAnswer,
+} from '../../src/shared/schema';
+import { notFound } from '../core/context';
 import type { Ctx } from '../core/context';
 import type { Database } from '../db/types';
 import * as events from '../p1/events';
@@ -16,7 +23,17 @@ import * as know from '../p3/knowledge';
 import * as plenum from '../p3/plenum';
 
 type Args = unknown[];
-const s = (v: unknown) => v as string;
+/** IDs aus der Anfrage: keine gültige ID heißt „gibt es nicht“ (statt eines Datenbankfehlers) */
+const s = (v: unknown) => {
+  if (!idSchema.safeParse(v).success) throw notFound('Dieser Eintrag');
+  return v as string;
+};
+/** Ziel einer Verknüpfung: nur die bekannten Arten, als Text */
+const linkTarget = (v: unknown) => {
+  if (typeof v !== 'string' || !(DOCUMENT_LINK_TARGETS as readonly string[]).includes(v))
+    throw notFound('Das Ziel der Verknüpfung');
+  return v as DocumentLinkTarget;
+};
 const n = (v: unknown) => v as number;
 /** Name des Telegram-Bots (ohne @) für den Verknüpfungs-Link; leer = Telegram noch nicht eingerichtet */
 const botUsername = () => process.env.TELEGRAM_BOT_USERNAME?.trim().replace(/^@/, '') || null;
@@ -107,13 +124,12 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   clarifyQuestion: (ctx, [id, input]) => know.clarifyQuestion(ctx, s(id), input),
   discardQuestion: (ctx, [id, version]) => know.discardQuestion(ctx, s(id), n(version)),
   listDocuments: (ctx) => know.listDocuments(ctx.trx),
-  listLinkedDocuments: (ctx, [target, id]) =>
-    know.linkedDocuments(ctx.trx, target as DocumentLinkTarget, s(id)),
+  listLinkedDocuments: (ctx, [target, id]) => know.linkedDocuments(ctx.trx, linkTarget(target), s(id)),
   createDocument: (ctx, [input]) => know.createDocument(ctx, input),
   linkDocument: (ctx, [documentId, target, targetId]) =>
-    know.linkDocument(ctx, s(documentId), target as DocumentLinkTarget, s(targetId)),
+    know.linkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
   unlinkDocument: (ctx, [documentId, target, targetId]) =>
-    know.unlinkDocument(ctx, s(documentId), target as DocumentLinkTarget, s(targetId)),
+    know.unlinkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
   setMark: (ctx, [target, id, marked]) => know.setMark(ctx, target, s(id), marked === true),
   search: (ctx, [query]) => know.search(ctx.trx, query, ctx.now),
 

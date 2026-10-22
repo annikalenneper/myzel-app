@@ -229,15 +229,15 @@ export async function results(
   trx: Trx,
   plenumId: string,
 ): Promise<{ group: ResultGroup; lines: string[] }[]> {
-  // zurückgenommene Aktionen zählen nicht
+  // zurückgenommene Aktionen zählen nicht; passend zu den Indizes history_plenum und history_undone
   const rows = await sql<{ line: Line }>`
     select h.changes -> 'plenum_line' -> 'new' as line
     from history h
     where h.changes -> 'plenum_id' ->> 'new' = ${plenumId}
-      and jsonb_exists(h.changes, 'plenum_line')
+      and h.changes ? 'plenum_line'
       and not exists (
         select 1 from history u
-        where u.action = 'undo' and jsonb_exists(coalesce(u.changes -> 'history_ids' -> 'old', '[]'::jsonb), h.id::text)
+        where u.action = 'undo' and u.changes -> 'history_ids' -> 'old' ? h.id::text
       )
     order by h.created_at, h.seq`.execute(trx);
   const lines = rows.rows.map((r) => r.line);
@@ -554,6 +554,8 @@ export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Pr
     }
     case 'appointment_move': {
       const a = await appts.findAppointment(ctx.trx, input.id);
+      if (await appts.isPlenum(ctx.trx, a))
+        throw rule('Ein Plenum lässt sich nicht aus einem Plenum heraus verschieben.');
       if (a.status !== 'geplant') throw rule('Nur geplante Termine lassen sich verschieben.');
       ctx.inverse.push({
         kind: 'appointment_times',
@@ -585,6 +587,8 @@ export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Pr
     }
     case 'appointment_cancel': {
       const a = await appts.findAppointment(ctx.trx, input.id);
+      if (await appts.isPlenum(ctx.trx, a))
+        throw rule('Ein Plenum lässt sich nicht aus einem Plenum heraus absagen.');
       const attendees = await ctx.trx
         .selectFrom('appointment_attendees')
         .selectAll()
@@ -762,6 +766,7 @@ export async function updateProtocol(ctx: Ctx, plenumId: string, raw: unknown): 
       .selectFrom('documents')
       .select('id')
       .where('id', '=', input.protocol_document_id)
+      .where('archived_at', 'is', null)
       .executeTakeFirst();
     if (!doc)
       throw new AppError('validation', 'Dieses Dokument gibt es nicht mehr.', {

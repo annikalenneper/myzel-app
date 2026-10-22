@@ -250,6 +250,37 @@ describe('Aktionen je Art (F-PLE-05)', () => {
     expect((await results()).termine).toEqual(['Abgeschlossen: Soli-Tresen Sporenflug']);
   });
 
+  it('„Aufgabe dazu anlegen“ rückgängig: die Aufgabe ist weg und steht nicht mehr im Ergebnis', async () => {
+    const event = await item('Soli-Tresen');
+    const { undo_token } = await api.plenumAction(plenumId, {
+      kind: 'sub_task',
+      target: 'event',
+      id: event.id,
+      title: 'Abrechnung an Sporenflug schicken',
+    });
+    expect((await results()).aufgaben).toHaveLength(1);
+    await api.undo(undo_token);
+    expect((await api.listTasks()).some((t) => t.title === 'Abrechnung an Sporenflug schicken')).toBe(false);
+    expect((await results()).aufgaben).toBeUndefined();
+  });
+
+  it('das Plenum selbst lässt sich aus dem Plenum heraus weder verschieben noch absagen', async () => {
+    const own = await api.getAppointment(plenumId);
+    await expectError(
+      api.plenumAction(plenumId, { kind: 'appointment_cancel', id: plenumId, version: own.version }),
+      'rule',
+    );
+    await expectError(
+      api.plenumAction(plenumId, {
+        kind: 'appointment_move',
+        id: plenumId,
+        version: own.version,
+        starts_at: new Date(clock.getTime() + 7 * 86_400_000).toISOString(),
+      }),
+      'rule',
+    );
+  });
+
   it('Termin verschieben: neues Datum, Länge bleibt, Zusagen und ohne Antwort bekommen eine Nachricht', async () => {
     const appointment = await item('Vorbesprechung');
     const before = await api.getAppointment(appointment.id);

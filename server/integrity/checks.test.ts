@@ -39,6 +39,18 @@ afterEach(async () => {
 
 describe('check:integrity', () => {
   it('auf einem über die Server-Funktionen entstandenen Bestand ohne Befund', async () => {
+    // ersetzte Entscheidungen: die Nachfolgerin entsteht mit „created_as_replacement“
+    const { id } = (await act('createDecision', {
+      title: 'Werkstatt ist mittwochs offen',
+      kind: 'entscheidung',
+      topic_id: topicId,
+      source_note: 'Absprache',
+    })) as { id: string };
+    await act('replaceDecision', id, {
+      title: 'Werkstatt ist donnerstags offen',
+      source_note: 'Absprache',
+      version: 1,
+    });
     expect(await failing()).toEqual([]);
     expect(report(await runChecks(local.db))).toContain('Alles in Ordnung.');
   });

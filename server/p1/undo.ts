@@ -2,6 +2,7 @@
 // Person, die gehandelt hat; ebenfalls in der Historie. Hat die Aktion die Zeile selbst geändert, darf inzwischen
 // niemand anderes daran gewesen sein (Optimistic Locking wie überall).
 import { sql } from 'kysely';
+import { canRsvp } from '../../src/shared/rules/appointments';
 import { isActiveTaskStatus } from '../../src/shared/rules/taskStatus';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
 import {
@@ -200,7 +201,22 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
         break;
       }
       // ── Phase 3 ──
-      case 'rsvp_restore':
+      case 'rsvp_restore': {
+        // nur, solange Zu- und Absagen noch möglich sind
+        const appointment = await ctx.trx
+          .selectFrom('appointments')
+          .select(['status', 'starts_at'])
+          .where('id', '=', op.appointment_id)
+          .executeTakeFirstOrThrow();
+        if (!canRsvp(appointment, ctx.now))
+          throw rule('Für diesen Termin sind keine Zu- und Absagen mehr möglich.');
+        const current = await ctx.trx
+          .selectFrom('appointment_rsvps')
+          .select('answer')
+          .where('appointment_id', '=', op.appointment_id)
+          .where('member_id', '=', op.member_id)
+          .executeTakeFirst();
+        changes.rsvp = { old: current?.answer ?? null, new: op.row?.answer ?? null };
         await ctx.trx
           .deleteFrom('appointment_rsvps')
           .where('appointment_id', '=', op.appointment_id)
@@ -208,6 +224,7 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .execute();
         if (op.row) await ctx.trx.insertInto('appointment_rsvps').values(op.row).execute();
         break;
+      }
       case 'appointment_state': {
         const before = await ctx.trx
           .selectFrom('appointments')
@@ -228,20 +245,36 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           await ctx.trx.insertInto('appointment_attendees').values(op.attendees).execute();
         break;
       }
-      case 'appointment_times':
+      case 'appointment_times': {
+        const before = await ctx.trx
+          .selectFrom('appointments')
+          .select(['starts_at', 'ends_at'])
+          .where('id', '=', op.appointment_id)
+          .executeTakeFirstOrThrow();
+        for (const key of ['starts_at', 'ends_at'] as const)
+          if (before[key] !== op[key]) changes[key] = { old: before[key], new: op[key] };
         await ctx.trx
           .updateTable('appointments')
           .set({ starts_at: op.starts_at, ends_at: op.ends_at })
           .where('id', '=', op.appointment_id)
           .execute();
         break;
-      case 'task_fields':
+      }
+      case 'task_fields': {
+        const before = await ctx.trx
+          .selectFrom('tasks')
+          .select(['due_date', 'origin_plenum_id'])
+          .where('id', '=', op.task_id)
+          .executeTakeFirstOrThrow();
+        for (const key of ['due_date', 'origin_plenum_id'] as const)
+          if (before[key] !== op[key]) changes[key] = { old: before[key], new: op[key] };
         await ctx.trx
           .updateTable('tasks')
           .set({ due_date: op.due_date, origin_plenum_id: op.origin_plenum_id })
           .where('id', '=', op.task_id)
           .execute();
         break;
+      }
       case 'decision_state': {
         const before = await ctx.trx
           .selectFrom('decisions')
@@ -309,15 +342,16 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
       // was ein Joblauf gerade verschickt, ist schon unterwegs
       .where('locked_until', 'is', null)
       .execute();
-  // eine im selben Schritt angelegte Aufgabe ist wieder weg – dann gibt es nichts mehr zu vermerken
-  if (ops.some((op) => op.kind === 'task_delete' && op.task_id === entity.id)) return;
-  if (table === 'tasks')
+  // eine im selben Schritt angelegte Aufgabe ist wieder weg: nichts mehr zu prüfen oder hochzuzählen – der
+  // Eintrag „rückgängig gemacht“ bleibt trotzdem, damit ihre Zeile aus dem Ergebnis des Plenums verschwindet
+  const deleted = ops.some((op) => op.kind === 'task_delete' && op.task_id === entity.id);
+  if (table === 'tasks' && !deleted)
     await taskStillValid(
       ctx,
       entity.id,
       ops.some((op) => op.kind === 'task_state' && op.status === 'in_arbeit'),
     );
-  if (touchesRow)
+  if (touchesRow && !deleted)
     await ctx.trx
       .updateTable(table)
       .set({ version: entity.version + 1, updated_at: iso(ctx) })
@@ -361,15 +395,23 @@ async function stillUndoable(
   entityId: string,
 ): Promise<void> {
   if (historyIds.length > 0) {
-    const closed = await ctx.trx
-      .selectFrom('history as h')
-      .innerJoin('appointments as a', (join) =>
-        join.on(sql`a.id::text`, '=', sql`h.changes -> 'plenum_id' ->> 'new'`),
-      )
-      .select('a.id')
-      .where('h.id', 'in', historyIds)
-      .where('a.status', '=', 'abgeschlossen')
-      .executeTakeFirst();
+    // die Plenen der Aktion sperren: ein gleichzeitiges „Abschließen“ wartet bzw. ist schon durch
+    const plenums = await ctx.trx
+      .selectFrom('history')
+      .select(sql<string>`changes -> 'plenum_id' ->> 'new'`.as('plenum_id'))
+      .where('id', 'in', historyIds)
+      .where(sql<boolean>`changes -> 'plenum_id' ->> 'new' is not null`)
+      .execute();
+    const ids = [...new Set(plenums.map((p) => p.plenum_id))];
+    const closed = ids.length
+      ? await ctx.trx
+          .selectFrom('appointments')
+          .select(['id', 'status'])
+          .where('id', 'in', ids)
+          .forUpdate()
+          .execute()
+          .then((rows) => rows.some((a) => a.status === 'abgeschlossen'))
+      : false;
     if (closed)
       throw rule('Das Plenum ist schon abgeschlossen – das lässt sich nicht mehr rückgängig machen.');
   }

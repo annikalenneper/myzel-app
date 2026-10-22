@@ -176,7 +176,16 @@ Schritt C – Daten und Server (Checkliste 10.3):
 - [x] check:integrity (Markierungen aller Arten, Quelle Plenum, Kreise bei ersetzten Einträgen, verwaiste
       Dokument-Verknüpfungen, Zusagen Deaktivierter); Smoke-Tests: Zusage, Plenum-Agenda mit Einplanen und
       Rückgängig, Frage stellen
-- [ ] Agent-Review
+- [ ] Agent-Review – Runde 1 (22.10.2026, zwei Reviews): 1 hoch, 4 mittel – eingearbeitet:
+      Rückgängig von „Aufgabe dazu anlegen“ ließ die Zeile im Ergebnis stehen (jetzt immer ein Eintrag
+      „rückgängig gemacht“, Test auf beiden Schichten); check:integrity zählt „created_as_replacement“ und
+      „created_from_question“ als angelegt; Rückgängig sperrt das Plenum gegen ein gleichzeitiges Abschließen; das
+      Plenum lässt sich nicht aus sich selbst heraus verschieben oder absagen (auch in der Testdaten-Schicht);
+      ungültige IDs und Teilnahmelisten sind „gibt es nicht“ statt Serverfehler. Dazu: Rückgängig einer Zusage nur,
+      solange Zusagen möglich sind; alt → neu auch für Frist, Herkunft, Zeiten und Zusagen; Archiviertes nicht
+      markieren oder verknüpfen; Dokument-Links mit „HTTPS://“; Index für das Ergebnis (Migration 20261022000004).
+      Offen zur Durchsicht: Sollen alle Agenda-Aktionen ein markiertes Ziel verlangen? Heute prüfen das nur
+      „Aufgabe dazu anlegen“ und „Besprochen“ (wie in der Testdaten-Schicht).
 - [ ] Phasenabschluss (10.7)
 
 ### 10.4 Phase 4 – Veranstaltungen
