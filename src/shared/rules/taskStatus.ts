@@ -29,10 +29,19 @@ export function canTransitionTask(from: TaskStatus, to: TaskStatus): boolean {
   return TRANSITIONS[from].includes(to);
 }
 
-/** blockiert ⇒ Grund ist Pflicht (7.2). */
-export function blockReasonMissing(to: TaskStatus, reason: string | null | undefined): boolean {
-  return to === 'blockiert' && !reason?.trim();
+/** blockiert ⇒ Grund oder mindestens eine Abhängigkeit („wartet auf“) (7.2). */
+export function blockReasonMissing(
+  to: TaskStatus,
+  reason: string | null | undefined,
+  hasBlockers = false,
+): boolean {
+  return to === 'blockiert' && !reason?.trim() && !hasBlockers;
 }
+
+export const LAST_BLOCKER =
+  'Ohne Grund braucht „Blockiert“ mindestens eine Aufgabe, auf die gewartet wird. Bitte erst einen Grund eintragen oder die Blockade lösen.';
+export const BLOCK_REASON_MISSING =
+  'Bitte einen Grund angeben oder eine Aufgabe wählen, auf die gewartet wird.';
 
 /** Fällt die letzte bearbeitende Person weg, geht „In Arbeit“ zurück auf „Geplant“. */
 export function statusAfterLastAssigneeLeft(status: TaskStatus): TaskStatus {

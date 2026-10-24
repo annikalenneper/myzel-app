@@ -363,8 +363,7 @@ export function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Undoable
           server.removeAssignee(ctx, task.id, row.member_id);
       }
       setDue(ctx, task, input.due_date);
-      const changes: HistoryChanges = {};
-      if (dropMark(ctx, 'task', task.id, changes)) writeHistory(ctx, 'task', task.id, 'unmarked', changes);
+      dropMark(ctx, 'task', task.id);
       touch(ctx, task);
       entity = { type: 'task', row: task };
       line = {
@@ -495,9 +494,7 @@ export function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Undoable
         event_id: a.event_id,
         version: input.version,
       });
-      const changes: HistoryChanges = {};
-      if (dropMark(ctx, 'appointment', a.id, changes))
-        writeHistory(ctx, 'appointment', a.id, 'unmarked', changes);
+      dropMark(ctx, 'appointment', a.id);
       entity = { type: 'appointment', row: a };
       line = {
         group: 'termine',
@@ -576,9 +573,7 @@ export function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Undoable
       const row = table.find((x) => x.id === input.id);
       if (!row) throw notFound('Diesen Eintrag');
       const name = 'title' in row ? row.title : row.name;
-      const changes: HistoryChanges = {};
-      if (!dropMark(ctx, input.target, input.id, changes))
-        throw rule('Dieser Punkt steht nicht mehr auf der Agenda.');
+      if (!dropMark(ctx, input.target, input.id)) throw rule('Dieser Punkt steht nicht mehr auf der Agenda.');
       const suffix =
         input.target === 'question'
           ? ' (Frage bleibt offen)'

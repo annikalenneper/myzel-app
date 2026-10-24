@@ -9,7 +9,7 @@ import { RetryLater, runJob, type Senders } from './notify';
 import { handleTelegramUpdate } from './telegramBot';
 
 let local: LocalDb;
-process.env.TELEGRAM_BOT_USERNAME ??= 'myzel_bot';
+process.env.TELEGRAM_BOT_USERNAME ??= 'myzo_the_bot';
 // Sommerzeit: 10:00 in Köln
 let now = new Date('2026-07-10T08:00:00Z');
 const LEA = { authUserId: '11111111-1111-4111-8111-111111111111', email: 'lea@example.org' };

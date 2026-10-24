@@ -41,7 +41,8 @@ export default defineConfig({
     hookTimeout: 30_000,
     // wie die Server-Funktionen (server/core/berlin.ts) und die Playwright-Tests: Kölner Zeit, auch in der CI
     env: { TZ: 'Europe/Berlin' },
-    testTimeout: 30_000,
+    // unter voller Last (alle Projekte parallel) braucht das Anlegen der Datenbank-Vorlage länger
+    testTimeout: 60_000,
     projects: [
       { extends: true, test: { name: 'app', include: ['src/**/*.test.ts', 'server/**/*.test.ts'] } },
       // dieselben Phase-1-Tests gegen die Server-Funktionen (Schritt C)

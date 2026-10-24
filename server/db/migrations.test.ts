@@ -37,7 +37,7 @@ describe('Migrationen', () => {
     expect(system.map((m) => m.display_name)).toEqual(['Myzel (automatisch)']);
     const topics = await local.db
       .selectFrom('topics')
-      .select(['name', 'parent_id'])
+      .select(['name', 'parent_id', 'archived_at'])
       .orderBy('sort_order')
       .execute();
     expect(topics.filter((t) => !t.parent_id).map((t) => t.name)).toEqual([
@@ -46,8 +46,10 @@ describe('Migrationen', () => {
       'Lager & Material',
       'Öffentlichkeitsarbeit',
       'Organisatorisches',
+      'Sonstiges',
     ]);
-    expect(topics.filter((t) => t.parent_id)).toHaveLength(5);
+    // „Verein“ ohne Unterkategorien (Rückmeldung vom 22.10.2026)
+    expect(topics.filter((t) => t.parent_id && !t.archived_at)).toHaveLength(0);
   });
 });
 
@@ -64,18 +66,12 @@ describe('Struktur-Regeln (7.1)', () => {
     ).toMatch(/members_short_unique/);
   });
 
-  it('Aufgaben: Thema Pflicht, blockiert nur mit Grund, Nummer fortlaufend, keine Selbst-Abhängigkeit', async () => {
+  it('Aufgaben: Thema Pflicht, Nummer fortlaufend, keine Selbst-Abhängigkeit', async () => {
     const topic = (
       await local.db.selectFrom('topics').select('id').where('name', '=', 'Verein').executeTakeFirstOrThrow()
     ).id;
     const lea = 'a0000000-0000-4000-8000-000000000001';
     expect(await fails(`insert into tasks (title, created_by) values ('X', $1)`, [lea])).toMatch(/topic_id/);
-    expect(
-      await fails(
-        `insert into tasks (title, topic_id, status, created_by) values ('X', $1, 'blockiert', $2)`,
-        [topic, lea],
-      ),
-    ).toMatch(/tasks_blocked_needs_reason/);
     const a = await local.pg.query<{ id: string; number: number }>(
       `insert into tasks (title, topic_id, created_by) values ('A', $1, $2) returning id, number`,
       [topic, lea],
@@ -105,7 +101,7 @@ describe('Struktur-Regeln (7.1)', () => {
 describe('Zugriff über Supabase (RLS)', () => {
   it('aktive Mitglieder lesen, Deaktivierte und Fremde sehen nichts', async () => {
     const count = () => local.pg.query<{ n: number }>(`select count(*)::int as n from public.topics`);
-    expect((await asUser(local.pg, AUTH_LEA, count)).rows[0]!.n).toBe(10);
+    expect((await asUser(local.pg, AUTH_LEA, count)).rows[0]!.n).toBe(6);
     expect((await asUser(local.pg, AUTH_TAREK, count)).rows[0]!.n).toBe(0);
     expect((await asUser(local.pg, AUTH_FREMD, count)).rows[0]!.n).toBe(0);
     // ohne Login gar kein Zugriff auf die Tabellen (Migration 20261021000001_grants)
@@ -122,7 +118,7 @@ describe('Zugriff über Supabase (RLS)', () => {
       truncate: await fails(`truncate public.comments`),
     }));
     expect(Object.values(result).every((e) => /permission denied/.test(e ?? ''))).toBe(true);
-    expect((await local.db.selectFrom('topics').select('id').execute()).length).toBe(10);
+    expect((await local.db.selectFrom('topics').select('id').execute()).length).toBe(6);
   });
 
   it('Rückgängig-Einträge sieht niemand über Supabase', async () => {

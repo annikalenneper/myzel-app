@@ -4,12 +4,32 @@ Geführt vom Agenten. Quelle der Anforderungen: docs/ANFORDERUNGEN.md.
 
 ## Status
 
-**Aktuell: Schritt C Phase 5 (Drive): Server, Migration und Tests stehen, echtes Vereins-Drive angebunden
-(22.10.2026); als Nächstes Agent-Review. Phase 1 bis 4 Schritt C fertig mit je zwei Review-Runden ohne offene Befunde hoher oder mittlerer
-Schwere; offen dort nur, was erst mit dem Deploy geht (Mail-Link-Test, Telegram-Bot, cron-job.org, Push auf
-Geräten).**
-Reihenfolge seit 12.10.2026: erst das ganze Frontend (Schritt A für P1 bis P6), dann
-Durchsicht (B), Daten und Server (C), Deploy am Ende (D).
+**Aktuell: Schritt C für P1 bis P5 fertig, je zwei Review-Runden ohne offene Befunde hoher oder mittlerer Schwere
+(22.10.2026). Als Nächstes: Verbesserungen der Nutzerin (unten), dann Deploy (Abschluss 10.7 für P1 bis P5), danach
+Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
+
+### Plan bis zum Deploy (22.10.2026)
+
+1. [ ] Alte Testdaten in Supabase löschen (1 Aufgabe, 1 Veranstaltung, ihre Historie, 1 Joblauf) – Skript liegt bereit,
+       die Nutzerin führt es aus (die Freigabe sperrt das Abschalten des Historienschutzes für den Agenten)
+2. [x] Verbesserungen der Nutzerin (Migration 20261023000003, ANFORDERUNGEN.md nachgezogen), je in Testdaten-Schicht, Server, Oberfläche, Tests und ANFORDERUNGEN.md:
+   - [x] Blockiert: Grund nur Pflicht ohne Abhängigkeit („blockiert ⇒ Grund oder Abhängigkeit“)
+   - [x] Anlegen mit Thema „Veranstaltungen“: Verknüpfung mit einer Veranstaltung direkt vorschlagen (nicht Pflicht)
+   - [x] Markierung „Fürs Plenum“ setzen und entfernen ohne Historien-Eintrag (auch das Entfernen beim Statuswechsel)
+   - [x] Benachrichtigungen standardmäßig aus (alle Zeilen der Matrix); auf dem Server mit der Matrix in Phase 6, bis
+         dahin die festen Voreinstellungen aus 6.1 für alle, die Push oder Telegram selbst einschalten
+   - [x] Bot heißt „Myzo“ (@myzo_the_bot)
+   - [x] Veranstaltung: Detailbereich „Rahmen“ entfällt
+   - [x] Eintritt: frei – keine Felder; Spende – „Empfehlung“ und „Verantwortung Kasse“; fester Preis – „Preis“ und
+         „Verantwortung Kasse“
+   - [x] Bar und Eintritt erscheinen nach dem Aufklappen doppelt – beheben
+   - [x] Booking: Gage als Auswahl offen / nein / ja, Betrag nur bei „ja“
+   - [x] Themen: „Verein“ ohne Unterkategorien, neues Thema „Sonstiges“ auf oberster Ebene (hebt Frage 6 auf)
+   - [x] Demo-Modus bleibt nach dem Produktivgang: Knopf „Demo ansehen“ auf der Anmeldeseite, Testdaten nur im
+         Browser, ohne Konto, mit Hinweisband
+3. [ ] Netlify-Variablen setzen, Mitglieder importieren (`npm run db:import-members`), Push = Produktions-Deploy
+4. [ ] Nach dem Deploy: Telegram-Webhook, cron-job.org (Nutzerin), Test-Checkliste; Abweichung von 10.7 (keine Vorschau
+       mit Beispieldaten, es gibt nur ein Supabase-Projekt) von der Nutzerin freigegeben
 
 ### 10.0 Vorbereitung
 
@@ -343,7 +363,7 @@ Zur Durchsicht (Schritt B); geklärt sein müssen sie vor Schritt C.
 | 3   | 11.10.2026 | Wem gehört das Supabase-Projekt? Zweite Person mit Zugang?                          | geklärt | Projekt https://wyfsorojbcijkedlnmji.supabase.co, Region eu-west-1 (Irland, EU, bestätigt); Inhaberin: die Nutzerin; zweite Person folgt später – vor dem Deploy (Schritt D) nachfragen (20.10.2026) |
 | 4   | 11.10.2026 | Mitgliederliste (Name + Google-Mail) und wer Admin ist                              | geklärt | Liste lokal in mitgliederliste.md (nie im Repo), Import mit dem Deploy (22.10.2026)                                                                                                                  |
 | 5   | 11.10.2026 | Veranstaltungsarten: Party, Konzert, Workshop, Soli-Event, Sonstiges?               | geklärt | Party, Workshop, Soli-Event, Sonstiges – ohne Konzert (20.10.2026)                                                                                                                                   |
-| 6   | 11.10.2026 | Unterkategorien „Verein“ bestätigen (3.2)                                           | geklärt | Ja, wie in 3.2 (22.10.2026)                                                                                                                                                                          |
+| 6   | 11.10.2026 | Unterkategorien „Verein“ bestätigen (3.2)                                           | geklärt | Keine Unterkategorien, dazu „Sonstiges“ (22.10.2026)                                                                                                                                                 |
 | 7   | 11.10.2026 | Uhrzeit für tägliche Fristerinnerungen ab P2 (Vorschlag 9:00 Uhr)                   | geklärt | 9:00 Uhr (20.10.2026)                                                                                                                                                                                |
 | 8   | 11.10.2026 | Backup bis Phase 6: wöchentlicher Dump nötig?                                       | geklärt | Nein – durchziehen bis zur echten Nutzung; dann sichert der nächtliche Export (20.10.2026)                                                                                                           |
 | 9   | 11.10.2026 | Ortsangabe des Lagers für den Bautag; übliches Format des Plenums                   | geklärt | Adresse von der Nutzerin genannt, steht bewusst nicht im öffentlichen Repo – beim Einrichten unter Terminarten als Standardort des Bautags eintragen; Plenum meist online (20.10.2026)               |

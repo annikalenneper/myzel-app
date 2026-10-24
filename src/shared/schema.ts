@@ -968,20 +968,10 @@ export type ResultGroup = (typeof RESULT_GROUPS)[number];
 export const LOCATION_CONFIRMATIONS = ['offen', 'angefragt', 'zugesagt', 'vertrag'] as const;
 export const BOOKING_ACT_TYPES = ['dj', 'band', 'sonstiges'] as const;
 export const BOOKING_STATUSES = ['angefragt', 'zugesagt', 'abgesagt'] as const;
+/** Gage: noch offen, keine, oder ja – dann mit Betrag */
+export const BOOKING_FEE_STATUSES = ['offen', 'nein', 'ja'] as const;
 export const BAR_MODES = ['selbst', 'extern', 'keine'] as const;
 export const ENTRY_MODES = ['frei', 'spende', 'fester_preis'] as const;
-/** Rahmen: je Punkt Status und Notiz */
-export const FRAME_ITEMS = [
-  'permits',
-  'insurance',
-  'gema',
-  'youth_protection',
-  'awareness_concept',
-  'awareness_team',
-] as const;
-export const FRAME_STATUSES = ['offen', 'erledigt', 'entfaellt'] as const;
-export type FrameItem = (typeof FRAME_ITEMS)[number];
-export type FrameStatus = (typeof FRAME_STATUSES)[number];
 
 const shortText = (max = 300) =>
   z.string().trim().max(max, `Höchstens ${max} Zeichen.`).transform(emptyToNull).nullable();
@@ -1019,10 +1009,6 @@ export const eventDetailsSchema = z.object({
     price: z.string().nullable(),
     cashier_notes: z.string().nullable(),
   }),
-  frame: z.record(
-    z.enum(FRAME_ITEMS),
-    z.object({ status: z.enum(FRAME_STATUSES), note: z.string().nullable() }),
-  ),
   communication: z.object({ announcement_date: z.string().nullable(), channels: z.string().nullable() }),
   numbers: z.object({
     budget_planned: z.number().nullable(),
@@ -1032,13 +1018,6 @@ export const eventDetailsSchema = z.object({
   retrospective: z.string().nullable(),
 });
 export type EventDetails = z.infer<typeof eventDetailsSchema>;
-
-const frameFields = Object.fromEntries(
-  FRAME_ITEMS.flatMap((item) => [
-    [`frame.${item}.status`, z.enum(FRAME_STATUSES)],
-    [`frame.${item}.note`, shortText(1000)],
-  ]),
-) as Record<`frame.${FrameItem}.${'status' | 'note'}`, z.ZodType>;
 
 /**
  * Einzelne Felder der Detailbereiche (WF-VER-08): kurze Felder speichern beim Verlassen, Auswahlen
@@ -1058,7 +1037,6 @@ export const EVENT_DETAIL_FIELDS = {
   'entry.mode': z.enum(ENTRY_MODES).nullable(),
   'entry.price': shortText(100),
   'entry.cashier_notes': shortText(1000),
-  ...frameFields,
   'communication.announcement_date': dateSchema.nullable(),
   'communication.channels': shortText(1000),
   'numbers.budget_planned': amount,
@@ -1092,6 +1070,7 @@ export const eventBookingSchema = z.object({
   act_type: z.enum(BOOKING_ACT_TYPES),
   contact: z.string().nullable(),
   status: z.enum(BOOKING_STATUSES),
+  fee_status: z.enum(BOOKING_FEE_STATUSES),
   fee: z.string().nullable(),
   tech_requirements: z.string().nullable(),
   notes: z.string().nullable(),
@@ -1106,13 +1085,21 @@ const bookingFields = {
   act_type: z.enum(BOOKING_ACT_TYPES, 'Bitte eine Art wählen.'),
   contact: shortText().default(null),
   status: z.enum(BOOKING_STATUSES).default('angefragt'),
+  fee_status: z.enum(BOOKING_FEE_STATUSES).default('offen'),
   fee: shortText(100).default(null),
   tech_requirements: shortText(1000).default(null),
   notes: shortText(1000).default(null),
 };
-export const bookingCreateSchema = z.object(bookingFields);
+/** einen Betrag gibt es nur bei Gage „ja“ */
+const feeOnlyIfYes = <T extends { fee_status: string; fee: string | null }>(v: T): T => ({
+  ...v,
+  fee: v.fee_status === 'ja' ? v.fee : null,
+});
+export const bookingCreateSchema = z.object(bookingFields).transform(feeOnlyIfYes);
 export type BookingCreateInput = z.input<typeof bookingCreateSchema>;
-export const bookingUpdateSchema = z.object({ ...bookingFields, version: versionSchema });
+export const bookingUpdateSchema = z
+  .object({ ...bookingFields, version: versionSchema })
+  .transform(feeOnlyIfYes);
 export type BookingUpdateInput = z.input<typeof bookingUpdateSchema>;
 
 /** Hauptverantwortliche (WF-VER-09), eintragsweise */

@@ -302,6 +302,7 @@ export interface EventBookingsTable {
   act_type: EventBooking['act_type'];
   contact: string | null;
   status: EventBooking['status'];
+  fee_status: Generated<EventBooking['fee_status']>;
   fee: string | null;
   tech_requirements: string | null;
   notes: string | null;

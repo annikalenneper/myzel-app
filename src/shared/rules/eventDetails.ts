@@ -1,7 +1,6 @@
 // Veranstaltung: Detailbereiche [P4] (ANFORDERUNGEN 3.4, F-VER-04) – Beschriftungen, leere Werte und
 // Kurzzusammenfassungen; offene Punkte werden in Bernstein hervorgehoben.
-import type { EventBooking, EventDetails, EventStatus, FrameItem, FrameStatus } from '../schema';
-import { FRAME_ITEMS } from '../schema';
+import type { EventBooking, EventDetails, EventStatus } from '../schema';
 import { berlinDate } from './due';
 
 export const LOCATION_CONFIRMATION_LABEL = {
@@ -16,21 +15,12 @@ export const BOOKING_STATUS_LABEL = {
   zugesagt: 'Zugesagt',
   abgesagt: 'Abgesagt',
 } as const;
+export const BOOKING_FEE_STATUS_LABEL = { offen: 'Offen', nein: 'Keine Gage', ja: 'Ja' } as const;
+/** Gage in einer Zeile: Betrag, „Gage ja“, „ohne Gage“ oder „Gage offen“ */
+export const feeText = (b: { fee_status: 'offen' | 'nein' | 'ja'; fee: string | null }) =>
+  b.fee_status === 'ja' ? (b.fee ?? 'Gage ja') : b.fee_status === 'nein' ? 'ohne Gage' : 'Gage offen';
 export const BAR_MODE_LABEL = { selbst: 'Machen wir selbst', extern: 'Extern', keine: 'Keine Bar' } as const;
 export const ENTRY_MODE_LABEL = { frei: 'Frei', spende: 'Spende', fester_preis: 'Fester Preis' } as const;
-export const FRAME_ITEM_LABEL: Record<FrameItem, string> = {
-  permits: 'Genehmigungen',
-  insurance: 'Versicherung',
-  gema: 'GEMA',
-  youth_protection: 'Jugendschutz',
-  awareness_concept: 'Awareness-Konzept',
-  awareness_team: 'Awareness-Team',
-};
-export const FRAME_STATUS_LABEL: Record<FrameStatus, string> = {
-  offen: 'Offen',
-  erledigt: 'Erledigt',
-  entfaellt: 'Entfällt',
-};
 
 export function emptyEventDetails(eventId: string): EventDetails {
   return {
@@ -46,9 +36,6 @@ export function emptyEventDetails(eventId: string): EventDetails {
     },
     bar: { mode: null, drinks_planning: null, notes: null },
     entry: { mode: null, price: null, cashier_notes: null },
-    frame: Object.fromEntries(
-      FRAME_ITEMS.map((item) => [item, { status: 'offen', note: null }]),
-    ) as EventDetails['frame'],
     communication: { announcement_date: null, channels: null },
     numbers: { budget_planned: null, expected_visitors: null, actual_visitors: null },
     retrospective: null,
@@ -56,22 +43,13 @@ export function emptyEventDetails(eventId: string): EventDetails {
 }
 
 export type DetailSection =
-  | 'location'
-  | 'booking'
-  | 'bar'
-  | 'entry'
-  | 'frame'
-  | 'communication'
-  | 'numbers'
-  | 'retrospective'
-  | 'partner';
+  'location' | 'booking' | 'bar' | 'entry' | 'communication' | 'numbers' | 'retrospective' | 'partner';
 
 export const DETAIL_SECTION_LABEL: Record<DetailSection, string> = {
   location: 'Location',
   booking: 'Booking',
   bar: 'Bar',
   entry: 'Eintritt',
-  frame: 'Rahmen',
   communication: 'Kommunikation',
   numbers: 'Zahlen',
   retrospective: 'Nachbereitung',
@@ -94,7 +72,7 @@ export function sectionSummaries(
   bookings: readonly EventBooking[],
   partners: readonly { name: string }[] = [],
 ): SectionSummary[] {
-  const { location: l, bar, entry, frame, communication: c, numbers: n } = details;
+  const { location: l, bar, entry, communication: c, numbers: n } = details;
 
   const locationParts = [
     l.name,
@@ -113,10 +91,6 @@ export function sectionSummaries(
   const active = bookings.filter((b) => b.status !== 'abgesagt');
   const confirmed = active.filter((b) => b.status === 'zugesagt').length;
   const asked = active.length - confirmed;
-
-  const openFrame = FRAME_ITEMS.filter((item) => frame[item].status === 'offen');
-  const doneFrame = FRAME_ITEMS.length - openFrame.length;
-  const frameTouched = FRAME_ITEMS.some((item) => frame[item].status !== 'offen' || frame[item].note);
 
   return [
     {
@@ -138,22 +112,11 @@ export function sectionSummaries(
     },
     {
       section: 'entry',
-      text: entry.mode ? [ENTRY_MODE_LABEL[entry.mode], entry.price].filter(Boolean).join(' ') : '—',
-      open: false,
-    },
-    {
-      section: 'frame',
-      text: frameTouched
-        ? openFrame.length
-          ? `${openFrame
-              .map((i) => FRAME_ITEM_LABEL[i])
-              .slice(0, 2)
-              .join(
-                ', ',
-              )}${openFrame.length > 2 ? ` +${openFrame.length - 2}` : ''} offen · ${doneFrame} von ${FRAME_ITEMS.length} geklärt`
-          : 'Alles geklärt'
+      // bei freiem Eintritt gibt es keinen Betrag
+      text: entry.mode
+        ? [ENTRY_MODE_LABEL[entry.mode], entry.mode !== 'frei' && entry.price].filter(Boolean).join(' ')
         : '—',
-      open: frameTouched && openFrame.length > 0,
+      open: false,
     },
     {
       section: 'communication',

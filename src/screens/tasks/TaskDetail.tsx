@@ -331,8 +331,12 @@ function Loaded({ task }: { task: TaskDetailData }) {
 
           {task.status === 'blockiert' && (
             <div className="flex flex-col gap-2.5 rounded-[14px] border border-rot-rand bg-rot-flaeche p-3.5">
-              <div className="font-mono text-[11px] text-rot-hell">BLOCKIERT – GRUND</div>
-              <div className="text-[15px] leading-[1.45] whitespace-pre-wrap">{task.block_reason}</div>
+              <div className="font-mono text-[11px] text-rot-hell">
+                {task.block_reason ? 'BLOCKIERT – GRUND' : 'BLOCKIERT – WARTET AUF'}
+              </div>
+              {task.block_reason && (
+                <div className="text-[15px] leading-[1.45] whitespace-pre-wrap">{task.block_reason}</div>
+              )}
               {blockerRows}
               {/* WF-AUF-08 Blockade lösen */}
               <div className="flex items-center gap-2">

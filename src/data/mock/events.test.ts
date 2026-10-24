@@ -51,7 +51,8 @@ describe('Detailbereiche (F-VER-04, WF-VER-08)', () => {
     expect(byKey.booking).toMatchObject({ text: '1 zugesagt · 2 angefragt', open: true });
     expect(byKey.bar!.text).toBe('Machen wir selbst · Liste im Drive');
     expect(byKey.entry!.text).toBe('Spende 5–10 €');
-    expect(byKey.frame).toMatchObject({ text: 'GEMA, Awareness-Team offen · 4 von 6 geklärt', open: true });
+    // der Bereich „Rahmen“ entfällt (Rückmeldung vom 22.10.2026)
+    expect(byKey.frame).toBeUndefined();
     expect(byKey.retrospective!.text).toBe('—');
   });
 
@@ -86,7 +87,7 @@ describe('Detailbereiche (F-VER-04, WF-VER-08)', () => {
     );
     await expectError(
       api.updateEventDetail(rave.id, {
-        field: 'frame.gema.status',
+        field: 'location.confirmation',
         value: 'vielleicht',
         version: rave.version,
       }),
@@ -133,6 +134,21 @@ describe('Booking', () => {
   it('verlangt Name und Art', async () => {
     const rave = await detail();
     await expectError(api.addBooking(rave.id, { act_name: ' ', act_type: 'dj' }), 'validation', 'act_name');
+  });
+
+  it('Gage: Betrag nur bei „ja“ – sonst fällt er weg', async () => {
+    const rave = await detail();
+    const { id } = await api.addBooking(rave.id, {
+      act_name: 'Pilzkapelle',
+      act_type: 'band',
+      fee_status: 'nein',
+      fee: '100 €',
+    });
+    const act = () => detail().then((d) => d.bookings.find((b) => b.id === id)!);
+    expect(await act()).toMatchObject({ fee_status: 'nein', fee: null });
+    const before = await act();
+    await api.updateBooking(id, { ...before, fee_status: 'ja', fee: '100 €', version: before.version });
+    expect(await act()).toMatchObject({ fee_status: 'ja', fee: '100 €' });
   });
 });
 
@@ -250,20 +266,20 @@ describe('Befunde aus dem Review (18.10.2026)', () => {
   it('schnelle eigene Folgetipps auf dasselbe Feld stoßen sich nicht an sich selbst', async () => {
     const rave = await detail();
     const first = api.updateEventDetail(rave.id, {
-      field: 'frame.gema.status',
-      value: 'erledigt',
-      expected: 'offen',
+      field: 'location.confirmation',
+      value: 'zugesagt',
+      expected: 'angefragt',
       version: rave.version,
     });
     await first;
     // der zweite Tipp ging noch vom alten Stand aus
     await api.updateEventDetail(rave.id, {
-      field: 'frame.gema.status',
-      value: 'entfaellt',
-      expected: 'offen',
+      field: 'location.confirmation',
+      value: 'vertrag',
+      expected: 'angefragt',
       version: (await detail()).version,
     });
-    expect((await detail()).details.frame.gema.status).toBe('entfaellt');
+    expect((await detail()).details.location.confirmation).toBe('vertrag');
   });
 
   it('Rückgängig bringt eine inzwischen deaktivierte Person nicht als Hauptverantwortliche zurück', async () => {

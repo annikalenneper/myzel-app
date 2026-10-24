@@ -912,52 +912,6 @@
             ],
             "additionalProperties": false
           },
-          "frame": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string",
-              "enum": [
-                "permits",
-                "insurance",
-                "gema",
-                "youth_protection",
-                "awareness_concept",
-                "awareness_team"
-              ]
-            },
-            "additionalProperties": {
-              "type": "object",
-              "properties": {
-                "status": {
-                  "type": "string",
-                  "enum": [
-                    "offen",
-                    "erledigt",
-                    "entfaellt"
-                  ]
-                },
-                "note": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "required": [
-                "status",
-                "note"
-              ],
-              "additionalProperties": false
-            },
-            "required": [
-              "permits",
-              "insurance",
-              "gema",
-              "youth_protection",
-              "awareness_concept",
-              "awareness_team"
-            ]
-          },
           "communication": {
             "type": "object",
             "properties": {
@@ -1021,7 +975,6 @@
           "location",
           "bar",
           "entry",
-          "frame",
           "communication",
           "numbers",
           "retrospective"
@@ -1070,6 +1023,14 @@
               "abgesagt"
             ]
           },
+          "fee_status": {
+            "type": "string",
+            "enum": [
+              "offen",
+              "nein",
+              "ja"
+            ]
+          },
           "fee": {
             "type": [
               "string",
@@ -1111,6 +1072,7 @@
           "act_type",
           "contact",
           "status",
+          "fee_status",
           "fee",
           "tech_requirements",
           "notes",

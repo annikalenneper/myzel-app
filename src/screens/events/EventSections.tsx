@@ -9,11 +9,11 @@ import type { EventDetail } from '../../data/api';
 import {
   BAR_MODE_LABEL,
   BOOKING_ACT_TYPE_LABEL,
+  BOOKING_FEE_STATUS_LABEL,
   BOOKING_STATUS_LABEL,
   DETAIL_SECTION_LABEL,
   ENTRY_MODE_LABEL,
-  FRAME_ITEM_LABEL,
-  FRAME_STATUS_LABEL,
+  feeText,
   LOCATION_CONFIRMATION_LABEL,
   parseGermanNumber,
   type DetailSection,
@@ -21,10 +21,9 @@ import {
 import {
   BAR_MODES,
   BOOKING_ACT_TYPES,
+  BOOKING_FEE_STATUSES,
   BOOKING_STATUSES,
   ENTRY_MODES,
-  FRAME_ITEMS,
-  FRAME_STATUSES,
   LOCATION_CONFIRMATIONS,
   type EventBooking,
   type EventDetailField,
@@ -158,6 +157,7 @@ function Choice<T extends string>({
   labels,
   save,
   clearable = true,
+  hideLabel = false,
 }: {
   label: string;
   field: EventDetailField;
@@ -166,10 +166,12 @@ function Choice<T extends string>({
   labels: Record<T, string>;
   save: Save;
   clearable?: boolean;
+  /** nur für Screenreader – wenn die Überschrift des Bereichs dasselbe sagt */
+  hideLabel?: boolean;
 }) {
   return (
     <div className="col-span-2 flex flex-col gap-1.5">
-      <span className="label-mono">{label}</span>
+      {!hideLabel && <span className="label-mono">{label}</span>}
       <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
         {options.map((o) => {
           const on = value === o;
@@ -238,6 +240,7 @@ function BarFields({ event, save }: { event: EventDetail; save: Save }) {
         options={BAR_MODES}
         labels={BAR_MODE_LABEL}
         save={save}
+        hideLabel
       />
       <ShortField
         label="Getränkeplanung"
@@ -262,40 +265,27 @@ function EntryFields({ event, save }: { event: EventDetail; save: Save }) {
         options={ENTRY_MODES}
         labels={ENTRY_MODE_LABEL}
         save={save}
+        hideLabel
       />
-      <ShortField label="Preis" field="entry.price" value={e.price} save={save} wide />
-      <ShortField label="Kasse" field="entry.cashier_notes" value={e.cashier_notes} save={save} wide />
-    </div>
-  );
-}
-
-function FrameFields({ event, save }: { event: EventDetail; save: Save }) {
-  return (
-    <div className="flex flex-col gap-3.5 px-4 pb-4">
-      {FRAME_ITEMS.map((item) => {
-        const row = event.details.frame[item];
-        return (
-          <div key={item} className="grid grid-cols-2 gap-2">
-            <Choice
-              label={FRAME_ITEM_LABEL[item]}
-              field={`frame.${item}.status`}
-              value={row.status}
-              options={FRAME_STATUSES}
-              labels={FRAME_STATUS_LABEL}
-              save={save}
-              clearable={false}
-            />
-            <ShortField
-              label="Notiz"
-              ariaLabel={`Notiz ${FRAME_ITEM_LABEL[item]}`}
-              field={`frame.${item}.note`}
-              value={row.note}
-              save={save}
-              wide
-            />
-          </div>
-        );
-      })}
+      {/* frei: keine Felder; Spende: Empfehlung; fester Preis: Preis – beide mit Verantwortung für die Kasse */}
+      {(e.mode === 'spende' || e.mode === 'fester_preis') && (
+        <>
+          <ShortField
+            label={e.mode === 'spende' ? 'Empfehlung' : 'Preis'}
+            field="entry.price"
+            value={e.price}
+            save={save}
+            wide
+          />
+          <ShortField
+            label="Verantwortung Kasse"
+            field="entry.cashier_notes"
+            value={e.cashier_notes}
+            save={save}
+            wide
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -515,7 +505,7 @@ function Bookings({ event }: { event: EventDetail }) {
               {b.act_name}
             </span>
             <span className="font-mono text-[11px] text-leise uppercase">
-              {[BOOKING_ACT_TYPE_LABEL[b.act_type], b.fee ?? 'Gage offen', b.tech_requirements]
+              {[BOOKING_ACT_TYPE_LABEL[b.act_type], feeText(b), b.tech_requirements]
                 .filter(Boolean)
                 .join(' · ')}
             </span>
@@ -560,6 +550,7 @@ function BookingSheet({
   const [type, setType] = useState<EventBooking['act_type'] | null>(booking?.act_type ?? null);
   const [status, setStatus] = useState<EventBooking['status']>(booking?.status ?? 'angefragt');
   const [contact, setContact] = useState(booking?.contact ?? '');
+  const [feeStatus, setFeeStatus] = useState<EventBooking['fee_status']>(booking?.fee_status ?? 'offen');
   const [fee, setFee] = useState(booking?.fee ?? '');
   const [tech, setTech] = useState(booking?.tech_requirements ?? '');
   const [notes, setNotes] = useState(booking?.notes ?? '');
@@ -577,6 +568,7 @@ function BookingSheet({
       act_type: type,
       status,
       contact,
+      fee_status: feeStatus,
       fee,
       tech_requirements: tech,
       notes,
@@ -653,7 +645,9 @@ function BookingSheet({
         {chips('Art *', BOOKING_ACT_TYPES, BOOKING_ACT_TYPE_LABEL, type, setType)}
         {chips('Status', BOOKING_STATUSES, BOOKING_STATUS_LABEL, status, setStatus)}
         {text('Kontakt', contact, setContact)}
-        {text('Gage', fee, setFee)}
+        {chips('Gage', BOOKING_FEE_STATUSES, BOOKING_FEE_STATUS_LABEL, feeStatus, setFeeStatus)}
+        {/* Betrag nur bei Gage „ja“ */}
+        {feeStatus === 'ja' && text('Betrag', fee, setFee)}
         {text('Technik', tech, setTech)}
         {text('Notizen', notes, setNotes)}
         <FieldError>{error}</FieldError>
@@ -689,7 +683,6 @@ export function EventSections({ event }: { event: EventDetail }) {
     booking: <Bookings event={event} />,
     bar: <BarFields event={event} save={save} />,
     entry: <EntryFields event={event} save={save} />,
-    frame: <FrameFields event={event} save={save} />,
     communication: <CommunicationFields event={event} save={save} />,
     numbers: <NumberFields event={event} save={save} />,
     retrospective: <Retrospective event={event} />,

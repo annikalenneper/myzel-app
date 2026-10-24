@@ -106,7 +106,7 @@ export async function setEventStatus(
   ctx.inverse.push({ kind: 'event_status', event_id: id, status: event.status });
   const changes: HistoryChanges = { status: { old: event.status, new: status } };
   // [P3] ein Statuswechsel entfernt die Markierung „Fürs Plenum“ (3.14)
-  await dropMark(ctx, 'event', id, changes);
+  await dropMark(ctx, 'event', id);
   const result = await ctx.trx
     .updateTable('events')
     .set({ status, version: event.version + 1, updated_at: iso(ctx) })

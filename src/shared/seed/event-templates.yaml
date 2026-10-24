@@ -35,7 +35,7 @@ templates:
       - block: Eintritt
         title: Kasse und Wechselgeld organisieren
         offset_days: -3
-        topic: Finanzen & Förderung
+        topic: Verein
       - block: Awareness
         title: Awareness-Team zusammenstellen
         offset_days: -21
@@ -48,7 +48,7 @@ templates:
       - block: Rahmen
         title: GEMA anmelden
         offset_days: -14
-        topic: Versicherung & Recht
+        topic: Verein
       - block: Kommunikation
         title: Flyer gestalten und drucken
         offset_days: -28
@@ -60,7 +60,7 @@ templates:
       - block: Nachbereitung
         title: Abrechnung machen
         offset_days: 7
-        topic: Finanzen & Förderung
+        topic: Verein
   - event_type: workshop
     name: Workshop
     items:
@@ -99,7 +99,7 @@ templates:
       - block: Nachbereitung
         title: Erlös übergeben
         offset_days: 14
-        topic: Finanzen & Förderung
+        topic: Verein
   - event_type: sonstiges
     name: Sonstiges
     items:

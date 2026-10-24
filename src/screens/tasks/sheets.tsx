@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
 import type { TaskListItem } from '../../data/api';
 import { TASK_STATUS_LABEL } from '../../shared/labels';
+import { BLOCK_REASON_MISSING } from '../../shared/rules/taskStatus';
 import type { Member } from '../../shared/schema';
 import { Avatar, CheckBox, cx, FieldError, GhostButton, LightButton } from '../../ui/bits';
 import { Sheet } from '../../ui/Sheet';
@@ -42,7 +43,11 @@ export function BlockSheet({
         className="flex flex-col gap-3"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!reason.trim()) return;
+          // Grund oder mindestens eine Aufgabe, auf die gewartet wird
+          if (!reason.trim() && picked.length === 0) {
+            setError(BLOCK_REASON_MISSING);
+            return;
+          }
           const result = await onConfirm(reason, picked);
           // der Entwurf bleibt, bis wirklich gespeichert ist
           if (result === 'ok') clearDraft(draftKey);
@@ -50,12 +55,12 @@ export function BlockSheet({
         }}
       >
         <label htmlFor="block-grund" className="label-mono">
-          Grund *
+          {picked.length ? 'Grund (optional)' : 'Grund *'}
         </label>
         <textarea
           id="block-grund"
           data-wf="WF-AUF-07"
-          required
+          required={picked.length === 0}
           autoFocus
           value={reason}
           onChange={(e) => {
@@ -66,7 +71,7 @@ export function BlockSheet({
           className="min-h-20 rounded-[14px] border border-rand bg-grund px-3.5 py-3 text-[15px] leading-normal text-text"
         />
         <FieldError>{error}</FieldError>
-        <span className="label-mono">Wartet auf (optional)</span>
+        <span className="label-mono">Wartet auf – statt eines Grunds</span>
         <input
           type="search"
           data-wf="WF-AUF-07"
@@ -98,13 +103,15 @@ export function BlockSheet({
         <button
           type="submit"
           data-wf="WF-AUF-07"
-          disabled={!reason.trim()}
+          disabled={!reason.trim() && picked.length === 0}
           className={cx(
             'h-[50px] rounded-[25px] text-[16px] font-bold',
-            reason.trim() ? 'bg-rot text-grund' : 'bg-erhoeht text-[15px] font-semibold text-leise',
+            reason.trim() || picked.length
+              ? 'bg-rot text-grund'
+              : 'bg-erhoeht text-[15px] font-semibold text-leise',
           )}
         >
-          {reason.trim() ? 'Blockieren' : 'Grund eingeben, dann blockieren'}
+          {reason.trim() || picked.length ? 'Blockieren' : 'Grund oder Aufgabe wählen, dann blockieren'}
         </button>
       </form>
     </Sheet>

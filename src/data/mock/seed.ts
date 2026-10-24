@@ -11,7 +11,7 @@ import type {
   Priority,
   Topic,
 } from '../../shared/schema';
-import { DRIVE_FOLDER_MIME } from '../../shared/schema';
+import { DRIVE_FOLDER_MIME, NOTIFICATION_CHANNELS, NOTIFICATION_EVENTS } from '../../shared/schema';
 import * as appts from './appointments';
 import * as drive from './drive';
 import * as events from './events';
@@ -113,13 +113,11 @@ const MEMBERS: [short: string, name: string, admin: boolean, active: boolean][] 
 
 const TOPICS: [name: string, children: string[], archived?: boolean][] = [
   ['Veranstaltungen', []],
-  [
-    'Verein',
-    ['Mitglieder', 'Finanzen & Förderung', 'Versicherung & Recht', 'Vorstand & Satzung', 'Infrastruktur'],
-  ],
+  ['Verein', []],
   ['Lager & Material', []],
   ['Öffentlichkeitsarbeit', []],
   ['Organisatorisches', []],
+  ['Sonstiges', []],
   ['Alte Location', [], true],
 ];
 
@@ -168,6 +166,10 @@ export function seedDb(now: Date): Db {
       version: 1,
     };
     db.members.push(member[short]);
+    // Benachrichtigungen sind standardmäßig aus (F-PRO-02); die Testpersonen haben alle Zeilen eingeschaltet
+    for (const event_type of NOTIFICATION_EVENTS)
+      for (const channel of NOTIFICATION_CHANNELS)
+        db.notification_preferences.push({ member_id: member[short].id, event_type, channel, enabled: true });
   });
 
   const topic: Record<string, Topic> = {};
@@ -353,7 +355,7 @@ export function seedDb(now: Date): Db {
 
   addTask({
     title: 'Vereinshaftpflicht verlängern',
-    topic: 'Versicherung & Recht',
+    topic: 'Verein',
     prio: 'mittel',
     due: 20,
     by: 'NO',
@@ -436,7 +438,7 @@ export function seedDb(now: Date): Db {
 
   const billing = addTask({
     title: 'Abrechnung Soli-Tresen an die Kasse geben',
-    topic: 'Finanzen & Förderung',
+    topic: 'Verein',
     event: soli,
     prio: 'mittel',
     due: 5,
@@ -773,7 +775,7 @@ export function seedDb(now: Date): Db {
   addQuestion('SA', 5, 'Brauchen wir für den Winterrave eine Garderobe?', 'Veranstaltungen', 'mittel', {
     event: rave,
   });
-  addQuestion('NO', 16, 'Wechseln wir zu einer anderen Bank?', 'Finanzen & Förderung', 'niedrig');
+  addQuestion('NO', 16, 'Wechseln wir zu einer anderen Bank?', 'Verein', 'niedrig');
   const geklaert = addQuestion(
     'RA',
     40,
@@ -800,18 +802,20 @@ export function seedDb(now: Date): Db {
   detail('bar.drinks_planning', 'Liste im Drive');
   detail('entry.mode', 'spende');
   detail('entry.price', '5–10 €');
-  detail('frame.permits.status', 'erledigt');
-  detail('frame.insurance.status', 'erledigt');
-  detail('frame.youth_protection.status', 'erledigt');
-  detail('frame.awareness_concept.status', 'erledigt');
-  detail('frame.awareness_team.note', '4 von 6 Personen');
   detail('numbers.expected_visitors', 250);
-  for (const [act_name, act_type, status, fee, tech] of [
-    ['DJ Hyphae', 'dj', 'zugesagt', '150 €', 'CDJs vorhanden'],
-    ['Sporenflug b2b Nebelkind', 'dj', 'angefragt', null, null],
-    ['Live-Act (noch offen)', 'band', 'angefragt', null, 'Technik klären'],
+  for (const [act_name, act_type, status, fee_status, fee, tech] of [
+    ['DJ Hyphae', 'dj', 'zugesagt', 'ja', '150 €', 'CDJs vorhanden'],
+    ['Sporenflug b2b Nebelkind', 'dj', 'angefragt', 'nein', null, null],
+    ['Live-Act (noch offen)', 'band', 'angefragt', 'offen', null, 'Technik klären'],
   ] as const)
-    events.addBooking(as('MO', 18), rave, { act_name, act_type, status, fee, tech_requirements: tech });
+    events.addBooking(as('MO', 18), rave, {
+      act_name,
+      act_type,
+      status,
+      fee_status,
+      fee,
+      tech_requirements: tech,
+    });
   events.addLead(as('LE', 30), rave, member.LE!.id);
   events.addLead(as('LE', 30), workshop, member.KI!.id);
 

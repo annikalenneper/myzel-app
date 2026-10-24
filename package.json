@@ -17,6 +17,7 @@
     "check": "npm run lint && npm run typecheck && npm run test && npm run test:e2e && npm run test:smoke",
     "db:first-admin": "tsx --env-file=.env server/db/firstAdmin.ts",
     "db:push": "tsx --env-file=.env server/db/push.ts",
+    "db:import-members": "tsx --env-file=.env server/db/importMembers.ts",
     "dev:backend": "vite --mode backend",
     "check:integrity": "tsx --env-file=.env server/integrity/checks.ts",
     "build:smoke": "vite build --mode backend --outDir dist-smoke",

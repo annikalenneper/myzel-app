@@ -45,7 +45,7 @@ export const NOTIFICATION_GROUPS = [
 }[];
 export type NotificationGroupKey = (typeof NOTIFICATION_GROUPS)[number]['key'];
 
-/** Ist der Kanal für dieses Ereignis an? Ohne Eintrag: ja (bis P6 die festen Voreinstellungen aus 6.1). */
+/** Ist der Kanal für dieses Ereignis an? Ohne Eintrag: nein – Benachrichtigungen sind standardmäßig aus (F-PRO-02). */
 export function channelEnabled(
   prefs: readonly { member_id: string; event_type: NotificationEvent; channel: string; enabled: boolean }[],
   memberId: string,
@@ -54,7 +54,7 @@ export function channelEnabled(
 ): boolean {
   return (
     prefs.find((p) => p.member_id === memberId && p.event_type === event && p.channel === channel)?.enabled ??
-    true
+    false
   );
 }
 

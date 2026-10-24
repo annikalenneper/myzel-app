@@ -303,7 +303,7 @@ export async function replaceDecision(
     status: { old: old.status, new: 'ersetzt' },
     superseded_by_id: { old: null, new: successor.id },
   };
-  await dropMark(ctx, 'decision', id, changes);
+  await dropMark(ctx, 'decision', id);
   await touch(ctx, 'decisions', 'decision', old, { status: 'ersetzt', superseded_by_id: successor.id });
   await writeHistory(ctx, 'decision', id, 'replaced', changes);
   return { ...(await registerUndo(ctx, 'decision', old, 'Ersetzt')), successor_id: successor.id };
@@ -325,7 +325,7 @@ export async function revokeDecision(
   const changes: HistoryChanges = { status: { old: d.status, new: 'aufgehoben' } };
   if (text) changes.note = { old: null, new: text };
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
-  await dropMark(ctx, 'decision', id, changes);
+  await dropMark(ctx, 'decision', id);
   await touch(ctx, 'decisions', 'decision', d, { status: 'aufgehoben' });
   await writeHistory(ctx, 'decision', id, 'revoked', changes);
   return registerUndo(ctx, 'decision', d, 'Aufgehoben');
@@ -420,7 +420,6 @@ export async function createQuestion(
   const changes: HistoryChanges = { title: { old: null, new: input.title } };
   if (input.mark_for_plenum) {
     await addMark(ctx, 'question', question.id);
-    changes.plenum_mark = { old: false, new: true };
   }
   if (originPlenumId) changes.plenum_id = { old: null, new: originPlenumId };
   await writeHistory(ctx, 'question', question.id, 'created', changes);
@@ -476,7 +475,7 @@ export async function clarifyQuestion(
     changes.resulting_decision_id = { old: null, new: decision.id };
   }
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
-  await dropMark(ctx, 'question', id, changes);
+  await dropMark(ctx, 'question', id);
   await touch(ctx, 'questions', 'question', q, {
     status: 'geklaert',
     answer: input.answer,
@@ -503,7 +502,7 @@ export async function discardQuestion(
   ctx.inverse.push(questionState(q));
   const changes: HistoryChanges = { status: { old: q.status, new: 'verworfen' } };
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
-  await dropMark(ctx, 'question', id, changes);
+  await dropMark(ctx, 'question', id);
   await touch(ctx, 'questions', 'question', q, { status: 'verworfen' });
   await writeHistory(ctx, 'question', id, 'discarded', changes);
   return registerUndo(ctx, 'question', q, 'Frage verworfen');
@@ -716,12 +715,9 @@ export async function setMark(ctx: Ctx, target: unknown, id: string, marked: boo
     if (kind === 'event' && isFinalEventStatus(entity.status as never))
       throw rule('Abgeschlossene und abgesagte Veranstaltungen lassen sich nicht markieren.');
     await addMark(ctx, kind, id);
-    await writeHistory(ctx, kind, id, 'marked', { plenum_mark: { old: false, new: true } });
     return registerUndo(ctx, kind, entity, 'Fürs Plenum markiert');
   }
-  const changes: HistoryChanges = {};
-  await dropMark(ctx, kind, id, changes);
-  await writeHistory(ctx, kind, id, 'unmarked', changes);
+  await dropMark(ctx, kind, id);
   return registerUndo(ctx, kind, entity, 'Markierung entfernt');
 }
 

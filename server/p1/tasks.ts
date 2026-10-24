@@ -12,7 +12,9 @@ import {
   unblockedMessages,
 } from '../../src/shared/rules/notifications';
 import {
+  BLOCK_REASON_MISSING,
   blockReasonMissing,
+  LAST_BLOCKER,
   canTransitionTask,
   isActiveTaskStatus,
   statusAfterLastAssigneeLeft,
@@ -173,8 +175,7 @@ async function follow(ctx: Ctx, taskId: string, memberId: string): Promise<boole
 const isMarked = (ctx: Ctx, taskId: string) => marks.isMarked(ctx.trx, 'task', taskId);
 
 /** Statusänderungen und Archivieren entfernen die Markierung „Fürs Plenum“ (3.14). */
-export const dropMark = (ctx: Ctx, taskId: string, changes: HistoryChanges) =>
-  marks.dropMark(ctx, 'task', taskId, changes);
+export const dropMark = (ctx: Ctx, taskId: string) => marks.dropMark(ctx, 'task', taskId);
 
 /** Neu Markiertes kommt ans Ende der Agenda. */
 const addMark = (ctx: Ctx, taskId: string) => marks.addMark(ctx, 'task', taskId);
@@ -223,7 +224,6 @@ export async function createTask(ctx: Ctx, raw: unknown): Promise<{ id: string }
   }
   if (input.mark_for_plenum) {
     await addMark(ctx, task.id);
-    changes.plenum_mark = { old: false, new: true };
   }
   await writeHistory(ctx, 'task', task.id, 'created', changes);
   return { id: task.id };
@@ -321,8 +321,15 @@ export async function setTaskStatus(
         ? `Die Aufgabe ist schon „${TASK_STATUS_LABEL[to]}“.`
         : `Von „${TASK_STATUS_LABEL[from]}“ nach „${TASK_STATUS_LABEL[to]}“ geht es nicht.`,
     );
-  if (blockReasonMissing(to, input.block_reason))
-    throw new AppError('validation', 'Ohne Grund lässt sich nicht blockieren.', { field: 'block_reason' });
+  const hasBlockers =
+    (input.blocker_ids?.length ?? 0) > 0 ||
+    !!(await ctx.trx
+      .selectFrom('task_blockers')
+      .select('task_id')
+      .where('task_id', '=', id)
+      .executeTakeFirst());
+  if (blockReasonMissing(to, input.block_reason, hasBlockers))
+    throw new AppError('validation', BLOCK_REASON_MISSING, { field: 'block_reason' });
 
   if (!isActiveTaskStatus(from) && isActiveTaskStatus(to)) await topicStillActive(ctx, task);
 
@@ -339,8 +346,9 @@ export async function setTaskStatus(
     set.discard_reason = null;
   }
   if (to === 'blockiert') {
-    set.block_reason = input.block_reason!;
-    changes.block_reason = { old: null, new: input.block_reason! };
+    // mit Abhängigkeit darf der Grund fehlen
+    set.block_reason = input.block_reason?.trim() || null;
+    if (set.block_reason) changes.block_reason = { old: null, new: set.block_reason };
   }
   if (to === 'verworfen' && input.discard_reason) {
     set.discard_reason = input.discard_reason;
@@ -367,7 +375,7 @@ export async function setTaskStatus(
     changes.assignee = { old: null, new: ctx.actor.id };
     self_assigned = true;
   }
-  await dropMark(ctx, id, changes);
+  await dropMark(ctx, id);
   await follow(ctx, id, ctx.actor.id);
   await writeHistory(ctx, 'task', id, 'status', changes);
   // [P2] Bearbeitende und Folgende erfahren es (6.2)
@@ -432,7 +440,7 @@ export async function dropAssignee(
   if (next !== task.status) {
     ctx.inverse.push(taskState(task));
     changes.status = { old: task.status, new: next };
-    await dropMark(ctx, task.id, changes);
+    await dropMark(ctx, task.id);
     statusReset = true;
   }
   await touchTask(ctx, task, statusReset ? { status: next } : {});
@@ -492,7 +500,17 @@ export async function addBlocker(ctx: Ctx, taskId: string, blockerTaskId: string
 }
 
 export async function removeBlocker(ctx: Ctx, taskId: string, blockerTaskId: string): Promise<void> {
-  await editableTask(ctx, taskId);
+  const task = await editableTask(ctx, taskId);
+  // blockiert ohne Grund braucht mindestens eine Abhängigkeit
+  if (task.status === 'blockiert' && !task.block_reason) {
+    await lockFor(ctx, 'task_blockers');
+    const rows = await ctx.trx
+      .selectFrom('task_blockers')
+      .select('blocker_task_id')
+      .where('task_id', '=', taskId)
+      .execute();
+    if (rows.length === 1 && rows[0]!.blocker_task_id === blockerTaskId) throw rule(LAST_BLOCKER);
+  }
   const row = await ctx.trx
     .deleteFrom('task_blockers')
     .where('task_id', '=', taskId)
@@ -511,12 +529,9 @@ export async function setPlenumMark(ctx: Ctx, taskId: string, marked: boolean): 
     if (!isActiveTaskStatus(task.status))
       throw rule('Abgeschlossene Aufgaben lassen sich nicht fürs Plenum markieren.');
     await addMark(ctx, taskId);
-    await writeHistory(ctx, 'task', taskId, 'marked', { plenum_mark: { old: false, new: true } });
     return registerUndo(ctx, 'task', task, 'Fürs Plenum markiert');
   }
-  const changes: HistoryChanges = {};
-  await dropMark(ctx, taskId, changes);
-  await writeHistory(ctx, 'task', taskId, 'unmarked', changes);
+  await dropMark(ctx, taskId);
   return registerUndo(ctx, 'task', task, 'Markierung entfernt');
 }
 
@@ -580,7 +595,7 @@ export async function archiveTask(ctx: Ctx, id: string, version: number): Promis
   await checkVersion(ctx, 'task', task, version);
   ctx.inverse.push(taskState(task));
   const changes: HistoryChanges = {};
-  await dropMark(ctx, id, changes);
+  await dropMark(ctx, id);
   await touchTask(ctx, task, { archived_at: iso(ctx) });
   await writeHistory(ctx, 'task', id, 'archived', changes);
   return registerUndo(ctx, 'task', task, 'Archiviert');

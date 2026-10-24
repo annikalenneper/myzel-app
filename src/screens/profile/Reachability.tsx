@@ -137,7 +137,7 @@ export function Reachability() {
           className="flex flex-col gap-2.5 rounded-[14px] border border-rand-stark bg-flaeche p-3.5"
         >
           <span className="text-[14px] leading-normal text-weich">
-            Öffne den Myzel-Bot und tippe auf „Start“. Der Link gilt 15 Minuten und nur einmal.
+            Öffne den Bot Myzo und tippe auf „Start“. Der Link gilt 15 Minuten und nur einmal.
           </span>
           <a
             href={settings.telegram_url}

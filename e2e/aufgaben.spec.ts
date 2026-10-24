@@ -48,7 +48,7 @@ test('WF-AUF-01: Sortierung und Filter, kombinierbar und wieder ausschaltbar', a
 
   await page.getByRole('button', { name: 'Meine ▾' }).click();
   await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Alle' }).click();
-  // ein Filter auf einen Bereich zeigt seine Unterkategorien mit
+  // Filter auf ein Thema (Unterkategorien zeigt er mit – geprüft in rules.test.ts)
   await page.getByRole('button', { name: 'Thema ▾' }).click();
   await page
     .getByRole('group', { name: 'Thema' })
@@ -391,4 +391,19 @@ test('WF-AUF-04: Frist per Tastatur speichert erst das vollständige Datum', asy
   await expect(page.getByLabel('Frist', { exact: true })).toHaveValue('2027-11-06');
   await page.getByRole('tab', { name: 'VERLAUF' }).click();
   await expect(page.getByText('Mo hat die Frist auf 06.11. gesetzt.')).toHaveCount(1);
+});
+
+test('WF-AUF-03: beim Thema „Veranstaltungen“ schlägt die Anlage gleich die Veranstaltung vor', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
+  await sheet.getByLabel('Titel *').fill('Garderobe organisieren');
+  const suggestion = sheet.getByRole('group', { name: /Zu welcher Veranstaltung/ });
+  await sheet.getByRole('button', { name: 'Lager & Material' }).click();
+  await expect(suggestion).toHaveCount(0);
+  await sheet.getByRole('button', { name: 'Veranstaltungen', exact: true }).click();
+  await suggestion.getByRole('button', { name: 'Winterrave' }).click();
+  await sheet.locator('button[type=submit]').click();
+  await expect(page.getByTestId('WF-ALL-02')).toContainText('Aufgabe angelegt · Winterrave');
 });

@@ -234,7 +234,7 @@ function dropOccurrence(ctx: Ctx, a: Appointment): number {
   }
   const changes: HistoryChanges = { status: { old: 'geplant', new: 'abgesagt' } };
   a.status = 'abgesagt';
-  dropMark(ctx, 'appointment', a.id, changes);
+  dropMark(ctx, 'appointment', a.id);
   touch(ctx, a);
   writeHistory(ctx, 'appointment', a.id, 'status', changes);
   const recipients = concerned(ctx, a);

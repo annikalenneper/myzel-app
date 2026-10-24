@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useFeedback } from '../app/feedback';
 import { Splash, useSession } from '../app/session';
-import { api } from '../data';
+import { api, demoAvailable, setDemo } from '../data';
 import { emailInputSchema } from '../shared/schema';
 import { FieldError, GhostButton } from '../ui/bits';
 import { IconGoogle } from '../ui/icons';
@@ -105,6 +105,16 @@ export function Login() {
               >
                 Link per Mail schicken
               </button>
+              {demoAvailable && (
+                <button
+                  type="button"
+                  data-demo="start"
+                  onClick={() => setDemo(true)}
+                  className="h-11 text-[14px] text-weich underline underline-offset-4"
+                >
+                  Demo ansehen – mit Testdaten, ohne Konto
+                </button>
+              )}
             </form>
           ) : (
             <div className="flex flex-col gap-3.5 rounded-[18px] border border-linie bg-flaeche p-[18px]">

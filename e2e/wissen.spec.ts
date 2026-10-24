@@ -74,7 +74,8 @@ test('WF-WIS-02 / -03 / -05: Entscheidung markieren, ersetzen (mit Rückgängig)
   await sheet.locator('button[type=submit]').click();
   await expect(page.getByText('→ ersetzt durch: Eintritt auf Spende, Richtwert 5–10 €')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Ersetzen', exact: true })).toHaveCount(0);
-  await expect(page.getByText(/Mo hat die Entscheidung ersetzt\. Die Markierung/)).toBeVisible();
+  // die Markierung fällt weg, steht aber nicht mehr in der Historie
+  await expect(page.getByText('Mo hat die Entscheidung ersetzt.', { exact: true })).toBeVisible();
 
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
   await expect(page.getByRole('button', { name: 'Ersetzen', exact: true })).toBeVisible();

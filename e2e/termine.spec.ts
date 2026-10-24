@@ -19,7 +19,9 @@ const openAnswers = (page: Page, base: number) =>
     .count()
     .then((n) => page.getByText(`${base + n} OHNE DEINE ANTWORT`));
 const localInput = (daysFromNow: number, time: string) => {
-  const d = new Date(Date.now() + daysFromNow * 86_400_000);
+  // nach Kalendertagen, nicht 24-Stunden-Schritten – sonst verrutscht der Tag bei der Zeitumstellung
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${time}`;
 };

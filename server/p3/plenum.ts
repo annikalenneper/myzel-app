@@ -478,9 +478,7 @@ export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Pr
       }
       const current = await findTask(ctx, task.id);
       await setDue(ctx, current, input.due_date);
-      const changes: HistoryChanges = {};
-      if (await dropMark(ctx, 'task', task.id, changes))
-        await writeHistory(ctx, 'task', task.id, 'unmarked', changes);
+      await dropMark(ctx, 'task', task.id);
       await ctx.trx
         .updateTable('tasks')
         .set({ version: current.version + 1, updated_at: ctx.now.toISOString() })
@@ -627,9 +625,7 @@ export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Pr
         event_id: a.event_id,
         version: input.version,
       });
-      const changes: HistoryChanges = {};
-      if (await dropMark(ctx, 'appointment', a.id, changes))
-        await writeHistory(ctx, 'appointment', a.id, 'unmarked', changes);
+      await dropMark(ctx, 'appointment', a.id);
       entity = { type: 'appointment', id: a.id };
       line = {
         group: 'termine',
@@ -713,8 +709,7 @@ export async function plenumAction(ctx: Ctx, plenumId: string, raw: unknown): Pr
         .executeTakeFirst()) as { id: string; title?: string; name?: string } | undefined;
       if (!found) throw notFound('Diesen Eintrag');
       const row = { id: found.id, title: found.title ?? found.name ?? '' };
-      const changes: HistoryChanges = {};
-      if (!(await dropMark(ctx, input.target, input.id, changes)))
+      if (!(await dropMark(ctx, input.target, input.id)))
         throw rule('Dieser Punkt steht nicht mehr auf der Agenda.');
       const suffix =
         input.target === 'question'

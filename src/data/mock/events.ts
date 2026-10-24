@@ -99,7 +99,7 @@ export function updateEventDetail(ctx: Ctx, eventId: string, raw: unknown): void
     details = emptyEventDetails(eventId);
     ctx.db.event_details.push(details);
   }
-  // „location.name“ → details.location.name, „frame.gema.status“ → details.frame.gema.status
+  // „location.name“ → details.location.name, „entry.price“ → details.entry.price
   const path = input.field.split('.');
   let target = details as unknown as Record<string, unknown>;
   for (const key of path.slice(0, -1)) target = target[key] as Record<string, unknown>;
@@ -165,6 +165,7 @@ export function updateBooking(ctx: Ctx, id: string, raw: unknown): void {
     'act_type',
     'contact',
     'status',
+    'fee_status',
     'fee',
     'tech_requirements',
     'notes',

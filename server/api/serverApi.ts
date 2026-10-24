@@ -53,7 +53,7 @@ export interface ServerApiOptions {
 export async function createServerApi(options: ServerApiOptions = {}): Promise<MyzelApi> {
   const now = options.now ?? (() => new Date());
   // wie in Betrieb über TELEGRAM_BOT_USERNAME eingerichtet
-  process.env.TELEGRAM_BOT_USERNAME ??= 'myzel_bot';
+  process.env.TELEGRAM_BOT_USERNAME ??= 'myzo_the_bot';
   /** dieses Gerät: sein Push-Abo, wie es der Browser liefert */
   const device = {
     endpoint: `https://fcm.googleapis.com/fcm/send/${crypto.randomUUID()}`,

@@ -2,7 +2,6 @@
 // Neu Markiertes kommt ans Ende; Statusänderungen und Archivieren entfernen die Markierung (mit Gegenschritt).
 import { isFinalEventStatus } from '../../src/shared/rules/eventStatus';
 import { isActiveTaskStatus } from '../../src/shared/rules/taskStatus';
-import type { HistoryChanges } from '../../src/shared/schema';
 import { iso, lockFor, type Ctx, type Trx } from './context';
 
 /** Arten, die der Server markieren kann */
@@ -28,12 +27,7 @@ export async function isMarked(trx: Trx, target: ServerMarkTarget, id: string): 
 }
 
 /** Statusänderungen und Archivieren entfernen die Markierung „Fürs Plenum“ (3.14). */
-export async function dropMark(
-  ctx: Ctx,
-  target: ServerMarkTarget,
-  id: string,
-  changes: HistoryChanges,
-): Promise<boolean> {
+export async function dropMark(ctx: Ctx, target: ServerMarkTarget, id: string): Promise<boolean> {
   const mark = await ctx.trx
     .deleteFrom('plenum_marks')
     .where(markColumn(target), '=', id)
@@ -41,7 +35,6 @@ export async function dropMark(
     .executeTakeFirst();
   if (!mark) return false;
   ctx.inverse.push({ kind: 'mark_restore', row: mark });
-  changes.plenum_mark = { old: true, new: false };
   return true;
 }
 

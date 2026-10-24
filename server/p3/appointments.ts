@@ -482,7 +482,7 @@ export async function cancelAppointment(
   await checkVersion(ctx, 'appointment', a, version);
   if (a.status !== 'geplant') throw rule('Nur geplante Termine lassen sich absagen.');
   const changes: HistoryChanges = { status: { old: a.status, new: 'abgesagt' } };
-  await dropMark(ctx, 'appointment', id, changes);
+  await dropMark(ctx, 'appointment', id);
   await touchAppointment(ctx, a, { status: 'abgesagt' });
   await writeHistory(ctx, 'appointment', id, 'status', changes);
   const recipients = await rsvpRecipients(ctx, id);
@@ -539,7 +539,7 @@ export async function markHappened(
     attendees: { old: null, new: attendeeIds.length },
   };
   await replaceAttendees(ctx, id, attendeeIds);
-  await dropMark(ctx, 'appointment', id, changes);
+  await dropMark(ctx, 'appointment', id);
   await touchAppointment(ctx, a, { status: 'stattgefunden' });
   await writeHistory(ctx, 'appointment', id, 'status', changes);
   return registerUndo(ctx, 'appointment', a, 'Als stattgefunden gespeichert');
@@ -588,12 +588,9 @@ export async function setAppointmentMark(ctx: Ctx, id: string, marked: boolean):
     if (await isPlenum(ctx.trx, a)) throw rule('Plenum-Termine lassen sich nicht fürs Plenum markieren.');
     if (!canMarkAppointment(a, false)) throw rule('Nur geplante Termine lassen sich fürs Plenum markieren.');
     await addMark(ctx, 'appointment', id);
-    await writeHistory(ctx, 'appointment', id, 'marked', { plenum_mark: { old: false, new: true } });
     return registerUndo(ctx, 'appointment', a, 'Fürs Plenum markiert');
   }
-  const changes: HistoryChanges = {};
-  await dropMark(ctx, 'appointment', id, changes);
-  await writeHistory(ctx, 'appointment', id, 'unmarked', changes);
+  await dropMark(ctx, 'appointment', id);
   return registerUndo(ctx, 'appointment', a, 'Markierung entfernt');
 }
 

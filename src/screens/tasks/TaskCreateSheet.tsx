@@ -4,6 +4,7 @@ import { useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
+import { isFinalEventStatus } from '../../shared/rules/eventStatus';
 import { PRIORITIES, type Priority } from '../../shared/schema';
 import { CheckRow, cx, FieldError, Pill, PrimaryButton, PriorityBars } from '../../ui/bits';
 import { PRIORITY_LABEL } from '../../shared/labels';
@@ -24,9 +25,11 @@ export function TaskCreateSheet({
   wf?: string;
 }) {
   const { run } = useFeedback();
-  const { topics, topicName, eventById } = useLookups();
+  const { topics, topicName, events, eventById } = useLookups();
   const [title, setTitle] = useState('');
   const [topicId, setTopicId] = useState<string | null>(null);
+  /** beim Thema „Veranstaltungen“ vorgeschlagen, wenn keine Veranstaltung vorbelegt ist */
+  const [pickedEventId, setPickedEventId] = useState<string | null>(null);
   const [priority, setPriority] = useState<Priority>('mittel');
   const [dueDate, setDueDate] = useState('');
   const [mine, setMine] = useState(false);
@@ -34,6 +37,17 @@ export function TaskCreateSheet({
   const [error, setError] = useState<{ field: string | null; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const event = eventId ? eventById.get(eventId) : undefined;
+  const topic = topics.find((t) => t.id === topicId);
+  const parent = topic?.parent_id ? topics.find((t) => t.id === topic.parent_id) : undefined;
+  // Thema „Veranstaltungen“ (oder eine Unterkategorie davon): gleich die Veranstaltung vorschlagen
+  const suggestEvent =
+    !eventId && !appointmentId && (topic?.name === 'Veranstaltungen' || parent?.name === 'Veranstaltungen');
+  const suggestions = events
+    .filter((e) => !isFinalEventStatus(e.status))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .slice(0, 6);
+  const linkedEventId = eventId ?? (suggestEvent ? pickedEventId : null);
+  const linkedEvent = linkedEventId ? eventById.get(linkedEventId) : undefined;
   const { data: appointment } = useData(
     appointmentId ? `appointment:${appointmentId}` : 'appointment:keiner',
     () => (appointmentId ? api.getAppointment(appointmentId) : Promise.resolve(null)),
@@ -56,14 +70,14 @@ export function TaskCreateSheet({
           topic_id: topicId!,
           priority,
           due_date: dueDate || null,
-          event_id: eventId,
+          event_id: linkedEventId,
           appointment_id: appointmentId,
           assign_self: mine,
           mark_for_plenum: plenum,
         }),
       {
-        success: event
-          ? `Aufgabe angelegt · ${event.title}`
+        success: linkedEvent
+          ? `Aufgabe angelegt · ${linkedEvent.title}`
           : appointment
             ? `Aufgabe angelegt · ${appointment.title}`
             : 'Aufgabe angelegt',
@@ -131,6 +145,27 @@ export function TaskCreateSheet({
           </div>
           <FieldError>{error?.field === 'topic_id' && error.message}</FieldError>
         </div>
+
+        {suggestEvent && suggestions.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span id="neu-veranstaltung" className="label-mono">
+              Zu welcher Veranstaltung? (optional)
+            </span>
+            <div role="group" aria-labelledby="neu-veranstaltung" className="flex flex-wrap gap-2">
+              {suggestions.map((e) => (
+                <Pill
+                  key={e.id}
+                  data-wf={wf}
+                  on={pickedEventId === e.id}
+                  onClick={() => setPickedEventId(pickedEventId === e.id ? null : e.id)}
+                  className="font-medium"
+                >
+                  {e.title}
+                </Pill>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-2.5 border-t border-linie pt-3.5">
           <span className="label-mono">Optional – geht auch später</span>

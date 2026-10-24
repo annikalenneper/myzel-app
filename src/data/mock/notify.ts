@@ -26,7 +26,7 @@ import { parse, touch, writeHistory, type Ctx, type Db } from './server';
 
 const uuid = () => crypto.randomUUID();
 export const TELEGRAM_CODE_MINUTES = 15;
-const BOT_URL = 'https://t.me/myzel_bot';
+const BOT_URL = 'https://t.me/myzo_the_bot';
 
 /** Alles läuft über die Outbox; der dedupe_key verhindert Doppelversand (6.1). */
 /** `collect` sammelt die neuen Einträge, damit ein „Rückgängig“ sie zurückziehen kann. */
@@ -45,7 +45,7 @@ export function enqueue(db: Db, now: Date, messages: readonly Message[], collect
       continue;
     // eigene Statusänderungen nur, wenn die Person das eingeschaltet hat (6.2)
     if (m.own && !member.notify_own_status) continue;
-    // [P6] Schalter-Matrix: je Ereignis und Kanal; ohne Eintrag an
+    // [P6] Schalter-Matrix: je Ereignis und Kanal; ohne Eintrag aus (Rückmeldung vom 22.10.2026)
     const on = (c: NotificationChannel) =>
       channelEnabled(db.notification_preferences, member.id, m.event_type, c);
     const channels: NotificationChannel[] = [];

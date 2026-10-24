@@ -59,12 +59,7 @@ async function detailsOf(trx: Trx, eventId: string): Promise<EventDetails> {
   for (const [key, value] of Object.entries(empty)) {
     const saved = (stored as Record<string, unknown>)[key];
     if (value && typeof value === 'object' && saved && typeof saved === 'object') {
-      const level = { ...(value as Record<string, unknown>), ...(saved as Record<string, unknown>) };
-      // Rahmen: je Punkt Status und Notiz
-      if (key === 'frame')
-        for (const [item, def] of Object.entries(value as Record<string, object>))
-          level[item] = { ...def, ...((saved as Record<string, object>)[item] ?? {}) };
-      merged[key] = level;
+      merged[key] = { ...(value as Record<string, unknown>), ...(saved as Record<string, unknown>) };
     } else if (saved !== undefined) merged[key] = saved;
   }
   merged.event_id = eventId;
@@ -140,7 +135,7 @@ export async function updateEventDetail(ctx: Ctx, eventId: string, raw: unknown)
     });
   const value = (parsed.data ?? null) as unknown;
   const details = await detailsOf(ctx.trx, eventId);
-  // „location.name“ → details.location.name, „frame.gema.status“ → details.frame.gema.status
+  // „location.name“ → details.location.name, „entry.price“ → details.entry.price
   const path = input.field.split('.');
   let target = details as unknown as Record<string, unknown>;
   for (const key of path.slice(0, -1)) {
@@ -227,6 +222,7 @@ export async function updateBooking(ctx: Ctx, id: string, raw: unknown): Promise
     'act_type',
     'contact',
     'status',
+    'fee_status',
     'fee',
     'tech_requirements',
     'notes',

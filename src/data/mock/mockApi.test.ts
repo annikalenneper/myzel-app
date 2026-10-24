@@ -194,8 +194,30 @@ describe('Status (WF-AUF-06 bis -09)', () => {
     expect(after.block_reason).toBeNull();
     const look = { memberName: () => 'Mo', topicName: () => '', eventTitle: () => '', taskTitle: () => '' };
     expect(after.history.map((h) => taskHistorySentence(h, look))).toContain(
-      'Mo hat den Status von Neu auf Blockiert geändert. Grund: Adresse fehlt Die Markierung „Fürs Plenum“ wurde dabei entfernt.',
+      // die Markierung fällt weg, steht aber nicht in der Historie
+      'Mo hat den Status von Neu auf Blockiert geändert. Grund: Adresse fehlt',
     );
+  });
+
+  it('blockiert ohne Grund, wenn auf eine andere Aufgabe gewartet wird – die letzte Abhängigkeit bleibt dann', async () => {
+    const task = await newTask({ title: 'Wartet' });
+    const other = await newTask({ title: 'Vorher' });
+    await expectError(
+      api.setTaskStatus(task.id, { status: 'blockiert', version: 1 }),
+      'validation',
+      'block_reason',
+    );
+    await api.setTaskStatus(task.id, { status: 'blockiert', blocker_ids: [other.id], version: 1 });
+    const blocked = await api.getTask(task.id);
+    expect(blocked).toMatchObject({ status: 'blockiert', block_reason: null });
+    // ohne Grund hält nur die Abhängigkeit die Blockade
+    await expectError(api.removeBlocker(task.id, other.id), 'rule');
+    await api.setTaskStatus(task.id, { status: 'geplant', version: blocked.version });
+    await api.removeBlocker(task.id, other.id);
+    // eine schon eingetragene Abhängigkeit genügt ebenfalls
+    await api.addBlocker(task.id, other.id);
+    await api.setTaskStatus(task.id, { status: 'blockiert', version: (await api.getTask(task.id)).version });
+    expect((await api.getTask(task.id)).status).toBe('blockiert');
   });
 
   it('verhindert Selbstbezug und Zyklen bei blockierenden Aufgaben', async () => {
@@ -437,7 +459,7 @@ describe('Bearbeiten, Kommentare, Archiv (WF-AUF-04, -05, -12, -14)', () => {
       taskTitle: () => '',
     };
     expect(detail.history.map((h) => taskHistorySentence(h, look)).reverse()).toEqual([
-      'Mo hat die Aufgabe angelegt und sie fürs Plenum markiert.',
+      'Mo hat die Aufgabe angelegt.',
       'Mo hat den Titel von „Nebelfluid nachbestellen“ auf „Nebelfluid bestellen“ geändert. Mo hat die Frist auf 20.10. gesetzt.',
       'Mo hat Sam zugewiesen.',
     ]);
@@ -548,7 +570,7 @@ describe('Mitglieder (WF-ADM-01 bis -04)', () => {
     const org = topic('Organisatorisches');
     await expectError(api.updateTopic(org.id, { name: 'Orga', version: org.version }), 'forbidden');
     await expectError(api.restoreTopic(topic('Alte Location').id, 1), 'forbidden');
-    await expectError(api.deleteTopic(topic('Vorstand & Satzung').id), 'forbidden');
+    await expectError(api.deleteTopic(topic('Sonstiges').id), 'forbidden');
     expect((await login('jule')).state === 'member').toBe(true);
     expect((await api.listMembers()).find((m) => m.id === jule.id)!.is_admin).toBe(false);
   });
@@ -664,7 +686,7 @@ describe('Themen (WF-ADM-05)', () => {
     await expectError(api.archiveTopic(topic('Lager & Material').id, 1), 'rule');
     await expectError(api.deleteTopic(topic('Lager & Material').id), 'rule');
     await expectError(api.archiveTopic(topic('Verein').id, 1), 'rule');
-    const unused = topic('Vorstand & Satzung');
+    const unused = topic('Sonstiges');
     expect(unused.task_count).toBe(0);
     await api.deleteTopic(unused.id);
     expect((await api.listTopics()).some((t) => t.id === unused.id)).toBe(false);

@@ -338,7 +338,7 @@ export function cancelAppointment(ctx: Ctx, id: string, version: number): { noti
   const changes: HistoryChanges = { status: { old: a.status, new: 'abgesagt' } };
   markException(a, changes);
   a.status = 'abgesagt';
-  dropMark(ctx, 'appointment', id, changes);
+  dropMark(ctx, 'appointment', id);
   touch(ctx, a);
   writeHistory(ctx, 'appointment', id, 'status', changes);
   const recipients = yesAndOpen(
@@ -391,7 +391,7 @@ export function markHappened(
   };
   a.status = 'stattgefunden';
   replaceAttendees(ctx, id, attendeeIds);
-  dropMark(ctx, 'appointment', id, changes);
+  dropMark(ctx, 'appointment', id);
   touch(ctx, a);
   writeHistory(ctx, 'appointment', id, 'status', changes);
   return registerUndo(ctx, 'appointment', a, 'Als stattgefunden gespeichert');
@@ -425,12 +425,9 @@ export function setAppointmentMark(ctx: Ctx, id: string, marked: boolean): Undoa
     if (isPlenum(ctx.db, a)) throw rule('Plenum-Termine lassen sich nicht fürs Plenum markieren.');
     if (!canMarkAppointment(a, false)) throw rule('Nur geplante Termine lassen sich fürs Plenum markieren.');
     addMark(ctx, 'appointment', id);
-    writeHistory(ctx, 'appointment', id, 'marked', { plenum_mark: { old: false, new: true } });
     return registerUndo(ctx, 'appointment', a, 'Fürs Plenum markiert');
   }
-  const changes: HistoryChanges = {};
-  dropMark(ctx, 'appointment', id, changes);
-  writeHistory(ctx, 'appointment', id, 'unmarked', changes);
+  dropMark(ctx, 'appointment', id);
   return registerUndo(ctx, 'appointment', a, 'Markierung entfernt');
 }
 

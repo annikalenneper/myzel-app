@@ -16,7 +16,9 @@ import {
 } from '../../shared/rules/notifications';
 import { canTransitionEvent } from '../../shared/rules/eventStatus';
 import {
+  BLOCK_REASON_MISSING,
   blockReasonMissing,
+  LAST_BLOCKER,
   canTransitionTask,
   isActiveTaskStatus,
   statusAfterLastAssigneeLeft,
@@ -505,12 +507,11 @@ export const isMarked = (db: Db, target: MarkTarget, id: string) =>
   db.plenum_marks.some((m) => m[markColumn(target)] === id);
 
 /** Statusänderungen und Archivieren entfernen die Markierung „Fürs Plenum“ (3.14). */
-export function dropMark(ctx: Ctx, target: MarkTarget, id: string, changes: HistoryChanges): boolean {
+export function dropMark(ctx: Ctx, target: MarkTarget, id: string): boolean {
   const mark = ctx.db.plenum_marks.find((m) => m[markColumn(target)] === id);
   if (!mark) return false;
   ctx.db.plenum_marks = ctx.db.plenum_marks.filter((m) => m !== mark);
   ctx.inverse.push({ kind: 'mark_restore', row: mark });
-  changes.plenum_mark = { old: true, new: false };
   return true;
 }
 
@@ -587,7 +588,6 @@ export function createTask(ctx: Ctx, raw: unknown): { id: string } {
   }
   if (input.mark_for_plenum) {
     addMark(ctx, 'task', task.id);
-    changes.plenum_mark = { old: false, new: true };
   }
   writeHistory(ctx, 'task', task.id, 'created', changes);
   return { id: task.id };
@@ -677,8 +677,10 @@ export function setTaskStatus(
         ? `Die Aufgabe ist schon „${TASK_STATUS_LABEL[to]}“.`
         : `Von „${TASK_STATUS_LABEL[from]}“ nach „${TASK_STATUS_LABEL[to]}“ geht es nicht.`,
     );
-  if (blockReasonMissing(to, input.block_reason))
-    throw new AppError('validation', 'Ohne Grund lässt sich nicht blockieren.', { field: 'block_reason' });
+  const hasBlockers =
+    (input.blocker_ids?.length ?? 0) > 0 || ctx.db.task_blockers.some((b) => b.task_id === id);
+  if (blockReasonMissing(to, input.block_reason, hasBlockers))
+    throw new AppError('validation', BLOCK_REASON_MISSING, { field: 'block_reason' });
   if (!isActiveTaskStatus(from) && isActiveTaskStatus(to)) topicStillActive(ctx.db, task);
 
   ctx.inverse.push(taskState(task));
@@ -693,8 +695,9 @@ export function setTaskStatus(
     task.discard_reason = null;
   }
   if (to === 'blockiert') {
-    task.block_reason = input.block_reason!;
-    changes.block_reason = { old: null, new: task.block_reason };
+    // mit Abhängigkeit darf der Grund fehlen
+    task.block_reason = input.block_reason?.trim() || null;
+    if (task.block_reason) changes.block_reason = { old: null, new: task.block_reason };
     for (const blockerId of input.blocker_ids ?? []) insertBlocker(ctx, task, blockerId);
   }
   if (to === 'verworfen' && input.discard_reason) {
@@ -717,7 +720,7 @@ export function setTaskStatus(
     changes.assignee = { old: null, new: ctx.actor.id };
     self_assigned = true;
   }
-  dropMark(ctx, 'task', id, changes);
+  dropMark(ctx, 'task', id);
   follow(ctx, id, ctx.actor.id);
   touch(ctx, task);
   writeHistory(ctx, 'task', id, 'status', changes);
@@ -775,7 +778,7 @@ function dropAssignee(ctx: Ctx, task: Task, memberId: string, reason?: 'deactiva
     ctx.inverse.push(taskState(task));
     changes.status = { old: task.status, new: next };
     task.status = next;
-    dropMark(ctx, 'task', task.id, changes);
+    dropMark(ctx, 'task', task.id);
     statusReset = true;
   }
   touch(ctx, task);
@@ -826,9 +829,16 @@ export function addBlocker(ctx: Ctx, taskId: string, blockerTaskId: string): voi
 }
 
 export function removeBlocker(ctx: Ctx, taskId: string, blockerTaskId: string): void {
-  editableTask(ctx, taskId);
+  const task = editableTask(ctx, taskId);
   const row = ctx.db.task_blockers.find((b) => b.task_id === taskId && b.blocker_task_id === blockerTaskId);
   if (!row) return;
+  // blockiert ohne Grund braucht mindestens eine Abhängigkeit
+  if (
+    task.status === 'blockiert' &&
+    !task.block_reason &&
+    ctx.db.task_blockers.filter((b) => b.task_id === taskId).length === 1
+  )
+    throw rule(LAST_BLOCKER);
   ctx.db.task_blockers = ctx.db.task_blockers.filter((b) => b !== row);
   follow(ctx, taskId, ctx.actor.id);
   writeHistory(ctx, 'task', taskId, 'blocker_removed', { blocker: { old: blockerTaskId, new: null } });
@@ -842,12 +852,9 @@ export function setPlenumMark(ctx: Ctx, taskId: string, marked: boolean): Undoab
     if (!isActiveTaskStatus(task.status))
       throw rule('Abgeschlossene Aufgaben lassen sich nicht fürs Plenum markieren.');
     addMark(ctx, 'task', taskId);
-    writeHistory(ctx, 'task', taskId, 'marked', { plenum_mark: { old: false, new: true } });
     return registerUndo(ctx, 'task', task, 'Fürs Plenum markiert');
   }
-  const changes: HistoryChanges = {};
-  dropMark(ctx, 'task', taskId, changes);
-  writeHistory(ctx, 'task', taskId, 'unmarked', changes);
+  dropMark(ctx, 'task', taskId);
   return registerUndo(ctx, 'task', task, 'Markierung entfernt');
 }
 
@@ -905,7 +912,7 @@ export function archiveTask(ctx: Ctx, id: string, version: number): Undoable {
   ctx.inverse.push(taskState(task));
   const changes: HistoryChanges = {};
   task.archived_at = iso(ctx);
-  dropMark(ctx, 'task', id, changes);
+  dropMark(ctx, 'task', id);
   touch(ctx, task);
   writeHistory(ctx, 'task', id, 'archived', changes);
   return registerUndo(ctx, 'task', task, 'Archiviert');
@@ -1292,7 +1299,7 @@ export function setEventStatus(ctx: Ctx, id: string, status: EventStatus, versio
   ctx.inverse.push({ kind: 'event_status', event_id: id, status: event.status });
   const changes: HistoryChanges = { status: { old: event.status, new: status } };
   event.status = status;
-  dropMark(ctx, 'event', id, changes);
+  dropMark(ctx, 'event', id);
   touch(ctx, event);
   writeHistory(ctx, 'event', id, 'status', changes);
   return registerUndo(ctx, 'event', event, `Status: ${EVENT_STATUS_LABEL[status]}`);

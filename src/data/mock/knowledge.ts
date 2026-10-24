@@ -234,7 +234,7 @@ export function replaceDecision(ctx: Ctx, id: string, raw: unknown): Undoable & 
   };
   old.status = 'ersetzt';
   old.superseded_by_id = successor.id;
-  dropMark(ctx, 'decision', id, changes);
+  dropMark(ctx, 'decision', id);
   touch(ctx, old);
   writeHistory(ctx, 'decision', id, 'replaced', changes);
   return { ...registerUndo(ctx, 'decision', old, 'Ersetzt'), successor_id: successor.id };
@@ -256,7 +256,7 @@ export function revokeDecision(
   if (note?.trim()) changes.note = { old: null, new: note.trim() };
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
   d.status = 'aufgehoben';
-  dropMark(ctx, 'decision', id, changes);
+  dropMark(ctx, 'decision', id);
   touch(ctx, d);
   writeHistory(ctx, 'decision', id, 'revoked', changes);
   return registerUndo(ctx, 'decision', d, 'Aufgehoben');
@@ -319,7 +319,6 @@ export function createQuestion(ctx: Ctx, raw: unknown, originPlenumId: string | 
   const changes: HistoryChanges = { title: { old: null, new: question.title } };
   if (input.mark_for_plenum) {
     addMark(ctx, 'question', question.id);
-    changes.plenum_mark = { old: false, new: true };
   }
   if (originPlenumId) changes.plenum_id = { old: null, new: originPlenumId };
   writeHistory(ctx, 'question', question.id, 'created', changes);
@@ -379,7 +378,7 @@ export function clarifyQuestion(
   q.answer = input.answer;
   q.answered_in_plenum_id = plenumId;
   q.resulting_decision_id = decision?.id ?? null;
-  dropMark(ctx, 'question', id, changes);
+  dropMark(ctx, 'question', id);
   touch(ctx, q);
   writeHistory(ctx, 'question', id, 'clarified', changes);
   return {
@@ -402,7 +401,7 @@ export function discardQuestion(
   const changes: HistoryChanges = { status: { old: q.status, new: 'verworfen' } };
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
   q.status = 'verworfen';
-  dropMark(ctx, 'question', id, changes);
+  dropMark(ctx, 'question', id);
   touch(ctx, q);
   writeHistory(ctx, 'question', id, 'discarded', changes);
   return registerUndo(ctx, 'question', q, 'Frage verworfen');
@@ -566,12 +565,9 @@ export function setMark(
     if (target === 'event' && isFinalEventStatus(db.events.find((e) => e.id === id)!.status))
       throw rule('Abgeschlossene und abgesagte Veranstaltungen lassen sich nicht markieren.');
     addMark(ctx, target, id);
-    writeHistory(ctx, target, id, 'marked', { plenum_mark: { old: false, new: true } });
     return registerUndo(ctx, target, entity, 'Fürs Plenum markiert');
   }
-  const changes: HistoryChanges = {};
-  dropMark(ctx, target, id, changes);
-  writeHistory(ctx, target, id, 'unmarked', changes);
+  dropMark(ctx, target, id);
   return registerUndo(ctx, target, entity, 'Markierung entfernt');
 }
 

@@ -247,3 +247,20 @@ test('Phase 5: Drive aus dem Cache, Datei mit einer Aufgabe verknüpfen – blei
   await page.reload();
   await expect(list.getByRole('listitem').filter({ hasText: 'Getränkeliste' })).toContainText('1 Aufgabe');
 });
+
+test('Demo neben dem echten Backend: Testdaten nur im Browser, mit Hinweisband, wieder beendbar', async ({
+  page,
+}) => {
+  await page.goto('/anmelden');
+  await page.locator('[data-demo="start"]').click();
+  await expect(page.getByRole('status').filter({ hasText: 'Demo mit Testdaten' })).toBeVisible();
+  await page.getByTestId('WF-LOG-01').click();
+  await page.getByRole('button', { name: /^Mo / }).click();
+  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await expect(
+    page.getByRole('article').filter({ hasText: 'Location für Winterrave bestätigen' }).first(),
+  ).toBeVisible();
+  await page.locator('[data-demo="end"]').click();
+  await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Demo mit Testdaten' })).toHaveCount(0);
+});

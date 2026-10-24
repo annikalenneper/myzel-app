@@ -21,7 +21,7 @@ test('F-VER-04: Kurzzusammenfassungen, offene Punkte in Bernstein, Aufbau im Kop
   await expect(section(page, 'Location')).toContainText('offene Punkte');
   await expect(section(page, 'Booking')).toContainText('1 zugesagt · 2 angefragt');
   await expect(section(page, 'Bar')).not.toContainText('offene Punkte');
-  await expect(section(page, 'Rahmen')).toContainText('GEMA, Awareness-Team offen · 4 von 6 geklärt');
+  await expect(section(page, 'Eintritt')).toContainText('Spende 5–10 €');
 });
 
 test('WF-VER-08: kurze Felder speichern beim Verlassen, Auswahlen sofort; Zusammenfassung folgt', async ({
@@ -52,12 +52,19 @@ test('WF-VER-08: kurze Felder speichern beim Verlassen, Auswahlen sofort; Zusamm
   await location.getByLabel('Kapazität').blur();
   await expect(location).toContainText('bis 1200 Personen');
 
-  await expand(page, 'Rahmen');
-  const frame = section(page, 'Rahmen');
-  await frame.getByRole('group', { name: 'GEMA' }).getByRole('button', { name: 'Erledigt' }).click();
-  await frame.getByLabel('Notiz GEMA').fill('Angemeldet am 3.11.');
-  await frame.getByLabel('Notiz GEMA').blur();
-  await expect(frame).toContainText('Awareness-Team offen · 5 von 6 geklärt');
+  // „Rahmen“ gibt es nicht mehr
+  await expect(section(page, 'Rahmen')).toHaveCount(0);
+
+  // Eintritt: Felder je nach Art, die Art steht nicht doppelt da
+  await expand(page, 'Eintritt');
+  const entry = section(page, 'Eintritt');
+  await expect(entry.getByText('Eintritt', { exact: true })).toHaveCount(1);
+  await expect(entry.getByLabel('Empfehlung')).toBeVisible();
+  await expect(entry.getByLabel('Verantwortung Kasse')).toBeVisible();
+  await entry.getByRole('button', { name: 'Fester Preis' }).click();
+  await expect(entry.getByLabel('Preis')).toBeVisible();
+  await entry.getByRole('button', { name: 'Frei' }).click();
+  await expect(entry.getByRole('textbox')).toHaveCount(0);
 });
 
 test('Booking: Act anlegen, bearbeiten, entfernen mit Rückgängig', async ({ page }) => {
@@ -76,7 +83,10 @@ test('Booking: Act anlegen, bearbeiten, entfernen mit Rückgängig', async ({ pa
   await booking.getByRole('button', { name: 'Act bearbeiten: Myzelium Soundsystem' }).click();
   const edit = page.getByRole('dialog', { name: 'Act bearbeiten' });
   await edit.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'Zugesagt' }).click();
-  await edit.getByLabel('Gage').fill('200 €');
+  // den Betrag gibt es erst bei Gage „ja“
+  await expect(edit.getByLabel('Betrag')).toHaveCount(0);
+  await edit.getByRole('group', { name: 'Gage' }).getByRole('button', { name: 'Ja' }).click();
+  await edit.getByLabel('Betrag').fill('200 €');
   await edit.getByRole('button', { name: 'Speichern' }).click();
   await expect(booking).toContainText('2 zugesagt · 2 angefragt');
   await expect(booking).toContainText(/Band · 200 €/i);

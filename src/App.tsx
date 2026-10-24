@@ -18,6 +18,7 @@ import { Profile } from './screens/profile/Profile';
 import { SystemStatus } from './screens/profile/SystemStatus';
 import { Topics } from './screens/profile/Topics';
 import { TasksScreen } from './screens/tasks/TasksScreen';
+import { DemoBanner } from './ui/DemoBanner';
 
 function MemberArea() {
   return (
@@ -33,6 +34,7 @@ export function App() {
   return (
     <SessionProvider>
       <FeedbackProvider>
+        <DemoBanner />
         <Routes>
           <Route path="/anmelden" element={<Login />} />
           <Route path="/kein-zugriff" element={<NoAccess />} />
