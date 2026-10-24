@@ -14,8 +14,6 @@ export interface Message {
   link: string;
   /** eindeutig je Empfänger und Anlass; die Outbox hängt noch den Kanal an */
   dedupe_key: string;
-  /** eigene Statusänderung: geht nur raus, wenn die Person das eingeschaltet hat (6.2) */
-  own?: boolean;
 }
 
 /** [P6] Zeilen der Schalter-Matrix im Profil (F-PRO-02) und die Ereignisse dahinter (6.2) */
@@ -129,7 +127,7 @@ export function commentMessages(
     }));
 }
 
-/** Statusänderung: an Bearbeitende und Folgende; eigene Änderungen sind standardmäßig aus. */
+/** Statusänderung: an Bearbeitende und Folgende außer der Person, die geändert hat (6.2). */
 export function statusMessages(
   task: TaskRef,
   to: TaskStatus,
@@ -138,15 +136,15 @@ export function statusMessages(
   followerIds: readonly string[],
   at: string,
 ): Message[] {
-  // die eigene Änderung ist markiert: ob sie rausgeht, entscheidet die Einstellung der Person
-  return unique([...assigneeIds, ...followerIds]).map((member_id) => ({
-    member_id,
-    event_type: 'status' as const,
-    text: `${title(task)} ist jetzt „${TASK_STATUS_LABEL[to]}“.`,
-    link: taskLink(task.id),
-    dedupe_key: `status:${task.id}:${to}:${member_id}:${at}`,
-    ...(member_id === actorId ? { own: true } : {}),
-  }));
+  return unique([...assigneeIds, ...followerIds])
+    .filter((id) => id !== actorId)
+    .map((member_id) => ({
+      member_id,
+      event_type: 'status' as const,
+      text: `${title(task)} ist jetzt „${TASK_STATUS_LABEL[to]}“.`,
+      link: taskLink(task.id),
+      dedupe_key: `status:${task.id}:${to}:${member_id}:${at}`,
+    }));
 }
 
 /** Blockade aufgehoben: an die Bearbeitenden der Aufgabe, die auf die erledigte gewartet hat. */

@@ -99,19 +99,15 @@ export function taskHistorySentence(entry: HistoryEntry, look: HistoryLookup): s
       return text + markSuffix(entry);
     }
     case 'follower_added': {
-      const id = person('follower', 'new');
-      return isSelf(id)
-        ? `${who} folgt der Aufgabe.`
-        : `${who} hat ${look.memberName(id)} bei den Folgenden eingetragen.`;
+      // selbst folgen und entfolgen stehen nicht in der Historie
+      return `${who} hat ${look.memberName(person('follower', 'new'))} bei den Folgenden eingetragen.`;
     }
     case 'follower_removed': {
       const id = person('follower', 'old');
       const name = look.memberName(id);
       if (c.reason?.new === 'deactivated')
         return `${who} hat ${name} deaktiviert – ${name} folgt nicht mehr.`;
-      return isSelf(id)
-        ? `${who} folgt der Aufgabe nicht mehr.`
-        : `${who} hat ${name} bei den Folgenden entfernt.`;
+      return `${who} hat ${name} bei den Folgenden entfernt.`;
     }
     case 'blocker_added':
       return `${who} hat eingetragen: wartet auf ${q(look.taskTitle(String(c.blocker?.new)))}.`;

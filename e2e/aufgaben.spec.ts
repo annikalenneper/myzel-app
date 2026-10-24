@@ -226,6 +226,7 @@ test('fremde Kommentare lassen sich nicht bearbeiten', async ({ page }) => {
 test('WF-AUF-14: Archivieren mit Bestätigung bei Kommentaren, Wiederherstellen', async ({ page }) => {
   await openTask(page, 'Nebelmaschine reparieren');
   await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  await page.getByRole('button', { name: 'Archivieren', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Aufgabe archivieren' });
   await expect(sheet).toContainText('Die Aufgabe hat 2 Kommentare.');
   await sheet.getByRole('button', { name: 'Trotzdem archivieren' }).click();
@@ -240,6 +241,16 @@ test('WF-AUF-14: Archivieren mit Bestätigung bei Kommentaren, Wiederherstellen'
   await expect(page.getByText('Archiviert – nicht mehr in den Listen.')).toHaveCount(0);
   await page.goto('/aufgaben');
   await expect(card(page, 'Nebelmaschine reparieren')).toBeVisible();
+});
+
+test('WF-AUF-14: ohne Kommentare archiviert das Menü sofort, mit Rückgängig', async ({ page }) => {
+  await openTask(page, 'Farben und Siebe besorgen');
+  await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  await page.getByRole('button', { name: 'Archivieren', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Aufgabe archivieren' })).toHaveCount(0);
+  await expect(page.getByText('Archiviert – nicht mehr in den Listen.')).toBeVisible();
+  await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByText('Archiviert – nicht mehr in den Listen.')).toHaveCount(0);
 });
 
 test('WF-ALL-01: Versionskonflikt überschreibt nichts und zeigt die eigene Eingabe', async ({ page }) => {

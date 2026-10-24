@@ -118,7 +118,7 @@ export function ListDetailLayout({
   detailOpen: boolean;
 }) {
   return (
-    <div className="lg:grid lg:grid-cols-[420px_minmax(0,1fr)]">
+    <div className="lg:grid lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[440px_minmax(0,1fr)] 2xl:grid-cols-[500px_minmax(0,1fr)]">
       <div
         className={cx(
           'lg:block lg:h-dvh lg:overflow-y-auto lg:border-r lg:border-linie',
@@ -129,7 +129,7 @@ export function ListDetailLayout({
       </div>
       <div className={cx('lg:block lg:h-dvh lg:overflow-y-auto', !detailOpen && 'hidden')}>
         {detailOpen ? (
-          <div className="lg:max-w-[720px]">{detail}</div>
+          <div className="lg:mx-auto lg:max-w-[760px] 2xl:max-w-[880px]">{detail}</div>
         ) : (
           <div className="hidden h-full items-center justify-center text-[14px] text-leise lg:flex">
             Wähle links einen Eintrag aus.

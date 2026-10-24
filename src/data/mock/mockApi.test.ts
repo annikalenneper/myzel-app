@@ -266,6 +266,20 @@ describe('Bearbeitende, Folgende, Markierung (WF-AUF-02, -10, -11)', () => {
     expect(after.follower_ids).toEqual(expect.arrayContaining([member('Lea').id, member('Jule').id]));
   });
 
+  it('selbst folgen und entfolgen stehen nicht in der Historie, auch nicht ihr Rückgängig', async () => {
+    const { member } = await ids();
+    const task = await newTask();
+    const me = member('Mo').id;
+    const before = (await api.getTask(task.id)).history.length;
+    if ((await api.getTask(task.id)).follower_ids.includes(me)) await api.removeFollower(task.id, me);
+    const { undo_token } = await api.addFollower(task.id, me);
+    await api.undo(undo_token);
+    expect((await api.getTask(task.id)).history).toHaveLength(before);
+    // eine andere Person einzutragen bleibt sichtbar
+    await api.addFollower(task.id, member('Lea').id);
+    expect((await api.getTask(task.id)).history[0]!.action).toBe('follower_added');
+  });
+
   it('lässt nur aktive Mitglieder zu', async () => {
     const { member } = await ids();
     const task = await newTask();

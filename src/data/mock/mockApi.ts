@@ -362,7 +362,6 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     setNotificationPreference: (group, channel, enabled) =>
       write((ctx) => notify.setNotificationPreference(ctx, group, channel, enabled)),
     setReminderLeadDays: (days) => write((ctx) => notify.setReminderLeadDays(ctx, days)),
-    setOwnStatusNotifications: (on) => write((ctx) => notify.setOwnStatusNotifications(ctx, on)),
     getSystemStatus: () =>
       read((d, n) => notify.systemStatus({ db: d, actor: actor(), now: n, inverse: [] })),
 

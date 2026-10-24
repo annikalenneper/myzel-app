@@ -18,7 +18,7 @@ export function Topics() {
   const childCount = (id: string) => topics.filter((t) => t.parent_id === id).length;
 
   return (
-    <div className="mx-auto max-w-[560px] lg:mx-0">
+    <div className="mx-auto max-w-[560px] lg:max-w-[720px]">
       <BarOffset px={24} />
       <AdminTopBar />
       <div className="flex flex-col gap-3.5 px-5 pb-24">

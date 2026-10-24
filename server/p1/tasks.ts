@@ -463,7 +463,9 @@ export async function addFollower(ctx: Ctx, taskId: string, memberId: string): P
   const task = await editableTask(ctx, taskId);
   const member = await selectableMember(ctx, memberId);
   if (!(await follow(ctx, taskId, memberId))) return { undo_token: '' };
-  await writeHistory(ctx, 'task', taskId, 'follower_added', { follower: { old: null, new: memberId } });
+  // selbst folgen oder entfolgen betrifft nur die Person selbst – ohne Historie
+  if (memberId !== ctx.actor.id)
+    await writeHistory(ctx, 'task', taskId, 'follower_added', { follower: { old: null, new: memberId } });
   return registerUndo(ctx, 'task', task, `${member.display_name} folgt`);
 }
 
@@ -483,7 +485,7 @@ export async function dropFollower(
   ctx.inverse.push({ kind: 'follower_add', task_id: taskId, member_id: memberId });
   const changes: HistoryChanges = { follower: { old: memberId, new: null } };
   if (reason) changes.reason = { old: null, new: reason };
-  await writeHistory(ctx, 'task', taskId, 'follower_removed', changes);
+  if (memberId !== ctx.actor.id) await writeHistory(ctx, 'task', taskId, 'follower_removed', changes);
   return true;
 }
 

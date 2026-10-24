@@ -43,7 +43,7 @@ export function DetailTopBar({
           )}
         >
           <IconBookmark filled={mark.marked} size={14} />
-          {mark.marked ? 'FÜRS PLENUM' : 'MARKIEREN'}
+          {mark.marked ? 'Fürs Plenum markiert' : 'Fürs Plenum markieren'}
         </button>
       )}
     </div>

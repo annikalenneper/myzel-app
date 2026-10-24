@@ -10,13 +10,10 @@ import type { Database } from '../db/types';
 
 type Db = Kysely<Database>;
 
-/** Spalten späterer Phasen */
-const memberLater = { notify_own_status: false } as const;
-
 export async function listMembers(db: Db): Promise<Member[]> {
   const rows = await db.selectFrom('members').selectAll().orderBy('created_at').orderBy('id').execute();
   // die Login-ID braucht nur der Server, nicht die anderen Mitglieder
-  return rows.map((m) => ({ ...m, auth_user_id: null, ...memberLater }));
+  return rows.map((m) => ({ ...m, auth_user_id: null }));
 }
 
 export async function listTopics(db: Db): Promise<TopicWithUsage[]> {

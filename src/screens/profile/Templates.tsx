@@ -27,7 +27,7 @@ export function Templates() {
   const current = templates?.find((t) => t.id === typeId) ?? templates?.[0];
 
   return (
-    <div className="mx-auto max-w-[560px] lg:mx-0">
+    <div className="mx-auto max-w-[560px] lg:max-w-[720px]">
       <BarOffset px={24} />
       <div className="sticky top-0 z-10 flex h-[60px] items-center gap-1 bg-grund px-3">
         <Link

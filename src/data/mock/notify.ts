@@ -43,8 +43,6 @@ export function enqueue(db: Db, now: Date, messages: readonly Message[], collect
       )
     )
       continue;
-    // eigene Statusänderungen nur, wenn die Person das eingeschaltet hat (6.2)
-    if (m.own && !member.notify_own_status) continue;
     // [P6] Schalter-Matrix: je Ereignis und Kanal; ohne Eintrag aus (Rückmeldung vom 22.10.2026)
     const on = (c: NotificationChannel) =>
       channelEnabled(db.notification_preferences, member.id, m.event_type, c);
@@ -170,7 +168,6 @@ export function notificationSettings(ctx: Ctx, deviceId: string): NotificationSe
       ),
     })),
     reminder_lead_days: ctx.actor.reminder_lead_days,
-    own_status: ctx.actor.notify_own_status,
   };
 }
 
@@ -226,17 +223,6 @@ export function setReminderLeadDays(ctx: Ctx, days: number): void {
     reminder_lead_days: { old: me.reminder_lead_days, new: value },
   });
   me.reminder_lead_days = value;
-  touch(ctx, me);
-}
-
-/** 6.2: Statusänderungen auch, wenn man sie selbst vorgenommen hat */
-export function setOwnStatusNotifications(ctx: Ctx, on: boolean): void {
-  const me = ctx.db.members.find((m) => m.id === ctx.actor.id)!;
-  if (me.notify_own_status === on) return;
-  writeHistory(ctx, 'member', me.id, 'updated', {
-    notify_own_status: { old: me.notify_own_status, new: on },
-  });
-  me.notify_own_status = on;
   touch(ctx, me);
 }
 

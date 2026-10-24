@@ -2,7 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { login } from './helpers';
 
-test('WF-PRO-04: Schalter je Ereignis und Kanal, eigene Statusänderungen, Vorlauf – gespeichert und sofort wirksam', async ({
+test('WF-PRO-04: Schalter je Ereignis und Kanal, Vorlauf – gespeichert und sofort wirksam', async ({
   page,
 }) => {
   await login(page);
@@ -19,10 +19,8 @@ test('WF-PRO-04: Schalter je Ereignis und Kanal, eigene Statusänderungen, Vorla
     'true',
   );
 
-  const own = page.getByRole('button', { name: 'Auch eigene Statusänderungen' });
-  await expect(own).toHaveAttribute('aria-pressed', 'false');
-  await own.click();
-  await expect(own).toHaveAttribute('aria-pressed', 'true');
+  // eigene Statusänderungen werden nie gemeldet – dafür gibt es keinen Schalter
+  await expect(page.getByText('Auch eigene Statusänderungen')).toHaveCount(0);
 
   const lead = page.getByRole('group', { name: 'Vorlauf Fristerinnerung' });
   await expect(lead.getByRole('button', { name: '3 Tage vorher' })).toHaveAttribute('aria-pressed', 'true');
@@ -31,6 +29,5 @@ test('WF-PRO-04: Schalter je Ereignis und Kanal, eigene Statusänderungen, Vorla
 
   await page.reload();
   await expect(comment).toHaveAttribute('aria-pressed', 'false');
-  await expect(own).toHaveAttribute('aria-pressed', 'true');
   await expect(lead.getByRole('button', { name: '7 Tage vorher' })).toHaveAttribute('aria-pressed', 'true');
 });

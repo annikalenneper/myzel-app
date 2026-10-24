@@ -87,6 +87,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
   const act = useActions();
   const { notify } = useFeedback();
   const [sheet, setSheet] = useState<SheetKind | null>(null);
+  const [menu, setMenu] = useState(false);
   const [tab, setTab] = useState<'comments' | 'history'>('comments');
   const { data: allTasks } = useData('tasks', () => api.listTasks());
   const { data: appointments } = useData('appointments', () => api.listAppointments());
@@ -131,6 +132,13 @@ function Loaded({ task }: { task: TaskDetailData }) {
   const toggleMark = () =>
     void act(() => api.setPlenumMark(task.id, !task.marked), {
       success: task.marked ? 'Markierung entfernt' : 'Fürs Plenum markiert',
+      undo: (r) => r.undo_token,
+    });
+
+  const archive = () =>
+    void act(() => api.archiveTask(task.id, latest.current), {
+      subject: SUBJECT,
+      success: 'Archiviert',
       undo: (r) => r.undo_token,
     });
 
@@ -226,15 +234,44 @@ function Loaded({ task }: { task: TaskDetailData }) {
           </button>
         )}
         {!archived && (
-          <button
-            type="button"
-            data-wf="WF-AUF-14"
-            onClick={() => setSheet('archive')}
-            aria-label="Weitere Aktionen"
-            className="flex size-11 items-center justify-center text-text"
-          >
-            <IconMore />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              data-wf="WF-AUF-14"
+              onClick={() => setMenu(!menu)}
+              aria-label="Weitere Aktionen"
+              aria-expanded={menu}
+              className="flex size-11 items-center justify-center text-text"
+            >
+              <IconMore />
+            </button>
+            {menu && (
+              <>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label="Menü schließen"
+                  onClick={() => setMenu(false)}
+                  className="fixed inset-0 z-[5] cursor-default"
+                />
+                <div className="absolute top-full right-1 z-[6] flex w-[200px] flex-col gap-0.5 rounded-[14px] border border-rand bg-erhoeht p-1.5 shadow-[0_12px_28px_rgba(0,0,0,0.5)]">
+                  {/* WF-AUF-14: Bestätigung nur bei Kommentaren, sonst sofort mit Rückgängig */}
+                  <button
+                    type="button"
+                    data-wf="WF-AUF-14"
+                    onClick={() => {
+                      setMenu(false);
+                      if (task.comments.length > 0) setSheet('archive');
+                      else archive();
+                    }}
+                    className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-rot-hell"
+                  >
+                    Archivieren
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </TopBar>
 
@@ -602,11 +639,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
           onClose={() => setSheet(null)}
           onConfirm={() => {
             setSheet(null);
-            void act(() => api.archiveTask(task.id, latest.current), {
-              subject: SUBJECT,
-              success: 'Archiviert',
-              undo: (r) => r.undo_token,
-            });
+            archive();
           }}
         />
       )}

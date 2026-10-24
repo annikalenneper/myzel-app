@@ -45,7 +45,7 @@ export function Members() {
   const selected = sheet && 'member' in sheet ? (memberById.get(sheet.member.id) ?? sheet.member) : null;
 
   return (
-    <div className="mx-auto max-w-[560px] lg:mx-0">
+    <div className="mx-auto max-w-[560px] lg:max-w-[720px]">
       <BarOffset px={24} />
       <AdminTopBar />
       <div className="flex flex-col gap-3.5 px-5 pb-24">

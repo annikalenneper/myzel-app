@@ -331,8 +331,6 @@ export interface NotificationSettings {
   /** [P6] Schalter-Matrix (F-PRO-02): je Zeile Push und Telegram */
   matrix: { key: NotificationGroupKey; push: boolean; telegram: boolean }[];
   reminder_lead_days: number;
-  /** eigene Statusänderungen auch melden */
-  own_status: boolean;
 }
 
 /** S-54 Systemstatus (WF-ADM-07) */
@@ -554,7 +552,6 @@ export interface MyzelApi {
     enabled: boolean,
   ): Promise<void>;
   setReminderLeadDays(days: number): Promise<void>;
-  setOwnStatusNotifications(on: boolean): Promise<void>;
 
   demo?: DemoTools;
 }

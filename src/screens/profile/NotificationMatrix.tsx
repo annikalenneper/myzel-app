@@ -73,18 +73,6 @@ export function NotificationMatrix() {
             </div>
           );
         })}
-        {/* 6.2: eigene Statusänderungen standardmäßig aus */}
-        <div className="flex min-h-[52px] items-center gap-2 border-b border-erhoeht bg-flaeche py-1 pr-1 pl-3.5">
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="text-[14px] font-medium">Auch eigene Statusänderungen</span>
-            <span className="label-mono">Was du selbst änderst · beide Kanäle</span>
-          </span>
-          <Switch
-            on={settings.own_status}
-            label="Auch eigene Statusänderungen"
-            onToggle={() => void run(() => api.setOwnStatusNotifications(!settings.own_status))}
-          />
-        </div>
         <div className="flex min-h-[52px] flex-wrap items-center gap-2 bg-flaeche px-3.5 py-2">
           <span id="vorlauf" className="flex-1 text-[14px] font-medium">
             Vorlauf Fristerinnerung

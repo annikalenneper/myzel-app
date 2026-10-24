@@ -46,7 +46,7 @@ describe('Schalter-Matrix (F-PRO-02)', () => {
       'zusammenfassung',
     ]);
     expect(s.matrix.every((r) => r.push && r.telegram)).toBe(true);
-    expect(s).toMatchObject({ reminder_lead_days: 3, own_status: false });
+    expect(s).toMatchObject({ reminder_lead_days: 3 });
   });
 
   it('ein abgeschalteter Kanal bekommt nichts – nur für dieses Ereignis', async () => {
@@ -89,24 +89,14 @@ describe('Schalter-Matrix (F-PRO-02)', () => {
 });
 
 describe('Eigene Statusänderungen (6.2)', () => {
-  it('sind standardmäßig aus und lassen sich einschalten', async () => {
+  it('erzeugen nie eine Nachricht', async () => {
     await login('jule');
     const { id } = await api.createTask({ title: 'Kabel kaufen', topic_id: await topicId() });
     await api.addAssignee(id, await memberId('Jule'));
     const version = async () => (await api.getTask(id)).version;
     await api.setTaskStatus(id, { status: 'in_arbeit', version: await version() });
-    expect((await api.demo!.myMessages()).filter((m) => m.event_type === 'status')).toHaveLength(0);
-
-    await api.setOwnStatusNotifications(true);
     await api.setTaskStatus(id, { status: 'erledigt', version: await version() });
-    const own = (await api.demo!.myMessages()).filter((m) => m.event_type === 'status');
-    expect(own.map((m) => m.text)).toEqual([
-      '„Kabel kaufen“ ist jetzt „Erledigt“.',
-      '„Kabel kaufen“ ist jetzt „Erledigt“.',
-    ]);
-    // steht in der Historie der Person
-    const me = (await api.listMembers()).find((m) => m.display_name === 'Jule')!;
-    expect(me.notify_own_status).toBe(true);
+    expect((await api.demo!.myMessages()).filter((m) => m.event_type === 'status')).toHaveLength(0);
   });
 });
 

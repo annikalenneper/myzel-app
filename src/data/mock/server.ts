@@ -801,7 +801,9 @@ export function addFollower(ctx: Ctx, taskId: string, memberId: string): Undoabl
   const task = editableTask(ctx, taskId);
   const member = selectableMember(ctx, memberId);
   if (!follow(ctx, taskId, memberId)) return { undo_token: '' };
-  writeHistory(ctx, 'task', taskId, 'follower_added', { follower: { old: null, new: memberId } });
+  // selbst folgen oder entfolgen betrifft nur die Person selbst – ohne Historie
+  if (memberId !== ctx.actor.id)
+    writeHistory(ctx, 'task', taskId, 'follower_added', { follower: { old: null, new: memberId } });
   return registerUndo(ctx, 'task', task, `${member.display_name} folgt`);
 }
 
@@ -812,7 +814,7 @@ function dropFollower(ctx: Ctx, taskId: string, memberId: string, reason?: 'deac
   ctx.inverse.push({ kind: 'follower_add', task_id: taskId, member_id: memberId });
   const changes: HistoryChanges = { follower: { old: memberId, new: null } };
   if (reason) changes.reason = { old: null, new: reason };
-  writeHistory(ctx, 'task', taskId, 'follower_removed', changes);
+  if (memberId !== ctx.actor.id) writeHistory(ctx, 'task', taskId, 'follower_removed', changes);
   return true;
 }
 
@@ -1219,6 +1221,8 @@ export function undo(ctx: Ctx, token: string): void {
       record.ops.some((op) => op.kind === 'task_state' && op.status === 'in_arbeit'),
     );
   if (touchesRow) touch(ctx, entity);
+  // was ohne Historie geschah (Markierung, selbst folgen), wird auch still zurückgenommen
+  if (record.history_ids.length === 0) return;
   writeHistory(ctx, record.entity_type, entity.id, 'undo', {
     ...undone,
     undone: { old: record.label, new: null },
@@ -1348,7 +1352,6 @@ export function createMember(ctx: Ctx, raw: unknown): { id: string } {
     active: true,
     is_system: false,
     reminder_lead_days: 3,
-    notify_own_status: false,
     created_at: now,
     updated_at: now,
     created_by: ctx.actor.id,

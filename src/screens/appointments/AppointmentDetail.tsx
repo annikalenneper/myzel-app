@@ -126,7 +126,7 @@ function Loaded({ a }: { a: Detail }) {
             )}
           >
             <IconBookmark filled={a.marked} size={14} />
-            {a.marked ? 'FÜRS PLENUM' : 'MARKIEREN'}
+            {a.marked ? 'Fürs Plenum markiert' : 'Fürs Plenum markieren'}
           </button>
         )}
       </TopBar>

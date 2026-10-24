@@ -47,8 +47,6 @@ export const memberSchema = z.object({
   is_system: z.boolean(),
   /** Vorlauf für Fristerinnerungen in Tagen, Standard 3 [P2] */
   reminder_lead_days: z.number().int().min(0),
-  /** [P6] Statusänderungen auch, wenn man sie selbst vorgenommen hat (6.2: standardmäßig aus) */
-  notify_own_status: z.boolean(),
   created_at: timestampSchema,
   updated_at: timestampSchema,
   created_by: idSchema.nullable(),

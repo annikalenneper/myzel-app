@@ -27,6 +27,17 @@ Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
    - [x] Themen: „Verein“ ohne Unterkategorien, neues Thema „Sonstiges“ auf oberster Ebene (hebt Frage 6 auf)
    - [x] Demo-Modus bleibt nach dem Produktivgang: Knopf „Demo ansehen“ auf der Anmeldeseite, Testdaten nur im
          Browser, ohne Konto, mit Hinweisband
+   - [x] Zweite Runde (24.10.2026), ANFORDERUNGEN.md 3.10, 5.8, 6.2, 8.3 und Änderungsprotokoll nachgezogen:
+     - [x] Historie nur mit dem, was für andere relevant ist: selbst folgen und entfolgen ohne Eintrag (wer eine
+           andere Person einträgt oder entfernt, bleibt drin); Rückgängig einer Aktion ohne Historie bleibt still
+           (gilt auch für Markierungen)
+     - [x] Große Bildschirme: Listenspalte wächst mit (400/440/500 px), Detail mittig bis 760 bzw. 880 px;
+           Profil und Verwaltung mittig bis 720 px
+     - [x] Einheitlich „Fürs Plenum markieren“ / „Fürs Plenum markiert“ (Wissen und Termine hießen „Markieren“)
+     - [x] „⋯“ an der Aufgabe öffnet ein Menü mit „Archivieren“; Bestätigung nur bei Kommentaren (wie WF-AUF-14),
+           sonst sofort mit Rückgängig
+     - [x] Kein Schalter „Auch eigene Statusänderungen“: eigene Statusänderungen werden nie gemeldet
+           (members.notify_own_status entfällt im Datenvertrag; in der Datenbank gab es die Spalte nie)
 3. [ ] Netlify-Variablen setzen, Mitglieder importieren (`npm run db:import-members`), Push = Produktions-Deploy
 4. [ ] Nach dem Deploy: Telegram-Webhook, cron-job.org (Nutzerin), Test-Checkliste; Abweichung von 10.7 (keine Vorschau
        mit Beispieldaten, es gibt nur ein Supabase-Projekt) von der Nutzerin freigegeben
@@ -439,7 +450,7 @@ Zur Durchsicht (Schritt B); geklärt sein müssen sie vor Schritt C.
 | A64 | 19.10.2026 | Was macht einen Serientermin zur Ausnahme (is_exception)?                                                                                                   | bestätigt | Jede Einzeländerung oder Absage über „Nur dieser Termin“. Ausnahmen lassen spätere Serienänderungen in Ruhe.                                                                                                                                                                                                                                  |
 | A65 | 19.10.2026 | Zeilen der Schalter-Matrix (F-PRO-02 „pro Ereignis“).                                                                                                       | bestätigt | Wie im Prototyp: Zuweisung, Kommentar, Statusänderung, Blockade aufgehoben, Frist (vorher, am Tag, überfällig), Termine (Einladung, Erinnerungen, Änderung), Plenum-Zusammenfassung. Eine Zeile schaltet alle ihre Ereignisse zusammen.                                                                                                       |
 | A66 | 19.10.2026 | Voreinstellung der Matrix: Der Prototyp zeigt gemischte Beispielwerte.                                                                                      | bestätigt | Alles an, wie die festen Voreinstellungen bis P6 (6.1); eigene Statusänderungen aus (6.2).                                                                                                                                                                                                                                                    |
-| A67 | 19.10.2026 | „Eigene Statusänderungen einschaltbar“ (6.2): wo?                                                                                                           | bestätigt | Eigener Schalter unter der Matrix, gilt für beide Kanäle (members.notify_own_status).                                                                                                                                                                                                                                                         |
+| A67 | 19.10.2026 | „Eigene Statusänderungen einschaltbar“ (6.2): wo?                                                                                                           | bestätigt | Aufgehoben am 24.10.2026: kein Schalter, eigene Statusänderungen werden nie gemeldet.                                                                                                                                                                                                                                                         |
 | A68 | 19.10.2026 | „Geänderte Einstellungen greifen sofort“ (Abnahme P6).                                                                                                      | bestätigt | Abschalten nimmt auch Nachrichten zurück, die noch auf den nächsten Joblauf warten; Einschalten liefert nichts nach.                                                                                                                                                                                                                          |
 | A69 | 19.10.2026 | Telegram-Buttons ohne echtes Telegram (Schritt A).                                                                                                          | bestätigt | Die Demo-Werkzeuge im Profil zeigen unter jeder Telegram-Nachricht ihre Buttons; die Antwort des Bots erscheint als Hinweisleiste. In Schritt C ruft der Webhook dieselbe Server-Logik auf.                                                                                                                                                   |
 | A70 | 19.10.2026 | „Passt nicht“: Wer zugewiesen hat, „wird benachrichtigt“ – mit welcher Nachricht?                                                                           | bestätigt | Eigene Nachrichtenart „Zuweisung abgelehnt“ ohne Buttons, in der Matrix unter „Zuweisung“; nicht bei Selbsteintragung.                                                                                                                                                                                                                        |
@@ -522,6 +533,10 @@ Offen, nicht dringlich:
   Zeitzone des Browsers (nur außerhalb deutscher Zeit ein Unterschied).
 
 ## Entscheidungsprotokoll
+
+Nachtrag 24.10.2026 (Nutzerin): Historie nur mit dem, was für andere relevant ist (selbst folgen/entfolgen ohne
+Eintrag); eigene Statusänderungen nie melden, Schalter entfällt (hebt A67 auf); einheitlich „Fürs Plenum markieren“;
+„⋯“ an der Aufgabe als Menü; große Bildschirme besser nutzen. ANFORDERUNGEN.md im Auftrag der Nutzerin angepasst.
 
 Nachtrag 22.10.2026 abends (Nutzerin): Die Regel „erst das ganze Frontend, dann Server, Deploy erst am Ende“
 (Abschnitt 10, Stand 12.10.2026) ist aufgehoben: erst Deploy (Abschluss 10.7 für P1 bis P5), dann Phase 6.

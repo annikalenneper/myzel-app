@@ -417,6 +417,8 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
       .set({ version: entity.version + 1, updated_at: iso(ctx) })
       .where('id', '=', entity.id)
       .execute();
+  // was ohne Historie geschah (Markierung, selbst folgen), wird auch still zurückgenommen
+  if ((record.history_ids as string[]).length === 0) return;
   await writeHistory(ctx, entityType, entity.id, 'undo', {
     ...changes,
     undone: { old: record.label, new: null },

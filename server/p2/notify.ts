@@ -64,10 +64,8 @@ export async function enqueue(
   messages: readonly Message[],
   collect?: string[],
 ): Promise<number> {
-  // eigene Statusänderungen erst mit den Einstellungen ab P6 (6.2)
-  const wanted = messages.filter((m) => !m.own);
-  if (wanted.length === 0) return 0;
-  const memberIds = [...new Set(wanted.map((m) => m.member_id))];
+  if (messages.length === 0) return 0;
+  const memberIds = [...new Set(messages.map((m) => m.member_id))];
   const [active, push, telegram] = await Promise.all([
     trx
       .selectFrom('members')
@@ -83,7 +81,7 @@ export async function enqueue(
   const hasPush = new Set(push.map((r) => r.member_id));
   const hasTelegram = new Set(telegram.map((r) => r.member_id));
   // je Anlass nur einmal: wer später einen weiteren Kanal einschaltet, bekommt nichts nachgeliefert
-  const allKeys = wanted.flatMap((m) => NOTIFICATION_CHANNELS.map((c) => `${m.dedupe_key}:${c}`));
+  const allKeys = messages.flatMap((m) => NOTIFICATION_CHANNELS.map((c) => `${m.dedupe_key}:${c}`));
   const known = new Set<string>();
   for (const part of chunks(allKeys)) {
     const rows = await trx
@@ -94,7 +92,7 @@ export async function enqueue(
     for (const r of rows) known.add(r.dedupe_key.slice(0, r.dedupe_key.lastIndexOf(':')));
   }
   const rows = [];
-  for (const m of wanted) {
+  for (const m of messages) {
     if (!isActive.has(m.member_id) || known.has(m.dedupe_key)) continue;
     known.add(m.dedupe_key);
     const channels: NotificationChannel[] = [];
@@ -487,7 +485,6 @@ export async function notificationSettings(
     // [P6] Schalter-Matrix: bis dahin alles an
     matrix: NOTIFICATION_GROUPS.map((g) => ({ key: g.key, push: true, telegram: true })),
     reminder_lead_days: ctx.actor.reminder_lead_days,
-    own_status: false,
   };
 }
 

@@ -48,9 +48,6 @@
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "notify_own_status": {
-            "type": "boolean"
-          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -87,7 +84,6 @@
           "active",
           "is_system",
           "reminder_lead_days",
-          "notify_own_status",
           "created_at",
           "updated_at",
           "created_by",

@@ -32,7 +32,7 @@ function runMeta(run: JobRun): string {
 export function SystemStatus() {
   const { data: status, error, reload } = useData('system-status', () => api.getSystemStatus());
   return (
-    <div className="mx-auto max-w-[560px] lg:mx-0">
+    <div className="mx-auto max-w-[560px] lg:max-w-[720px]">
       <BarOffset px={24} />
       <AdminTopBar />
       <div data-wf="WF-ADM-07" className="flex flex-col gap-4 px-5 pb-24">

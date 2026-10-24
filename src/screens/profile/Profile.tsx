@@ -58,7 +58,7 @@ export function Profile() {
   ];
 
   return (
-    <div className="mx-auto flex max-w-[560px] flex-col gap-[18px] px-5 pt-6 pb-[140px] lg:mx-0 lg:pb-10">
+    <div className="mx-auto flex max-w-[560px] flex-col gap-[18px] px-5 pt-6 pb-[140px] lg:max-w-[720px] lg:pb-10">
       <BarOffset px={92} />
       <div className="flex items-center gap-3.5">
         <Avatar member={me} size={56} fontSize={18} />

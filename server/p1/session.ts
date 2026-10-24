@@ -3,10 +3,7 @@
 // Wer nicht auf der Mitgliederliste steht oder deaktiviert ist, bekommt keinen Zugriff.
 import type { Kysely } from 'kysely';
 import type { Session } from '../../src/data/api';
-import type { Member } from '../../src/shared/schema';
-import type { Database, MemberRow } from '../db/types';
-
-const toMember = (row: MemberRow): Member => ({ ...row, notify_own_status: false });
+import type { Database } from '../db/types';
 
 export async function sessionFor(
   db: Kysely<Database>,
@@ -21,7 +18,7 @@ export async function sessionFor(
     .executeTakeFirst();
   if (linked)
     return linked.active
-      ? { state: 'member', member: toMember(linked) }
+      ? { state: 'member', member: linked }
       : { state: 'no_access', email: linked.email ?? '' };
   if (!login.email) return { state: 'no_access', email: '' };
   // erster Login: Mitglied mit dieser Mail, das noch mit keinem Login verknüpft ist – oder gerade eben von einer
@@ -34,6 +31,6 @@ export async function sessionFor(
     .where('is_system', '=', false)
     .returningAll()
     .executeTakeFirst();
-  if (byEmail?.active) return { state: 'member', member: toMember(byEmail) };
+  if (byEmail?.active) return { state: 'member', member: byEmail };
   return { state: 'no_access', email: login.email };
 }
