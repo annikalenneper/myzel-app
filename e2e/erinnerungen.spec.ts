@@ -1,6 +1,6 @@
-// Phase 2 – Erinnerungen: S-50 (WF-PRO-02, WF-PRO-03), S-54 (WF-ADM-07), WF-ALL-04
+// Phase 2 – Erinnerungen: S-50 (WF-PRO-02, WF-PRO-03), S-54 (WF-ADM-07)
 import { expect, test } from '@playwright/test';
-import { login, openTask } from './helpers';
+import { login } from './helpers';
 
 test('WF-PRO-02: Push für dieses Gerät an und aus, mit Erklärung davor', async ({ page }) => {
   await login(page);
@@ -62,28 +62,4 @@ test('Systemstatus sehen nur Admins', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Systemstatus' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Jule' })).toBeVisible();
   await expect(page.getByRole('link', { name: /Systemstatus/ })).toHaveCount(0);
-});
-
-test('Zuweisung erreicht die Person; Antippen der Nachricht öffnet die Aufgabe (WF-ALL-04)', async ({
-  page,
-}) => {
-  await login(page);
-  await openTask(page, 'Vereinshaftpflicht verlängern');
-  await page.getByRole('button', { name: 'Bearbeitende hinzufügen' }).click();
-  await page.getByRole('dialog', { name: 'Wer bearbeitet?' }).getByRole('checkbox', { name: /Jule/ }).click();
-  await expect(page.getByRole('button', { name: 'Bearbeitende entfernen: Jule' })).toBeVisible();
-  await page.goto('/profil');
-  await page.getByTestId('WF-LOG-03').click();
-  await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
-
-  await login(page, 'Jule');
-  await page.goto('/profil');
-  const message = page
-    .getByTestId('WF-ALL-04')
-    .filter({ hasText: 'Du bist jetzt bei „Vereinshaftpflicht verlängern“ eingetragen.' });
-  await expect(message).toHaveCount(2); // Push und Telegram
-  await message.first().click();
-  await expect(
-    page.getByRole('button', { name: /Titel bearbeiten: Vereinshaftpflicht verlängern/ }),
-  ).toBeVisible();
 });

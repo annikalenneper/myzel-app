@@ -12,10 +12,6 @@ const openDrive = async (page: Page) => {
 const list = (page: Page) => page.getByRole('list', { name: 'Drive-Inhalt' });
 const path = (page: Page) => page.getByRole('navigation', { name: 'Ordnerpfad' });
 const folder = (page: Page, name: string) => list(page).getByRole('button', { name: new RegExp(`^${name}`) });
-const demo = async (page: Page, action: string) => {
-  await page.goto('/profil');
-  await page.getByRole('button', { name: new RegExp(`^${action}`) }).click();
-};
 
 test('WF-WIS-08 / -10: Ordner öffnen, Pfad, Dateien öffnen in Drive, Suche, „Zuletzt“, neu einlesen', async ({
   page,
@@ -159,8 +155,7 @@ test('WF-VER-14: Drive-Ordner der Veranstaltung – Inhalt aus dem Cache, änder
 
 test('Abgleich: neue Datei im Drive erscheint beim nächsten Öffnen', async ({ page }) => {
   await login(page);
-  await demo(page, 'Datei im Drive anlegen');
-  await expect(page.getByTestId('WF-ALL-02')).toContainText('Im Drive angelegt: Neue Notiz 1');
+  expect(await page.evaluate(() => window.__myzelDemo!.driveAddFile())).toBe('Neue Notiz 1');
   await page.goto('/wissen/drive/drive-winterrave');
   await expect(list(page).getByRole('link', { name: /Neue Notiz 1/ })).toBeVisible();
   await expect(page.getByText(/^Abgeglichen gerade eben$/i)).toBeVisible();
@@ -168,8 +163,7 @@ test('Abgleich: neue Datei im Drive erscheint beim nächsten Öffnen', async ({ 
 
 test('Abgleich: in Drive gelöschte verknüpfte Datei bleibt mit Hinweis sichtbar', async ({ page }) => {
   await login(page);
-  await demo(page, 'Verknüpfte Datei im Drive löschen');
-  await expect(page.getByTestId('WF-ALL-02')).toContainText('Im Drive gelöscht: Code of Conduct');
+  expect(await page.evaluate(() => window.__myzelDemo!.driveTrashLinkedFile())).toBe('Code of Conduct');
   await page.goto('/wissen/drive');
   await expect(path(page)).toHaveText('Myzel Drive');
   await page.getByRole('tab', { name: 'Dokumente' }).click();

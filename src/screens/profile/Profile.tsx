@@ -10,14 +10,13 @@ import { api } from '../../data';
 import { isJobOverdue } from '../../shared/rules/notifications';
 import { Avatar, cx, FieldError } from '../../ui/bits';
 import { IconEdit } from '../../ui/icons';
-import { DemoPanel } from './DemoPanel';
 import { NotificationMatrix } from './NotificationMatrix';
 import { Reachability } from './Reachability';
 import { formatSince } from './SystemStatus';
 
 export function Profile() {
   const me = useMe();
-  const { run, notify } = useFeedback();
+  const { run } = useFeedback();
   const { activeMembers, topics } = useLookups();
   const { setFilter } = useTaskFilter();
   const [name, setName] = useState<string | null>(null);
@@ -163,8 +162,6 @@ export function Profile() {
           <span className="font-mono text-[12px] text-leise">›</span>
         </Link>
       </div>
-
-      {api.demo && <DemoPanel demo={api.demo} notify={notify} />}
 
       {/* WF-LOG-03 Abmelden */}
       <button

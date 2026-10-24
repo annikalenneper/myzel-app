@@ -59,13 +59,13 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
     endpoint: `https://fcm.googleapis.com/fcm/send/${crypto.randomUUID()}`,
     keys: TEST_PUSH_KEYS,
   };
-  let db = await freshDb(now());
+  const db = await freshDb(now());
   const newDrive = () => {
     const created = seedDrive(now());
     options.onDrive?.(created);
     return created;
   };
-  let drive = newDrive();
+  const drive = newDrive();
   const listeners = new Set<() => void>();
   /** wie Supabase Auth: je Mail-Adresse eine feste Login-ID, die beim ersten Login entsteht */
   const authIds = new Map<string, string>();
@@ -189,11 +189,6 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
       failNextWrites(n) {
         failWrites = n;
       },
-      async reset() {
-        db = await freshDb(now());
-        drive = newDrive();
-        emit();
-      },
       async completeTelegramLink() {
         const me = await resolveActor(db, authUserId);
         const code = await db
@@ -221,7 +216,6 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
         else await notify.runJob(db, now(), delivered);
         emit();
       },
-      outage: () => false,
       async driveAddFile() {
         await resolveActor(db, authUserId);
         const n = drive.items.filter((i) => i.file_id.startsWith('drive-neu-')).length;

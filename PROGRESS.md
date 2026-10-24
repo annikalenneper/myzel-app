@@ -38,6 +38,11 @@ Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
            sonst sofort mit Rückgängig
      - [x] Frage-Detail in Wissen: Hinweis „Im Plenum geklärt, wird das Plenum automatisch zur Quelle“ klang, als
            ginge Klären nur im Plenum – jetzt „Klären geht jederzeit hier, nicht nur im Plenum …“
+     - [x] Demo: Bereich „Vorschau mit Testdaten“ im Profil restlos entfernt (Nachrichtenliste mit Telegram-Buttons,
+           Netzfehler, fremde Änderung, Joblauf, Ausfall, Drive-Datei anlegen/löschen, Export, Zurücksetzen); die
+           Werkzeuge bleiben nur für die Tests (window.__myzelDemo), „Zurücksetzen“ entfällt ganz. E2E telegram.spec und
+           der WF-ALL-04-Test über die Nachrichtenliste entfallen; die Telegram-Logik prüfen weiter die Unit-Tests.
+           Prototyp S-41: Hinweis wie in der App
      - [x] Kein Schalter „Auch eigene Statusänderungen“: eigene Statusänderungen werden nie gemeldet
            (members.notify_own_status entfällt im Datenvertrag; in der Datenbank gab es die Spalte nie)
 3. [ ] Netlify-Variablen setzen, Mitglieder importieren (`npm run db:import-members`), Push = Produktions-Deploy

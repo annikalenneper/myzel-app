@@ -473,14 +473,6 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
           if (on && ctx.db.job_runs.length === 0) notify.runJob(ctx.db, new Date(cutoff - 60_000));
         });
       },
-      outage,
-      async reset() {
-        memoryOutage = false;
-        storage?.removeItem(OUTAGE_KEY);
-        db = seedDb(now());
-        storage?.setItem(DB_KEY, JSON.stringify(db));
-        emit();
-      },
     },
   };
 }

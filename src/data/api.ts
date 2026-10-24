@@ -367,7 +367,6 @@ export interface DemoTools {
   simulateForeignEdit(taskId: string): Promise<void>;
   /** Die nächsten n Schreibzugriffe scheitern mit einem Netzfehler. */
   failNextWrites(n: number): void;
-  reset(): Promise<void>;
   /** Was der Telegram-Bot nach „Start“ tut: den offenen Einmal-Code einlösen */
   completeTelegramLink(): Promise<void>;
   /** Nachrichten an die eingeloggte Person – ersetzt Handy und Telegram */
@@ -376,7 +375,6 @@ export interface DemoTools {
   runJobNow(): Promise<void>;
   /** Ausfall der Jobläufe zeigen bzw. beenden (Warnung nach 2 Stunden) */
   setOutage(on: boolean): Promise<void>;
-  outage(): boolean;
   /** Jemand legt im Vereins-Drive eine Datei an – die App sieht sie nach dem nächsten Abgleich. Gibt den Namen. */
   driveAddFile(): Promise<string>;
   /** Jemand löscht eine verknüpfte Datei im Drive („In Drive nicht mehr vorhanden“). Gibt den Namen. */
