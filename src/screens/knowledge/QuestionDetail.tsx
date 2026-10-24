@@ -108,7 +108,7 @@ function Loaded({ q }: { q: Detail }) {
       </div>
 
       {open && (
-        <ActionBar hint="Im Plenum geklärt, wird das Plenum automatisch zur Quelle.">
+        <ActionBar hint="Klären geht jederzeit hier, nicht nur im Plenum. Wird daraus eine Entscheidung oder ein Fakt, reicht eine Notiz als Quelle.">
           {/* WF-FRA-02 Klären außerhalb des Plenums */}
           <button
             type="button"

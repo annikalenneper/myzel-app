@@ -36,6 +36,8 @@ Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
      - [x] Einheitlich „Fürs Plenum markieren“ / „Fürs Plenum markiert“ (Wissen und Termine hießen „Markieren“)
      - [x] „⋯“ an der Aufgabe öffnet ein Menü mit „Archivieren“; Bestätigung nur bei Kommentaren (wie WF-AUF-14),
            sonst sofort mit Rückgängig
+     - [x] Frage-Detail in Wissen: Hinweis „Im Plenum geklärt, wird das Plenum automatisch zur Quelle“ klang, als
+           ginge Klären nur im Plenum – jetzt „Klären geht jederzeit hier, nicht nur im Plenum …“
      - [x] Kein Schalter „Auch eigene Statusänderungen“: eigene Statusänderungen werden nie gemeldet
            (members.notify_own_status entfällt im Datenvertrag; in der Datenbank gab es die Spalte nie)
 3. [ ] Netlify-Variablen setzen, Mitglieder importieren (`npm run db:import-members`), Push = Produktions-Deploy
