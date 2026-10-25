@@ -7,6 +7,10 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Chrome ordnet die Teile des Datumsfelds nach der Systemsprache – deutsch wie auf den Geräten des Vereins
+    env:
+      LANG: de_DE.UTF-8
+      LANGUAGE: de_DE
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
