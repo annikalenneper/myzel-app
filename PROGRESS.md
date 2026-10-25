@@ -8,7 +8,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 **Aktuell: Umbau 10/2026, Phase 0.** Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
 
-- [ ] **Phase 0 – Ordnung und Messung:** PROGRESS.md neu, ANFORDERUNGEN.md Abschnitt 16, `Server-Timing` je Anfrage;
+- [x] **Phase 0 – Ordnung und Messung:** PROGRESS.md neu, ANFORDERUNGEN.md Abschnitt 16, `Server-Timing` je Anfrage;
       Messung live je Hauptansicht (Werte unten unter _Messungen_)
 - [ ] **Phase 1 – Ladezeit:** Login lokal prüfen (JWT/JWKS), Function-Region EU prüfen, teure Lese-Aktionen
       zusammenziehen, Lese-Bündel je Ansicht, Browser-Cache mit gezieltem Neuladen
@@ -28,8 +28,26 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Messungen
 
-| Datum | Ansicht / Aktion | Gesamt | Login | Aktor | Aktion | Abfragen | Bemerkung |
-| ----- | ---------------- | ------ | ----- | ----- | ------ | -------- | --------- |
+Live am 25.10.2026 (Deploy defc1e1), typische Werte je Anfrage aus dem Netlify-Log. Function läuft in us-east-2
+(Ohio, Free-Tarif), Datenbank in eu-west-1 (Irland): **jede Abfrage kostet rund 87 ms**, und sie laufen nacheinander.
+
+| Aktion           | Gesamt  | Login      | Aktion  | DB      | Abfragen |
+| ---------------- | ------- | ---------- | ------- | ------- | -------- |
+| getSession       | 430 ms  | 340 ms     | 90 ms   | 87 ms   | 1        |
+| listMembers      | 520 ms  | 340 ms     | 180 ms  | 175 ms  | 2        |
+| listTopics       | 590 ms  | 330 ms     | 265 ms  | 265 ms  | 3        |
+| listLinkedDocs   | 680 ms  | 330 ms     | 350 ms  | 350 ms  | 4        |
+| listEvents       | 780 ms  | 340 ms     | 435 ms  | 435 ms  | 5        |
+| listTasks        | 950 ms  | 335 ms     | 620 ms  | 620 ms  | 7        |
+| listAppointments | 1050 ms | 340 ms     | 700 ms  | 700 ms  | 8        |
+| getTask          | 1230 ms | 345 ms     | 880 ms  | 875 ms  | 10       |
+| setTaskStatus    | 1900 ms | 130–310 ms | 1700 ms | 1700 ms | 19–20    |
+
+- Kaltstart: zusätzlich rund 600 ms für den Verbindungsaufbau (Aktion ≫ DB, z. B. listTopics 845 ms bei 267 ms DB).
+- Login-Prüfung (`auth.getUser`) kostet je Anfrage 130–520 ms, meist rund 340 ms.
+- Eine Ansicht lädt 4–6 Aktionen parallel; nach jeder Änderung laden alle offenen Ansichten neu (setTaskStatus +
+  listTasks + getTask + Nachschlagedaten ≈ 3 s, bis die Oberfläche wieder ruhig ist).
+- Größter Hebel: Function näher an die Datenbank (EU) – dann wenige ms je Abfrage. Danach: Login lokal prüfen.
 
 ## Offene Fragen und Annahmen
 
