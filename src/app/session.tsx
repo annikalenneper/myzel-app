@@ -4,13 +4,14 @@ import { api } from '../data';
 import type { Session } from '../data/api';
 import type { Member } from '../shared/schema';
 import { LoadError } from '../ui/bits';
-import { useData } from './useData';
+import { setDataOwner, useData } from './useData';
 
 const SessionContext = createContext<Session | undefined>(undefined);
 const MemberContext = createContext<Member | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const { data, error, reload } = useData('session', () => api.getSession());
+  if (data) setDataOwner(data.state === 'member' ? data.member.id : data.state);
   if (!data && error)
     return (
       <div className="flex min-h-dvh items-center justify-center">
