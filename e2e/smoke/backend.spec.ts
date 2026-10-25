@@ -261,6 +261,17 @@ test('Demo neben dem echten Backend: Testdaten nur im Browser, mit Hinweisband, 
   await expect(
     page.getByRole('article').filter({ hasText: 'Location für Winterrave bestätigen' }).first(),
   ).toBeVisible();
+  // Zurücksetzen holt den Ausgangsstand zurück
+  const mark = page
+    .getByRole('article')
+    .filter({ hasText: 'Getränke bei der Brauerei' })
+    .first()
+    .getByTestId('WF-AUF-02');
+  await expect(mark).toHaveAttribute('aria-pressed', 'false');
+  await mark.click();
+  await expect(mark).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-demo="reset"]').click();
+  await expect(mark).toHaveAttribute('aria-pressed', 'false');
   // ein neuer Tab beginnt mit der echten Anmeldung
   const fresh = await page.context().newPage();
   await fresh.goto('/anmelden');

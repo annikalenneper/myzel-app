@@ -386,6 +386,8 @@ export interface DemoTools {
   telegramPress(outboxId: string, button: TelegramButtonKey): Promise<{ ok: boolean; text: string }>;
   /** Der nächtliche Export [P6] (E-08) als YAML – in Schritt C schreibt ihn der Joblauf ins private Repo */
   exportYaml(): Promise<string>;
+  /** Testdaten auf den Ausgangsstand (Hinweisband der Demo); nur die Testdaten-Schicht im Browser */
+  reset?(): Promise<void>;
 }
 
 export interface MyzelApi {

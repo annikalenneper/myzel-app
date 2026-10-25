@@ -461,6 +461,13 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
           true,
         );
       },
+      async reset() {
+        memoryOutage = false;
+        storage?.removeItem(OUTAGE_KEY);
+        db = seedDb(now());
+        storage?.setItem(DB_KEY, JSON.stringify(db));
+        emit();
+      },
       async setOutage(on) {
         memoryOutage = on;
         if (on) storage?.setItem(OUTAGE_KEY, '1');
