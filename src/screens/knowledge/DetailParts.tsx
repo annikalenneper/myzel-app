@@ -11,39 +11,49 @@ import { cx } from '../../ui/bits';
 import { IconBack, IconBookmark } from '../../ui/icons';
 import { useModal } from '../../ui/Sheet';
 
+/** Wohin „Zurück“ führt: aus Wissen nach Wissen, aus der Agenda zur Agenda */
+export interface BackTarget {
+  to: string;
+  label: string;
+}
+export const BACK_TO_KNOWLEDGE: BackTarget = { to: '/wissen', label: 'Wissen' };
+export const BACK_TO_AGENDA: BackTarget = { to: '/agenda', label: 'Agenda' };
+
 export function DetailTopBar({
   label,
-  mark,
+  back = BACK_TO_KNOWLEDGE,
+  agenda,
 }: {
   label: string;
-  /** Markierung „Fürs Plenum“ (WF-WIS-05) – nur bei gültigen bzw. offenen Einträgen */
-  mark?: { marked: boolean; onToggle: () => void };
+  back?: BackTarget;
+  /** Entscheidung oder Fakt auf die Agenda setzen (WF-AGE-03) – nur bei gültigen Einträgen */
+  agenda?: { on: boolean; onToggle: () => void };
 }) {
   return (
     <div className="sticky top-0 z-10 flex h-[60px] flex-none items-center gap-1 bg-grund px-3">
       <Link
-        to="/wissen"
-        aria-label="Zurück zu Wissen"
+        to={back.to}
+        aria-label={`Zurück zu ${back.label}`}
         className="flex size-11 items-center justify-center text-text"
       >
         <IconBack />
       </Link>
       <span className="font-mono text-[13px] text-leise uppercase">{label}</span>
       <span className="flex-1" />
-      {mark && (
+      {agenda && (
         <button
           type="button"
-          data-wf="WF-WIS-05"
-          onClick={mark.onToggle}
-          aria-pressed={mark.marked}
-          aria-label={mark.marked ? 'Markierung „Fürs Plenum“ entfernen' : 'Fürs Plenum markieren'}
+          data-wf="WF-AGE-03"
+          onClick={agenda.onToggle}
+          aria-pressed={agenda.on}
+          aria-label={agenda.on ? 'Von der Agenda nehmen' : 'Auf die Agenda setzen'}
           className={cx(
             'hit mr-2 flex h-[34px] items-center gap-1.5 rounded-[17px] border px-3 font-mono text-[12px] whitespace-nowrap',
-            mark.marked ? 'border-pink text-pink' : 'border-rand text-leise',
+            agenda.on ? 'border-pink text-pink' : 'border-rand text-leise',
           )}
         >
-          <IconBookmark filled={mark.marked} size={14} />
-          {mark.marked ? 'Fürs Plenum markiert' : 'Fürs Plenum markieren'}
+          <IconBookmark filled={agenda.on} size={14} />
+          {agenda.on ? 'Auf der Agenda' : 'Auf die Agenda'}
         </button>
       )}
     </div>
@@ -106,12 +116,12 @@ export function ActionBar({ hint, children }: { hint?: string; children: ReactNo
   );
 }
 
-export function NotFound({ text }: { text: string }) {
+export function NotFound({ text, back = BACK_TO_KNOWLEDGE }: { text: string; back?: BackTarget }) {
   return (
     <div data-wf="WF-ALL-05" className="flex flex-col items-center gap-3 py-10 text-center">
       <span className="text-[16px] font-semibold">{text}</span>
-      <Link to="/wissen" className="hit text-[14px] text-pink">
-        Zu Wissen
+      <Link to={back.to} className="hit text-[14px] text-pink">
+        Zu {back.label}
       </Link>
     </div>
   );

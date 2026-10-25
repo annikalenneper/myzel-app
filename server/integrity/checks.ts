@@ -52,32 +52,13 @@ export const CHECKS: IntegrityCheck[] = [
       select distinct ${task} || ' hängt über einen Kreis von sich selbst ab' as label
       from path p join tasks t on t.id = p.start_id where p.task_id = p.start_id`,
   },
-  {
-    name: 'Markierung „Fürs Plenum“ nur an aktiven Aufgaben',
-    level: 'fehler',
-    query: sql`select ${task} || ' (' || t.status || ')' as label
-      from plenum_marks pm join tasks t on t.id = pm.task_id
-      where t.archived_at is not null or t.status not in (${active})`,
-  },
   // ── Phase 3: Plenum-Zyklus ──
   {
-    name: 'Markierung „Fürs Plenum“ nur an offenen Fragen, gültigen Einträgen, laufenden Veranstaltungen und geplanten Terminen',
+    name: 'Auf der Agenda nur gültige Entscheidungen und Fakten',
     level: 'fehler',
-    query: sql`select x.art || ' „' || x.name || '“ (' || x.status || ')' as label from (
-        select 'Frage' as art, q.title as name, q.status from plenum_marks pm join questions q on q.id = pm.question_id
-          where q.archived_at is not null or q.status <> 'offen'
-        union all select 'Eintrag', d.title, d.status from plenum_marks pm join decisions d on d.id = pm.decision_id
-          where d.archived_at is not null or d.status <> 'gueltig'
-        union all select 'Veranstaltung', e.title, e.status from plenum_marks pm join events e on e.id = pm.event_id
-          where e.archived_at is not null or e.status in ('abgeschlossen', 'abgesagt')
-        union all select 'Termin', a.title, a.status from plenum_marks pm join appointments a on a.id = pm.appointment_id
-          join appointment_types ty on ty.id = a.type_id
-          where a.archived_at is not null or a.status <> 'geplant' or ty.has_plenum_features
-        union all select 'Dokument', d.title, 'archiviert' from plenum_marks pm join documents d on d.id = pm.document_id
-          where d.archived_at is not null
-        union all select 'Partner', p.name, 'archiviert' from plenum_marks pm join partners p on p.id = pm.partner_id
-          where p.archived_at is not null
-      ) x`,
+    query: sql`select 'Eintrag „' || d.title || '“ (' || d.status || ')' as label
+      from plenum_marks pm join decisions d on d.id = pm.decision_id
+      where d.archived_at is not null or d.status <> 'gueltig'`,
   },
   {
     name: 'Quelle „Plenum“ und Herkunft aus dem Plenum zeigen auf einen Plenum-Termin',

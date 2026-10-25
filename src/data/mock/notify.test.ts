@@ -70,7 +70,7 @@ describe('Fristerinnerungen (6.2)', () => {
   it('nennen Titel und Datum und führen direkt zur Aufgabe', () => {
     const [m] = dueReminderMessages([item('2026-10-14')], '2026-10-11');
     expect(m!.text).toBe('„Getränke bestellen“ muss bis 14.10. erledigt sein – noch 3 Tage.');
-    expect(m!.link).toBe('/aufgaben/t');
+    expect(m!.link).toBe('/agenda/t');
   });
 
   it('haben je Anlass denselben Schlüssel – an jedem Tag des Vorlaufs', () => {
@@ -96,7 +96,7 @@ describe('Ereignisse und Outbox (6.1, 6.2)', () => {
     const jule = (await messages('jule')).filter((m) => m.event_type === 'zuweisung');
     expect(jule.map((m) => m.channel).sort()).toEqual(['push', 'telegram']);
     expect(jule[0]!.text).toBe('Du bist jetzt bei „Kabel kaufen“ eingetragen. Frist: 14.11.');
-    expect(jule[0]!.link).toBe(`/aufgaben/${id}`);
+    expect(jule[0]!.link).toBe(`/agenda/${id}`);
     expect((await api.demo!.myMessages()).some((m) => m.event_type === 'zuweisung')).toBe(false);
   });
 

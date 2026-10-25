@@ -1,4 +1,4 @@
-// Phase 3 – Wissen: S-40 bis S-44 (WF-WIS-01 bis -07, -11, WF-FRA-01 bis -03, WF-VER-06, WF-AUF-13)
+// Phase 3 – Wissen: S-40 bis S-44 (WF-WIS-01 bis -04, -06, -07, -11, WF-FRA-01 bis -03, WF-AGE-03, WF-AUF-13)
 import { expect, test, type Page } from '@playwright/test';
 import { login, openTask, undoBar } from './helpers';
 
@@ -13,35 +13,37 @@ const open = async (page: Page) => {
 };
 const card = (page: Page, title: string) => page.getByRole('article').filter({ hasText: title });
 
-test('WF-WIS-04: Beschlüsse – Standard nur gültige; Filter Art, Status, Thema kombinierbar', async ({
+test('WF-WIS-04: Reiter Entscheidungen und Fakten – Standard nur gültige; Filter Status und Thema', async ({
   page,
 }) => {
   await open(page);
-  await expect(page.getByText('5 Einträge')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Entscheidungen' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Fragen' })).toHaveCount(0);
+  await expect(page.getByText('4 Einträge')).toBeVisible();
   await expect(card(page, 'Mate am Tresen für 2 €')).toHaveCount(0);
+  await expect(card(page, 'Unser Code of Conduct gilt für alle Veranstaltungen')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Art ▾' }).click();
-  await page.getByRole('group', { name: 'Art' }).getByRole('button', { name: 'Nur Fakten' }).click();
+  await page.getByRole('tab', { name: 'Fakten' }).click();
   await expect(page.getByText('1 Eintrag')).toBeVisible();
   await expect(card(page, 'Unser Code of Conduct gilt für alle Veranstaltungen')).toBeVisible();
-
   await page.getByRole('button', { name: 'Gültig ▾' }).click();
   await page.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'Alle' }).click();
   await expect(page.getByText('2 Einträge')).toBeVisible();
   await page.getByRole('button', { name: 'Filter zurücksetzen' }).click();
-  await expect(page.getByText('5 Einträge')).toBeVisible();
+  await expect(page.getByText('1 Eintrag')).toBeVisible();
 
+  await page.getByRole('tab', { name: 'Entscheidungen' }).click();
   await page.getByRole('button', { name: 'Gültig ▾' }).click();
   await page.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'Ersetzt' }).click();
   const old = card(page, 'Mate am Tresen für 2 €');
   await expect(old).toContainText('→ ersetzt durch: Mate am Tresen für 2,50 €');
-  // nur gültige sind markierbar
-  await expect(old.getByTestId('WF-WIS-05')).toHaveCount(0);
+  // nur gültige lassen sich auf die Agenda setzen
+  await expect(old.getByTestId('WF-AGE-03')).toHaveCount(0);
 });
 
 test('WF-WIS-01: Entscheidung festhalten geht nur mit Quelle', async ({ page }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Entscheidung oder Fakt anlegen' }).click();
+  await page.getByRole('button', { name: 'Entscheidung festhalten' }).click();
   const sheet = page.getByRole('dialog', { name: 'Neu festhalten' });
   const submit = sheet.locator('button[type=submit]');
   await sheet.getByLabel('Titel *').fill('Lagerschlüssel liegt bei Mo');
@@ -52,20 +54,21 @@ test('WF-WIS-01: Entscheidung festhalten geht nur mit Quelle', async ({ page }) 
   await expect(submit).toBeDisabled();
   await sheet.getByLabel('Notiz zur Quelle').fill('Absprache im Lager');
   await submit.click();
-  const created = card(page, 'Lagerschlüssel liegt bei Mo');
-  await expect(created).toContainText(/Fakt/i);
-  await expect(created).toContainText(/Quelle: Notiz/i);
+  // ein Fakt steht im Reiter „Fakten“
+  await expect(card(page, 'Lagerschlüssel liegt bei Mo')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Fakten' }).click();
+  await expect(card(page, 'Lagerschlüssel liegt bei Mo')).toContainText(/Quelle: Notiz/i);
 });
 
-test('WF-WIS-02 / -03 / -05: Entscheidung markieren, ersetzen (mit Rückgängig), aufheben', async ({
+test('WF-WIS-02 / -03 / WF-AGE-03: Entscheidung auf die Agenda, ersetzen (mit Rückgängig), aufheben', async ({
   page,
 }) => {
   await open(page);
   await card(page, 'Eintritt immer auch auf Spendenbasis möglich').getByRole('link').click();
   await expect(page.getByRole('link', { name: /^Plenum September/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /Protokoll Plenum September/ })).toBeVisible();
-  await page.getByRole('button', { name: 'Fürs Plenum markieren' }).click();
-  await expect(page.getByRole('button', { name: 'Markierung „Fürs Plenum“ entfernen' })).toBeVisible();
+  await page.getByRole('button', { name: 'Auf die Agenda setzen' }).click();
+  await expect(page.getByRole('button', { name: 'Von der Agenda nehmen' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Ersetzen', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Ersetzen durch …' });
@@ -74,12 +77,12 @@ test('WF-WIS-02 / -03 / -05: Entscheidung markieren, ersetzen (mit Rückgängig)
   await sheet.locator('button[type=submit]').click();
   await expect(page.getByText('→ ersetzt durch: Eintritt auf Spende, Richtwert 5–10 €')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Ersetzen', exact: true })).toHaveCount(0);
-  // die Markierung fällt weg, steht aber nicht mehr in der Historie
+  // der Eintrag geht von der Agenda – ohne eigenen Satz in der Historie
   await expect(page.getByText('Mo hat die Entscheidung ersetzt.', { exact: true })).toBeVisible();
 
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
   await expect(page.getByRole('button', { name: 'Ersetzen', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Markierung „Fürs Plenum“ entfernen' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Von der Agenda nehmen' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Aufheben', exact: true }).click();
   const ask = page.getByRole('alertdialog', { name: 'Entscheidung aufheben' });
@@ -89,22 +92,22 @@ test('WF-WIS-02 / -03 / -05: Entscheidung markieren, ersetzen (mit Rückgängig)
   await expect(page.getByText('Mo hat die Entscheidung aufgehoben. Notiz: Passt nicht mehr')).toBeVisible();
 });
 
-test('WF-FRA-01 bis -03: Frage stellen, klären als Entscheidung, verwerfen', async ({ page }) => {
-  await open(page);
-  await page.getByRole('tab', { name: 'Fragen' }).click();
-  await expect(page.getByRole('article').first()).toContainText('Machen wir an Silvester eine Party?');
-  await expect(page.getByText('Zuletzt geklärt')).toBeVisible();
+test('WF-FRA-01 bis -03: Frage auf der Agenda stellen, klären als Entscheidung, verwerfen', async ({
+  page,
+}) => {
+  await login(page);
+  const question = (title: RegExp) => page.getByRole('link', { name: title });
+  await expect(question(/Machen wir an Silvester eine Party/)).toBeVisible();
 
-  await page.getByRole('button', { name: 'Frage stellen' }).click();
+  await page.getByTestId('WF-FRA-01').filter({ hasText: '+ Frage' }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Neue Frage' });
   await sheet.getByLabel('Frage *').fill('Wer hat den Zweitschlüssel?');
   await expect(sheet.locator('button[type=submit]')).toHaveText('Thema wählen, dann stellen');
   await sheet.getByLabel('Thema *').selectOption({ label: 'Lager & Material' });
-  await expect(sheet.getByRole('checkbox', { name: /Fürs Plenum/ })).toBeChecked();
   await sheet.locator('button[type=submit]').click();
-  await expect(card(page, 'Wer hat den Zweitschlüssel?')).toContainText(/fürs Plenum/i);
+  await expect(question(/Wer hat den Zweitschlüssel/)).toBeVisible();
 
-  await card(page, 'Machen wir an Silvester eine Party?').getByRole('link').click();
+  await question(/Machen wir an Silvester eine Party/).click();
   await page.getByRole('button', { name: 'Klären' }).click();
   const clarify = page.getByRole('dialog', { name: 'Frage klären' });
   await expect(clarify.locator('button[type=submit]')).toBeDisabled();
@@ -118,9 +121,8 @@ test('WF-FRA-01 bis -03: Frage stellen, klären als Entscheidung, verwerfen', as
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Klären' })).toHaveCount(0);
 
-  await page.goto('/wissen');
-  await page.getByRole('tab', { name: 'Fragen' }).click();
-  await card(page, 'Wechseln wir zu einer anderen Bank?').getByRole('link').click();
+  await page.goto('/agenda');
+  await question(/Wechseln wir zu einer anderen Bank/).click();
   await page.getByRole('button', { name: 'Verwerfen' }).click();
   await expect(page.getByText('Verworfen. Steht weiter in der Historie.')).toBeVisible();
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
@@ -198,16 +200,4 @@ test('WF-WIS-11: globale Suche – Treffer beim Tippen, gruppiert, Gruppe des Sc
   await expect(groups.first()).toContainText(/Veranstaltungen · 1/i);
   await overlay.getByLabel('Suche über alles').fill('xyzxyz');
   await expect(overlay.getByTestId('WF-ALL-05')).toContainText('Nichts gefunden');
-});
-
-test('WF-VER-06: Veranstaltung fürs Plenum markieren; Statuswechsel entfernt die Markierung', async ({
-  page,
-}) => {
-  await login(page);
-  await page.goto('/events');
-  await page.getByRole('link', { name: /Winterrave/ }).click();
-  await page.getByRole('button', { name: 'Fürs Plenum markieren' }).click();
-  await expect(page.getByRole('button', { name: 'Markierung „Fürs Plenum“ entfernen' })).toBeVisible();
-  await page.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'Bestätigt' }).click();
-  await expect(page.getByRole('button', { name: 'Fürs Plenum markieren' })).toBeVisible();
 });

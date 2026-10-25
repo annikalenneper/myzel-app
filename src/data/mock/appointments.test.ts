@@ -164,16 +164,14 @@ describe('Bearbeiten, Absagen, Stattgefunden (WF-TER-04 bis -06, 4.3)', () => {
     await expectError(api.updateAppointment(a.id, { ...fields(a), title: 'Alt' }), 'conflict');
   });
 
-  it('sagt nur geplante Termine ab, entfernt die Markierung und sperrt danach', async () => {
+  it('sagt nur geplante Termine ab und sperrt danach', async () => {
     const a = await appointment('Vorbesprechung Winterrave mit Kollektiv Sporenflug');
-    expect(a.marked).toBe(true);
     await api.cancelAppointment(a.id, a.version);
     const cancelled = await api.getAppointment(a.id);
-    expect([cancelled.status, cancelled.marked]).toEqual(['abgesagt', false]);
+    expect(cancelled.status).toBe('abgesagt');
     await expectError(api.cancelAppointment(a.id, cancelled.version), 'rule');
     await expectError(api.updateAppointment(a.id, { ...fields(cancelled) }), 'rule');
     await expectError(api.setRsvp(a.id, 'ja'), 'rule');
-    await expectError(api.setAppointmentMark(a.id, true), 'rule');
   });
 
   it('„Hat stattgefunden“ geht erst nach Beginn; Teilnahme bleibt korrigierbar', async () => {
@@ -190,16 +188,6 @@ describe('Bearbeiten, Absagen, Stattgefunden (WF-TER-04 bis -06, 4.3)', () => {
     await api.undo(undo_token);
     const back = await api.getAppointment(a.id);
     expect([back.status, back.attendee_ids]).toEqual(['geplant', []]);
-  });
-
-  it('markiert keine Plenum-Termine fürs Plenum (7.2)', async () => {
-    const plenum = await appointment('Plenum Oktober');
-    await expectError(api.setAppointmentMark(plenum.id, true), 'rule');
-    const bautag = await appointment('Bautag Oktober');
-    const { undo_token } = await api.setAppointmentMark(bautag.id, true);
-    expect((await api.getAppointment(bautag.id)).marked).toBe(true);
-    await api.undo(undo_token);
-    expect((await api.getAppointment(bautag.id)).marked).toBe(false);
   });
 });
 

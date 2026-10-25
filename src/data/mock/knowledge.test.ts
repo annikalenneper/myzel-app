@@ -137,14 +137,14 @@ describe('Entscheidungen und Fakten (3.8, 4.5)', () => {
     ).toMatch(/Kreis/);
   });
 
-  it('aufheben und markieren gehen nur bei gültigen Einträgen', async () => {
+  it('aufheben und auf die Agenda setzen gehen nur bei gültigen Einträgen', async () => {
     const d = await decision('Unser Code of Conduct gilt für alle Veranstaltungen');
-    await api.setMark('decision', d.id, true);
+    await api.setDecisionAgenda(d.id, true);
     await api.revokeDecision(d.id, 'veraltet', d.version);
     const revoked = await api.getDecision(d.id);
     expect([revoked.status, revoked.marked]).toEqual(['aufgehoben', false]);
     await expectError(api.revokeDecision(d.id, null, revoked.version), 'rule');
-    await expectError(api.setMark('decision', d.id, true), 'rule');
+    await expectError(api.setDecisionAgenda(d.id, true), 'rule');
     await expectError(
       api.revokeDecision((await decision('Mate am Tresen für 2,50 €')).id, null, 99),
       'conflict',
@@ -153,7 +153,7 @@ describe('Entscheidungen und Fakten (3.8, 4.5)', () => {
 });
 
 describe('Offene Fragen (3.7, 4.4)', () => {
-  it('werden nach Dringlichkeit und Alter sortiert und sind beim Anlegen fürs Plenum vorausgewählt', async () => {
+  it('werden nach Dringlichkeit und Alter sortiert', async () => {
     expect(
       sortQuestions([
         { urgency: 'niedrig', created_at: '2026-01-01' },
@@ -171,7 +171,7 @@ describe('Offene Fragen (3.7, 4.4)', () => {
       topic_id: await topic('Lager & Material'),
     });
     const q = await api.getQuestion(id);
-    expect([q.status, q.urgency, q.marked]).toEqual(['offen', 'mittel', true]);
+    expect([q.status, q.urgency]).toEqual(['offen', 'mittel']);
   });
 
   it('klären verlangt eine Antwort; als Entscheidung braucht es außerhalb des Plenums eine Quelle', async () => {
@@ -196,18 +196,13 @@ describe('Offene Fragen (3.7, 4.4)', () => {
       version: q.version,
     });
     const done = await api.getQuestion(q.id);
-    expect([done.status, done.marked, done.resulting_decision?.id]).toEqual(['geklaert', false, decision_id]);
+    expect([done.status, done.resulting_decision?.id]).toEqual(['geklaert', decision_id]);
     expect((await api.getDecision(decision_id!)).description).toBe('Ja – kleine Party im Lager.');
     await expectError(api.clarifyQuestion(q.id, { answer: 'nochmal', version: done.version }), 'rule');
 
     await api.undo(undo_token);
     const back = await api.getQuestion(q.id);
-    expect([back.status, back.answer, back.marked, back.resulting_decision]).toEqual([
-      'offen',
-      null,
-      true,
-      null,
-    ]);
+    expect([back.status, back.answer, back.resulting_decision]).toEqual(['offen', null, null]);
     expect((await api.listDecisions()).some((d) => d.id === decision_id)).toBe(false);
   });
 
@@ -217,7 +212,6 @@ describe('Offene Fragen (3.7, 4.4)', () => {
     const discarded = await api.getQuestion(q.id);
     expect(discarded.status).toBe('verworfen');
     await expectError(api.discardQuestion(q.id, discarded.version), 'rule');
-    await expectError(api.setMark('question', q.id, true), 'rule');
   });
 });
 
@@ -247,15 +241,54 @@ describe('Dokumente (3.9)', () => {
   });
 });
 
-describe('Markierung „Fürs Plenum“ an Veranstaltungen (WF-VER-06)', () => {
-  it('nicht bei abgeschlossen/abgesagt; Statuswechsel entfernt sie', async () => {
-    const events = await api.listEvents();
-    const rave = events.find((e) => e.title === 'Winterrave')!;
-    await api.setMark('event', rave.id, true);
-    expect((await api.getEvent(rave.id)).marked).toBe(true);
-    await api.setEventStatus(rave.id, 'bestaetigt', rave.version);
-    expect((await api.getEvent(rave.id)).marked).toBe(false);
-    await expectError(api.setMark('event', events.find((e) => e.title === 'Hoffest')!.id, true), 'rule');
+describe('Auf die Agenda: „Stimmt das noch?“ (16.1, WF-AGE-03)', () => {
+  it('setzt Entscheidungen und Fakten auf die Agenda und nimmt sie wieder herunter, mit Rückgängig', async () => {
+    const d = await decision('Mate am Tresen für 2,50 €');
+    expect(d.marked).toBe(false);
+    const on = await api.setDecisionAgenda(d.id, true);
+    expect((await api.getDecision(d.id)).marked).toBe(true);
+    // doppelt aufsetzen ändert nichts
+    expect((await api.setDecisionAgenda(d.id, true)).undo_token).toBe('');
+    await api.undo(on.undo_token);
+    expect((await api.getDecision(d.id)).marked).toBe(false);
+    await api.setDecisionAgenda(d.id, true);
+    const off = await api.setDecisionAgenda(d.id, false);
+    expect((await api.getDecision(d.id)).marked).toBe(false);
+    await api.undo(off.undo_token);
+    expect((await api.getDecision(d.id)).marked).toBe(true);
+  });
+
+  it('Ersetzen nimmt den Eintrag von der Agenda', async () => {
+    const d = await decision('Mate am Tresen für 2,50 €');
+    await api.setDecisionAgenda(d.id, true);
+    await api.replaceDecision(d.id, {
+      title: 'Mate am Tresen für 3 €',
+      source_note: 'Preise gestiegen',
+      version: (await api.getDecision(d.id)).version,
+    });
+    expect((await api.getDecision(d.id)).marked).toBe(false);
+  });
+
+  it('Rückgängig setzt nichts zurück auf die Agenda, das inzwischen aufgehoben ist', async () => {
+    const d = await decision('Mate am Tresen für 2,50 €');
+    await api.setDecisionAgenda(d.id, true);
+    const { undo_token } = await api.setDecisionAgenda(d.id, false);
+    await login('lea');
+    await api.revokeDecision(d.id, null, (await api.getDecision(d.id)).version);
+    await login('mo');
+    await api.undo(undo_token);
+    expect((await api.getDecision(d.id)).marked).toBe(false);
+  });
+
+  it('Rückgängig nimmt keinen Eintrag herunter, den inzwischen jemand anderes aufgesetzt hat', async () => {
+    const d = await decision('Mate am Tresen für 2,50 €');
+    const { undo_token } = await api.setDecisionAgenda(d.id, true);
+    await login('lea');
+    await api.setDecisionAgenda(d.id, false);
+    await api.setDecisionAgenda(d.id, true);
+    await login('mo');
+    await api.undo(undo_token);
+    expect((await api.getDecision(d.id)).marked).toBe(true);
   });
 });
 

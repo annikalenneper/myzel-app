@@ -16,9 +16,6 @@ import type {
   QuestionClarifyInput,
   QuestionCreateInput,
   Appointment,
-  MarkTarget,
-  PlenumActionInput,
-  PlenumAddInput,
   ProtocolInput,
   ResultGroup,
   AppointmentCreateInput,
@@ -74,7 +71,6 @@ export interface TaskListItem extends Task {
   /** Titel der Aufgaben, von denen diese abhängt (nicht archivierte) */
   blocker_titles: string[];
   comment_count: number;
-  marked: boolean;
 }
 
 export interface TaskBlockerRef {
@@ -94,8 +90,6 @@ export interface EventListItem extends EventRow {
   task_total: number;
   task_done: number;
   task_overdue: number;
-  /** Markierung „Fürs Plenum“ [P3] */
-  marked: boolean;
   /** seit wann „in Nachbereitung“ [P4]; die Liste weist auf lange Nachbereitung hin (4.2) */
   follow_up_since: string | null;
 }
@@ -152,7 +146,6 @@ export interface TemplateWithItems extends EventTemplate {
 /** S-24 Partner – Liste */
 export interface PartnerListItem extends Partner {
   event_count: number;
-  marked: boolean;
 }
 
 /** S-24 Partner – Detail mit den Veranstaltungen, bei denen er beteiligt war (WF-VER-13) */
@@ -186,6 +179,7 @@ export interface DecisionListItem extends Decision {
   /** „Plenum 10.09.2026“, Titel des Dokuments oder „Notiz“ */
   source_label: string;
   superseded_by_title: string | null;
+  /** ausdrücklich auf der Agenda: „Stimmt das noch?“ (16.1) */
   marked: boolean;
 }
 
@@ -199,7 +193,6 @@ export interface DecisionDetail extends DecisionListItem {
 }
 
 export interface QuestionListItem extends Question {
-  marked: boolean;
   resulting_decision: { id: string; title: string; kind: Decision['kind'] } | null;
 }
 
@@ -211,7 +204,6 @@ export interface DocumentListItem extends DocumentRow {
   link_count: number;
   /** „1 Aufgabe“, „3 verknüpft“, „nicht verknüpft“ */
   link_summary: string;
-  marked: boolean;
   /** [P5] Datei aus dem Vereins-Drive, die dort nicht mehr vorhanden ist (3.13) */
   drive_missing: boolean;
 }
@@ -272,11 +264,10 @@ export interface AppointmentListItem extends Appointment {
   series: { id: string; label: string; active: boolean } | null;
   type_label: string;
   type_color: string;
-  /** Terminart mit Plenum-Funktionen: Agenda, Ergebnis, Abschluss */
+  /** Terminart mit Plenum-Funktionen: Ergebnis, Protokoll, Abschluss */
   is_plenum: boolean;
   yes_count: number;
   my_answer: RsvpAnswer | null;
-  marked: boolean;
   task_count: number;
 }
 
@@ -290,32 +281,8 @@ export interface AppointmentDetail extends AppointmentListItem {
   tasks: { id: string; title: string; status: TaskStatus; assignee_ids: string[] }[];
 }
 
-/** Ein Punkt der Plenum-Agenda: irgendein „Fürs Plenum“ markiertes Objekt (F-PLE-03) */
-export interface AgendaItem {
-  mark_id: string;
-  target: MarkTarget;
-  id: string;
-  title: string;
-  version: number;
-  /** Zeile über dem Titel, z. B. „Aufgabe · Neu · bis 31.10.“ */
-  label: string;
-  tone: 'rot' | 'grau' | 'bernstein' | 'gruen' | 'violett' | 'blau' | 'hell';
-  task_status?: TaskStatus;
-  /** Aufgaben: bisherige Bearbeitende und Frist – Umplanen zeigt sie */
-  assignee_ids?: string[];
-  due_date?: string | null;
-  event_status?: EventStatus;
-  /** offene Aufgaben der Veranstaltung – Hinweis vor „Abschließen“ */
-  open_tasks?: number;
-  event_id?: string | null;
-  starts_at?: string;
-  /** Dokumente: Link ins Drive */
-  url?: string;
-}
-
-/** S-33 Plenum – Detail: ein Termin mit Agenda, Ergebnis und Protokoll */
+/** S-33 Plenum – Detail: ein Termin mit Ergebnis und Protokoll */
 export interface PlenumDetail extends AppointmentDetail {
-  agenda: AgendaItem[];
   results: { group: ResultGroup; lines: string[] }[];
   protocol_document: { id: string; title: string; url: string } | null;
   /** an wie viele Mitglieder die Zusammenfassung ging; null, solange nicht abgeschlossen */
@@ -420,7 +387,6 @@ export interface MyzelApi {
   removeFollower(taskId: string, memberId: string): Promise<Undoable>;
   addBlocker(taskId: string, blockerTaskId: string): Promise<void>;
   removeBlocker(taskId: string, blockerTaskId: string): Promise<void>;
-  setPlenumMark(taskId: string, marked: boolean): Promise<Undoable>;
   addComment(taskId: string, body: string): Promise<{ id: string; now_following: boolean }>;
   updateComment(commentId: string, body: string): Promise<void>;
   archiveTask(id: string, version: number): Promise<Undoable>;
@@ -487,7 +453,6 @@ export interface MyzelApi {
   cancelAppointment(id: string, version: number): Promise<{ notified: number }>;
   markAppointmentHappened(id: string, attendeeIds: string[], version: number): Promise<Undoable>;
   setAttendee(id: string, memberId: string, present: boolean): Promise<void>;
-  setAppointmentMark(id: string, marked: boolean): Promise<Undoable>;
   // Serien [P6] (WF-TER-09, -10): Einzeltermine entstehen im Joblauf 3 Monate im Voraus
   getSeries(id: string): Promise<SeriesDetail>;
   createSeries(input: SeriesCreateInput): Promise<{ id: string; created: number }>;
@@ -514,12 +479,8 @@ export interface MyzelApi {
   createDocument(input: DocumentCreateInput): Promise<{ id: string; created: boolean }>;
   linkDocument(documentId: string, target: DocumentLinkTarget, targetId: string): Promise<void>;
   unlinkDocument(documentId: string, target: DocumentLinkTarget, targetId: string): Promise<void>;
-  /** Markierung „Fürs Plenum“ an Entscheidung/Fakt, Frage, Dokument oder Veranstaltung */
-  setMark(
-    target: 'decision' | 'question' | 'document' | 'event' | 'partner',
-    id: string,
-    marked: boolean,
-  ): Promise<Undoable>;
+  /** Entscheidung oder Fakt ausdrücklich auf die Agenda setzen bzw. herunternehmen (16.1) */
+  setDecisionAgenda(id: string, onAgenda: boolean): Promise<Undoable>;
   search(query: string): Promise<SearchGroup[]>;
 
   // Drive [P5] (WF-WIS-08 bis -10, WF-VER-14): Anzeige immer sofort aus dem Cache
@@ -536,11 +497,8 @@ export interface MyzelApi {
   linkDriveFile(input: DriveLinkInput): Promise<{ document_id: string; created: boolean }>;
   setEventDriveFolder(eventId: string, folderId: string | null, version: number): Promise<void>;
 
-  // Plenum [P3] (WF-PLE-03 bis -20)
+  // Plenum [P3] (WF-PLE-03, -19, -20): Ergebnis, Protokoll, Abschluss
   getPlenum(id: string): Promise<PlenumDetail>;
-  plenumAction(plenumId: string, input: PlenumActionInput): Promise<Undoable>;
-  moveAgendaItem(markId: string, toIndex: number): Promise<void>;
-  plenumAdd(plenumId: string, input: PlenumAddInput): Promise<{ id: string; on_agenda: boolean }>;
   updateProtocol(plenumId: string, input: ProtocolInput): Promise<void>;
   closePlenum(plenumId: string, attendeeIds: string[], version: number): Promise<{ recipients: number }>;
 

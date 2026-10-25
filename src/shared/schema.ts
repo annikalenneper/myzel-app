@@ -127,47 +127,17 @@ export const commentSchema = z.object({
 export type Comment = z.infer<typeof commentSchema>;
 
 /**
- * Markierung „Fürs Plenum“ (3.14): Genau eine der Zielspalten ist gesetzt. P1 Aufgaben; P3 Fragen,
- * Entscheidungen und Fakten, Veranstaltungen, Termine, Dokumente; P4 Partner.
+ * Entscheidung oder Fakt ausdrücklich auf der Agenda (16.1): „Stimmt das noch?“. Andere Arten stehen von selbst
+ * auf der Agenda (offene Aufgaben und Fragen) oder gar nicht.
  */
-export const MARK_TARGETS = [
-  'task',
-  'question',
-  'decision',
-  'event',
-  'appointment',
-  'document',
-  'partner',
-] as const;
-export type MarkTarget = (typeof MARK_TARGETS)[number];
-export const plenumMarkSchema = z
-  .object({
-    id: idSchema,
-    task_id: idSchema.nullable(),
-    question_id: idSchema.nullable(),
-    decision_id: idSchema.nullable(),
-    event_id: idSchema.nullable(),
-    appointment_id: idSchema.nullable(),
-    document_id: idSchema.nullable(),
-    partner_id: idSchema.nullable(),
-    position: z.number().int(),
-    note: z.string().nullable(),
-    marked_by: idSchema,
-    marked_at: timestampSchema,
-  })
-  .refine(
-    (m) =>
-      [
-        m.task_id,
-        m.question_id,
-        m.decision_id,
-        m.event_id,
-        m.appointment_id,
-        m.document_id,
-        m.partner_id,
-      ].filter(Boolean).length === 1,
-    'Genau ein markiertes Objekt.',
-  );
+export const plenumMarkSchema = z.object({
+  id: idSchema,
+  decision_id: idSchema,
+  position: z.number().int(),
+  note: z.string().nullable(),
+  marked_by: idSchema,
+  marked_at: timestampSchema,
+});
 export type PlenumMark = z.infer<typeof plenumMarkSchema>;
 
 export const eventSchema = z.object({
@@ -548,7 +518,6 @@ export const taskCreateSchema = z.object({
   event_id: idSchema.nullable().default(null),
   appointment_id: idSchema.nullable().default(null),
   assign_self: z.boolean().default(false),
-  mark_for_plenum: z.boolean().default(true),
 });
 export type TaskCreateInput = z.input<typeof taskCreateSchema>;
 
@@ -811,7 +780,6 @@ export const questionCreateSchema = z.object({
   topic_id: z.uuid('Bitte ein Thema wählen.'),
   event_id: idSchema.nullable().default(null),
   urgency: prioritySchema.default('mittel'),
-  mark_for_plenum: z.boolean().default(true),
 });
 export type QuestionCreateInput = z.input<typeof questionCreateSchema>;
 
@@ -874,90 +842,6 @@ export const driveLinkSchema = z.object({
 export type DriveLinkInput = z.input<typeof driveLinkSchema>;
 
 // ── Plenum [P3] (F-PLE-01 bis -05, WF-PLE-03 bis -20) ───────────────────────
-
-const whoWhen = {
-  /** „Wer übernimmt? Bis wann?“ – beides optional */
-  assignee_id: idSchema.nullable().default(null),
-  due_date: dateSchema.nullable().default(null),
-};
-
-/** Aktionen in der Agenda (F-PLE-05). Jede speichert sofort und lässt sich rückgängig machen. */
-export const plenumActionSchema = z.discriminatedUnion('kind', [
-  /** WF-PLE-07 Aufgabe „neu“ einplanen → geplant, Herkunft dieses Plenum */
-  z.object({ kind: z.literal('task_plan'), id: idSchema, version: versionSchema, ...whoWhen }),
-  /** WF-PLE-08 Umplanen: Bearbeitende und Frist, Status bleibt */
-  z.object({ kind: z.literal('task_replan'), id: idSchema, version: versionSchema, ...whoWhen }),
-  /** WF-PLE-09 Blockade lösen → geplant oder in_arbeit */
-  z.object({
-    kind: z.literal('task_unblock'),
-    id: idSchema,
-    version: versionSchema,
-    to: z.enum(['geplant', 'in_arbeit']),
-  }),
-  /** WF-PLE-10 Erledigt / Verwerfen */
-  z.object({
-    kind: z.literal('task_finish'),
-    id: idSchema,
-    version: versionSchema,
-    to: z.enum(['erledigt', 'verworfen']),
-  }),
-  /** WF-PLE-11 Frage klären; optional Entscheidung/Fakt (Quelle: dieses Plenum) und Folgeaufgabe */
-  z.object({
-    kind: z.literal('question_clarify'),
-    id: idSchema,
-    version: versionSchema,
-    answer: z.string().trim().min(1, 'Ohne Antwort lässt sich die Frage nicht klären.').max(10000),
-    result: z.enum(['antwort', 'entscheidung', 'fakt']).default('antwort'),
-    follow_up: z.boolean().default(false),
-  }),
-  /** WF-PLE-12 */
-  z.object({ kind: z.literal('question_discard'), id: idSchema, version: versionSchema }),
-  /** WF-PLE-13 Ersetzen: neue Fassung mit diesem Plenum als Quelle */
-  z.object({
-    kind: z.literal('decision_replace'),
-    id: idSchema,
-    version: versionSchema,
-    title: titleSchema,
-    description: optionalText(10000, 'Der Text ist zu lang.'),
-  }),
-  /** WF-PLE-14 */
-  z.object({
-    kind: z.literal('decision_revoke'),
-    id: idSchema,
-    version: versionSchema,
-    note: z.string().trim().max(500).default(''),
-  }),
-  /** WF-PLE-15 Veranstaltung: nächster Status oder Absage */
-  z.object({ kind: z.literal('event_status'), id: idSchema, version: versionSchema, to: eventStatusSchema }),
-  /** WF-PLE-16 Termin verschieben (neues Datum Pflicht) */
-  z.object({
-    kind: z.literal('appointment_move'),
-    id: idSchema,
-    version: versionSchema,
-    starts_at: z.iso.datetime({ offset: true, error: 'Bitte ein neues Datum wählen.' }),
-  }),
-  /** WF-PLE-16 Termin absagen */
-  z.object({ kind: z.literal('appointment_cancel'), id: idSchema, version: versionSchema }),
-  /** WF-PLE-17 Aufgabe dazu anlegen – der Punkt bleibt auf der Agenda */
-  z.object({
-    kind: z.literal('sub_task'),
-    target: z.enum(['event', 'appointment', 'document', 'partner']),
-    id: idSchema,
-    title: titleSchema,
-    ...whoWhen,
-  }),
-  /** WF-PLE-18 Besprochen: Markierung entfernt, sonst keine Änderung */
-  z.object({ kind: z.literal('discussed'), target: z.enum(MARK_TARGETS), id: idSchema }),
-]);
-export type PlenumActionInput = z.input<typeof plenumActionSchema>;
-
-/** WF-PLE-05 „+ Hinzufügen“: Aufgabe/Frage kommen markiert auf die Agenda, Entscheidung/Fakt ins Ergebnis */
-export const plenumAddSchema = z.object({
-  kind: z.enum(['aufgabe', 'frage', 'entscheidung', 'fakt']),
-  title: titleSchema,
-  topic_id: z.uuid('Bitte ein Thema wählen.'),
-});
-export type PlenumAddInput = z.input<typeof plenumAddSchema>;
 
 /** WF-PLE-03 Protokoll: protokollierende Person, Notizen in der App, optionales Drive-Protokoll */
 export const protocolSchema = z.object({

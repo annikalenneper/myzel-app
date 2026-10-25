@@ -1,7 +1,6 @@
 // Testdaten-Schicht, Phase 3: Termine, Terminarten, Zu- und Absagen, Teilnahme (ANFORDERUNGEN 3.6, 4.3)
 import { AppError } from '../../shared/errors';
 import {
-  canMarkAppointment,
   canMarkHappened,
   canRsvp,
   changeMessages,
@@ -23,10 +22,7 @@ import {
 import type { AppointmentDetail, AppointmentListItem, AppointmentTypeWithUsage, Undoable } from '../api';
 import { enqueue } from './notify';
 import {
-  addMark,
   checkVersion,
-  dropMark,
-  isMarked,
   notFound,
   parse,
   registerUndo,
@@ -164,7 +160,6 @@ function listItem(db: Db, a: Appointment, meId: string): AppointmentListItem {
     is_plenum: type.has_plenum_features,
     yes_count: rsvps.filter((r) => r.answer === 'ja').length,
     my_answer: rsvps.find((r) => r.member_id === meId)?.answer ?? null,
-    marked: isMarked(db, 'appointment', a.id),
     task_count: db.tasks.filter((t) => t.appointment_id === a.id && !t.archived_at).length,
     series: seriesRef(db, a),
   };
@@ -338,7 +333,6 @@ export function cancelAppointment(ctx: Ctx, id: string, version: number): { noti
   const changes: HistoryChanges = { status: { old: a.status, new: 'abgesagt' } };
   markException(a, changes);
   a.status = 'abgesagt';
-  dropMark(ctx, 'appointment', id);
   touch(ctx, a);
   writeHistory(ctx, 'appointment', id, 'status', changes);
   const recipients = yesAndOpen(
@@ -391,7 +385,6 @@ export function markHappened(
   };
   a.status = 'stattgefunden';
   replaceAttendees(ctx, id, attendeeIds);
-  dropMark(ctx, 'appointment', id);
   touch(ctx, a);
   writeHistory(ctx, 'appointment', id, 'status', changes);
   return registerUndo(ctx, 'appointment', a, 'Als stattgefunden gespeichert');
@@ -415,20 +408,6 @@ export function setAttendee(ctx: Ctx, id: string, memberId: string, present: boo
   writeHistory(ctx, 'appointment', id, present ? 'attendee_added' : 'attendee_removed', {
     attendee: present ? { old: null, new: memberId } : { old: memberId, new: null },
   });
-}
-
-/** WF-TER-08: Markierung „Fürs Plenum“ – nur geplant, nie bei Plenum-Terminen */
-export function setAppointmentMark(ctx: Ctx, id: string, marked: boolean): Undoable {
-  const a = findAppointment(ctx.db, id);
-  if (isMarked(ctx.db, 'appointment', id) === marked) return { undo_token: '' };
-  if (marked) {
-    if (isPlenum(ctx.db, a)) throw rule('Plenum-Termine lassen sich nicht fürs Plenum markieren.');
-    if (!canMarkAppointment(a, false)) throw rule('Nur geplante Termine lassen sich fürs Plenum markieren.');
-    addMark(ctx, 'appointment', id);
-    return registerUndo(ctx, 'appointment', a, 'Fürs Plenum markiert');
-  }
-  dropMark(ctx, 'appointment', id);
-  return registerUndo(ctx, 'appointment', a, 'Markierung entfernt');
 }
 
 /** Beim Deaktivieren: Zusagen für künftige Termine entfernen (F-LOG-03, ab P3) */

@@ -7,6 +7,7 @@ import { addDays, berlinDate, daysUntil, dueState, isPlausibleDate } from './due
 import { suggestsFollowUp } from './eventDetails';
 import { allowedEventTransitions, canTransitionEvent } from './eventStatus';
 import { suggestShort } from './members';
+import { linkTarget } from './telegram';
 import { sortTasks } from './taskSort';
 import { blockReasonMissing, canTransitionTask, statusAfterLastAssigneeLeft } from './taskStatus';
 import { orderTopics, topicFilterIds, topicLabel } from './topics';
@@ -246,5 +247,15 @@ describe('Kalenderdatum in Köln (Server läuft in UTC)', () => {
     expect(suggestsFollowUp(event, new Date('2026-07-11T00:30:00Z'))).toBe(false);
     expect(suggestsFollowUp(event, new Date('2026-07-11T21:59:00Z'))).toBe(false);
     expect(suggestsFollowUp(event, new Date('2026-07-11T22:00:00Z'))).toBe(true);
+  });
+});
+
+describe('Telegram-Buttons: Ziel aus dem Link (6.4, 16.1)', () => {
+  const id = '261d197b-a42d-49a0-917f-6911a2b3c4d5';
+  it('versteht neue Agenda-Links und alte Aufgaben-Links aus schon verschickten Nachrichten', () => {
+    expect(linkTarget(`/agenda/${id}`)).toEqual({ kind: 'task', id });
+    expect(linkTarget(`/aufgaben/${id}`)).toEqual({ kind: 'task', id });
+    expect(linkTarget(`/termine/${id}`)).toEqual({ kind: 'appointment', id });
+    expect(linkTarget(`/agenda/frage/${id}`)).toBeNull();
   });
 });

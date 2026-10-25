@@ -312,15 +312,16 @@ describe('Nachbesserungen aus dem Review (Phase 6)', () => {
     await expectError(api.updateSeries(id, { ...(await fieldsOf(id)), valid_from: '2026-10-20' }), 'rule');
   });
 
-  it('eine Absage durch die Serie entfernt „Fürs Plenum“; verknüpfte Termine verschwinden nicht still', async () => {
+  it('verknüpfte Termine verschwinden durch die Serie nicht still, sie werden abgesagt', async () => {
     const id = await weekly('FREQ=WEEKLY;BYDAY=TU', '2026-11-03');
     const later_ = (await occurrences()).find(
       (a) => a.series?.id === id && day(a.starts_at) === '2026-12-01',
     )!;
-    await api.setAppointmentMark(later_.id, true);
+    const topic = (await api.listTopics()).find((t) => !t.archived_at)!;
+    await api.createTask({ title: 'Schlüssel abholen', topic_id: topic.id, appointment_id: later_.id });
     await api.endSeries(id, (await api.getSeries(id)).version);
     const after = (await api.listAppointments()).find((a) => a.id === later_.id)!;
-    expect(after).toMatchObject({ status: 'abgesagt', marked: false });
+    expect(after.status).toBe('abgesagt');
     // die übrigen, mit nichts verbundenen sind still entfernt; die Serie endet nicht vor ihrem Beginn
     expect(await planned(id)).toEqual(['2026-11-03']);
     expect((await api.getSeries(id)).valid_until).toBe('2026-11-03');

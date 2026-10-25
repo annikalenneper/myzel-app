@@ -46,9 +46,9 @@ export function telegramButtons(event: NotificationEvent): TelegramButton[] {
   return BUTTONS[event] ?? [];
 }
 
-/** Ziel der Nachricht aus ihrem Direktlink: /aufgaben/<id> oder /termine/<id> */
+/** Ziel der Nachricht aus ihrem Direktlink: /agenda/<id> (vor dem Umbau 10/2026: /aufgaben/<id>) oder /termine/<id> */
 export function linkTarget(link: string): { kind: 'task' | 'appointment'; id: string } | null {
-  const m = /^\/(aufgaben|termine)\/([0-9a-f-]{36})$/.exec(link);
+  const m = /^\/(agenda|aufgaben|termine)\/([0-9a-f-]{36})$/.exec(link);
   if (!m) return null;
-  return { kind: m[1] === 'aufgaben' ? 'task' : 'appointment', id: m[2]! };
+  return { kind: m[1] === 'termine' ? 'appointment' : 'task', id: m[2]! };
 }

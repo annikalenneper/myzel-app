@@ -2,7 +2,7 @@
 // Gemeinsam für die Netlify Function und den Server der Smoke-Tests – nur die Login-Prüfung unterscheidet sich.
 import type { Kysely } from 'kysely';
 import type { Database } from '../db/types';
-import { errorBody, handleAction, type Login } from './handle';
+import { changesData, errorBody, handleAction, type Login } from './handle';
 import { countingQueries, logTiming, serverTimingHeader, type QueryStats } from './timing';
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
@@ -41,7 +41,7 @@ export async function respond(
     const login = await loginFrom(req, action);
     loginMs = performance.now() - started;
     const result = await countingQueries(stats, () => handleAction(db(), login, action, args, new Date()));
-    return timed(200, { result: result ?? null });
+    return timed(200, { result: result ?? null, changed: changesData(action, result) });
   } catch (e) {
     const { status, body } = errorBody(e);
     return timed(status, body);

@@ -42,7 +42,6 @@ import {
   type Undoable,
 } from '../core/context';
 import type { TaskRow } from '../db/types';
-import * as marks from '../core/marks';
 import { notify } from '../p2/notify';
 
 export async function findTask(ctx: Ctx, id: string, { lock = true } = {}): Promise<TaskRow> {
@@ -209,14 +208,6 @@ async function follow(ctx: Ctx, taskId: string, memberId: string): Promise<boole
   return true;
 }
 
-const isMarked = (ctx: Ctx, taskId: string) => marks.isMarked(ctx.trx, 'task', taskId);
-
-/** Statusänderungen und Archivieren entfernen die Markierung „Fürs Plenum“ (3.14). */
-export const dropMark = (ctx: Ctx, taskId: string) => marks.dropMark(ctx, 'task', taskId);
-
-/** Neu Markiertes kommt ans Ende der Agenda. */
-const addMark = (ctx: Ctx, taskId: string) => marks.addMark(ctx, 'task', taskId);
-
 const taskState = (task: TaskRow) =>
   ({
     kind: 'task_state',
@@ -258,9 +249,6 @@ export async function createTask(ctx: Ctx, raw: unknown): Promise<{ id: string }
       .values({ task_id: task.id, member_id: ctx.actor.id, assigned_by: ctx.actor.id, assigned_at: now })
       .execute();
     changes.assignee = { old: null, new: ctx.actor.id };
-  }
-  if (input.mark_for_plenum) {
-    await addMark(ctx, task.id);
   }
   await writeHistory(ctx, 'task', task.id, 'created', changes);
   return { id: task.id };
@@ -402,7 +390,6 @@ export async function setTaskStatus(
     self_assigned = true;
     assignees.push(ctx.actor.id);
   }
-  await dropMark(ctx, id);
   await follow(ctx, id, ctx.actor.id);
   if (!followers.includes(ctx.actor.id)) followers.push(ctx.actor.id);
   await writeHistory(ctx, 'task', id, 'status', changes);
@@ -467,7 +454,6 @@ export async function dropAssignee(
   if (next !== task.status) {
     ctx.inverse.push(taskState(task));
     changes.status = { old: task.status, new: next };
-    await dropMark(ctx, task.id);
     statusReset = true;
   }
   await touchTask(ctx, task, statusReset ? { status: next } : {});
@@ -551,19 +537,6 @@ export async function removeBlocker(ctx: Ctx, taskId: string, blockerTaskId: str
   await writeHistory(ctx, 'task', taskId, 'blocker_removed', { blocker: { old: blockerTaskId, new: null } });
 }
 
-export async function setPlenumMark(ctx: Ctx, taskId: string, marked: boolean): Promise<Undoable> {
-  const task = await editableTask(ctx, taskId);
-  if ((await isMarked(ctx, taskId)) === marked) return { undo_token: '' };
-  if (marked) {
-    if (!isActiveTaskStatus(task.status))
-      throw rule('Abgeschlossene Aufgaben lassen sich nicht fürs Plenum markieren.');
-    await addMark(ctx, taskId);
-    return registerUndo(ctx, 'task', task, 'Fürs Plenum markiert');
-  }
-  await dropMark(ctx, taskId);
-  return registerUndo(ctx, 'task', task, 'Markierung entfernt');
-}
-
 export async function addComment(
   ctx: Ctx,
   taskId: string,
@@ -624,7 +597,6 @@ export async function archiveTask(ctx: Ctx, id: string, version: number): Promis
   await checkVersion(ctx, 'task', task, version);
   ctx.inverse.push(taskState(task));
   const changes: HistoryChanges = {};
-  await dropMark(ctx, id);
   await touchTask(ctx, task, { archived_at: iso(ctx) });
   await writeHistory(ctx, 'task', id, 'archived', changes);
   return registerUndo(ctx, 'task', task, 'Archiviert');

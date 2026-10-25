@@ -16,7 +16,7 @@ import {
 } from '../../src/shared/rules/notifications';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
 import { NOTIFICATION_CHANNELS, type JobRun, type NotificationChannel } from '../../src/shared/schema';
-import { parse, requireAdmin, rule, type Ctx, type Trx } from '../core/context';
+import { parse, requireAdmin, rule, type Ctx, type ReadCtx, type Trx } from '../core/context';
 import type { Database } from '../db/types';
 import { weeklyRebuild } from '../p5/drive';
 
@@ -466,7 +466,7 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
 // ── Profil: Push und Telegram (WF-PRO-02, WF-PRO-03) ─────────────────────────
 
 export async function notificationSettings(
-  ctx: Ctx,
+  ctx: ReadCtx,
   endpoint: string | null,
   botUsername: string | null,
 ): Promise<NotificationSettings> {
@@ -695,7 +695,7 @@ export async function dropChannels(trx: Trx, memberId: string): Promise<void> {
 }
 
 /** WF-ADM-07: letzte Jobläufe und Kennzahlen, nur für Admins */
-export async function systemStatus(ctx: Ctx): Promise<SystemStatus> {
+export async function systemStatus(ctx: ReadCtx): Promise<SystemStatus> {
   requireAdmin(ctx);
   const dayAgo = new Date(ctx.now.getTime() - 24 * 3_600_000).toISOString();
   const count = (q: { executeTakeFirstOrThrow(): Promise<{ n: number | string | bigint }> }) =>

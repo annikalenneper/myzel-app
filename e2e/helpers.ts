@@ -5,11 +5,11 @@ export async function login(page: Page, name = 'Mo') {
   await page.goto('/');
   await page.getByTestId('WF-LOG-01').click();
   await page.getByRole('button', { name: new RegExp(`^${name} `) }).click();
-  if (name !== 'Jemand') await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  if (name !== 'Jemand') await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
 }
 
 export async function openTask(page: Page, title: string) {
-  await page.goto('/aufgaben');
+  await page.goto('/agenda');
   await page.getByRole('link', { name: new RegExp(title) }).click();
   await expect(page.getByRole('button', { name: new RegExp(`Titel bearbeiten: ${title}`) })).toBeVisible();
 }

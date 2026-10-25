@@ -9,7 +9,7 @@ export function NoAccess() {
   const { run } = useFeedback();
   if (!session) return <Splash />;
   if (session.state === 'anonymous') return <Navigate to="/anmelden" replace />;
-  if (session.state === 'member') return <Navigate to="/aufgaben" replace />;
+  if (session.state === 'member') return <Navigate to="/agenda" replace />;
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[480px] flex-col">

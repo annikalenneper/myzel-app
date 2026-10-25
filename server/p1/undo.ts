@@ -16,7 +16,7 @@ import {
   type InverseOp,
 } from '../core/context';
 import type { HistoryChanges } from '../../src/shared/schema';
-import { markable, markColumn, markTarget } from '../core/marks';
+import { markable } from '../core/marks';
 import { topicStillActive } from './tasks';
 
 const ROW_KINDS = new Set<InverseOp['kind']>([
@@ -149,9 +149,8 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
         break;
       }
       case 'mark_restore': {
-        // nur, wenn das Objekt (nach den Gegenschritten davor) markierbar ist – sonst bleibt es unmarkiert
-        const target = markTarget(op.row);
-        if (!(await markable(ctx.trx, target, op.row[markColumn(target)]!))) break;
+        // nur, wenn der Eintrag (nach den Gegenschritten davor) noch gilt – sonst bleibt er herunter
+        if (!(await markable(ctx.trx, op.row.decision_id))) break;
         // der Punkt steht wieder an alter Stelle – ist sie inzwischen vergeben, am Ende
         await lockFor(ctx, 'plenum_marks');
         const taken = await ctx.trx
@@ -175,7 +174,7 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
         // nur die Markierung dieser Aktion – eine inzwischen von jemand anderem gesetzte bleibt
         await ctx.trx
           .deleteFrom('plenum_marks')
-          .where(markColumn(op.target), '=', op.id)
+          .where('decision_id', '=', op.decision_id)
           .where('marked_by', '=', record.actor_id)
           .where('marked_at', '=', record.created_at)
           .execute();
@@ -313,7 +312,6 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
         // die im selben Schritt angelegte Aufgabe verschwindet wieder; ihre Historie bleibt (unveränderlich)
         await ctx.trx.deleteFrom('task_assignees').where('task_id', '=', op.task_id).execute();
         await ctx.trx.deleteFrom('task_followers').where('task_id', '=', op.task_id).execute();
-        await ctx.trx.deleteFrom('plenum_marks').where('task_id', '=', op.task_id).execute();
         await ctx.trx.deleteFrom('template_applications').where('task_id', '=', op.task_id).execute();
         await ctx.trx
           .deleteFrom('document_links')

@@ -19,7 +19,7 @@ export function Login() {
   const demo = api.demo;
 
   if (!session) return <Splash />;
-  if (session.state === 'member') return <Navigate to="/aufgaben" replace />;
+  if (session.state === 'member') return <Navigate to="/agenda" replace />;
   if (session.state === 'no_access') return <Navigate to="/kein-zugriff" replace />;
 
   const validEmail = emailInputSchema.safeParse(email).success;

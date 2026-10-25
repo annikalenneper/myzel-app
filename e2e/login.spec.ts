@@ -2,20 +2,18 @@
 import { expect, test } from '@playwright/test';
 import { login } from './helpers';
 
-test('WF-LOG-01: aktives Mitglied landet auf der Aufgabenliste, Sitzung bleibt bestehen', async ({
-  page,
-}) => {
+test('WF-LOG-01: aktives Mitglied landet auf der Agenda, Sitzung bleibt bestehen', async ({ page }) => {
   await login(page);
   await expect(page.getByText('Flyer drucken lassen')).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
 });
 
 test('WF-LOG-01: wer nicht auf der Mitgliederliste steht, sieht S-02 und keine Daten', async ({ page }) => {
   await login(page, 'Jemand');
   await expect(page.getByRole('heading', { name: 'Du bist noch nicht dabei' })).toBeVisible();
   await expect(page.getByText('jemand@example.org')).toBeVisible();
-  await page.goto('/aufgaben');
+  await page.goto('/agenda');
   await expect(page.getByRole('heading', { name: 'Du bist noch nicht dabei' })).toBeVisible();
   await expect(page.getByText('Flyer drucken lassen')).toHaveCount(0);
   await page.getByRole('button', { name: 'Mit anderem Konto anmelden' }).click();
@@ -38,7 +36,7 @@ test('WF-LOG-02: Mail-Link zeigt immer dieselbe Meldung und meldet über den Lin
   await send.click();
   await expect(page.getByText('Wenn die Adresse bekannt ist, kommt gleich ein Link.')).toBeVisible();
   await page.locator('[data-demo="magic-link"]').click();
-  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
 });
 
 test('WF-LOG-03: Abmelden beendet die Sitzung', async ({ page }) => {
@@ -46,14 +44,14 @@ test('WF-LOG-03: Abmelden beendet die Sitzung', async ({ page }) => {
   await page.getByRole('link', { name: 'Profil' }).last().click();
   await page.getByTestId('WF-LOG-03').click();
   await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
-  await page.goto('/aufgaben');
+  await page.goto('/agenda');
   await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
 });
 
-test('Navigation: Aufgaben, Events, Termine, Wissen, Profil', async ({ page }) => {
+test('Navigation: Agenda, Events, Termine, Wissen, Profil', async ({ page }) => {
   await login(page);
   const nav = page.getByRole('navigation', { name: 'Hauptnavigation' }).last();
-  await expect(nav.getByRole('link')).toHaveText(['Aufgaben', 'Events', 'Termine', 'Wissen', 'Profil']);
+  await expect(nav.getByRole('link')).toHaveText(['Agenda', 'Events', 'Termine', 'Wissen', 'Profil']);
   await nav.getByRole('link', { name: 'Events' }).click();
   await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
 });

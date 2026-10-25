@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../src/shared/errors';
 import { createLocalDb, type LocalDb } from '../db/localDb';
-import { errorBody, handleAction } from './handle';
+import { changesData, errorBody, handleAction } from './handle';
 
 let local: LocalDb;
 const now = new Date(2026, 9, 20, 12);
@@ -201,5 +201,18 @@ describe('Aktionen', () => {
     const crash = errorBody(new Error('relation "x" does not exist'));
     expect(crash.status).toBe(500);
     expect(JSON.stringify(crash.body)).not.toMatch(/relation|does not exist/);
+  });
+});
+
+describe('Neu laden nach Änderungen (16.6)', () => {
+  it('Schreiben meldet eine Änderung, Lesen nicht; der Drive-Abgleich nur, wenn er nachgefragt hat', () => {
+    expect(changesData('createTask', { id: 'x' })).toBe(true);
+    expect(changesData('setDecisionAgenda', { undo_token: 't' })).toBe(true);
+    expect(changesData('getSession', null)).toBe(false);
+    expect(changesData('listTasks', [])).toBe(false);
+    expect(changesData('getDecision', {})).toBe(false);
+    expect(changesData('syncDrive', { changed: 0, checked: false })).toBe(false);
+    expect(changesData('syncDrive', { changed: 2, checked: true })).toBe(true);
+    expect(changesData('rebuildDrive', { count: 3 })).toBe(true);
   });
 });

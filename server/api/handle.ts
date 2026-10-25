@@ -32,6 +32,16 @@ export async function handleAction(
   throw new AppError('rule', 'Das kommt mit einer späteren Phase.');
 }
 
+/**
+ * Hat die Aktion Daten geändert? Danach lädt die App ihre Ansichten neu (16.6). Lesen ändert nichts – außer dem
+ * Drive-Abgleich, wenn er wirklich bei Drive nachgefragt hat, und dem Neu-Einlesen.
+ */
+export function changesData(action: string, result: unknown): boolean {
+  if (action === 'rebuildDrive') return true;
+  if (action === 'syncDrive') return (result as { checked?: boolean } | null)?.checked === true;
+  return action !== 'getSession' && !Object.hasOwn(READ_ACTIONS, action);
+}
+
 /** Fehler als Antwort für die App: immer ein deutscher Satz, nie ein Stacktrace */
 export function errorBody(e: unknown): { status: number; body: { error: Record<string, unknown> } } {
   if (e instanceof AppError) {

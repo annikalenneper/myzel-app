@@ -1,4 +1,4 @@
-// S-10 bis S-13 · WF-AUF-01 bis -15 und Querschnitt WF-ALL-01 bis -03, -05
+// S-10 Agenda (16.1, WF-AGE-01 bis -03) · S-11 bis S-13 · WF-AUF-01 bis -15 und Querschnitt WF-ALL-01 bis -03, -05
 import { expect, test } from '@playwright/test';
 import { card, login, openTask, statusChip, undoBar } from './helpers';
 
@@ -6,9 +6,7 @@ test.beforeEach(async ({ page }) => {
   await login(page);
 });
 
-test('WF-AUF-03: Schnellanlage – Pflicht nur Titel und Thema, „Fürs Plenum“ vorausgewählt', async ({
-  page,
-}) => {
+test('WF-AUF-03: Schnellanlage – Pflicht nur Titel und Thema', async ({ page }) => {
   await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
   const submit = sheet.locator('button[type=submit]');
@@ -17,7 +15,6 @@ test('WF-AUF-03: Schnellanlage – Pflicht nur Titel und Thema, „Fürs Plenum�
   await expect(submit).toHaveText('Thema wählen, dann anlegen');
   await expect(submit).toBeDisabled();
   await sheet.getByRole('button', { name: 'Lager & Material' }).click();
-  await expect(sheet.getByRole('checkbox', { name: /Fürs Plenum/ })).toBeChecked();
   await sheet.getByRole('checkbox', { name: 'Ich übernehme das' }).click();
   await submit.click();
 
@@ -25,7 +22,6 @@ test('WF-AUF-03: Schnellanlage – Pflicht nur Titel und Thema, „Fürs Plenum�
   const created = card(page, 'Nebelfluid nachbestellen');
   await expect(created).toContainText('Neu');
   await expect(created).toContainText('MO');
-  await expect(created.getByTestId('WF-AUF-02')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('WF-AUF-01: Sortierung und Filter, kombinierbar und wieder ausschaltbar', async ({ page }) => {
@@ -33,18 +29,11 @@ test('WF-AUF-01: Sortierung und Filter, kombinierbar und wieder ausschaltbar', a
   // überfällige stehen ganz oben, erledigte sind ausgeblendet
   await expect(titles.first()).toContainText('Location für Winterrave bestätigen');
   await expect(card(page, 'Insta-Post Bautag')).toHaveCount(0);
-  await expect(page.getByText('11 OFFEN · 1 ÜBERFÄLLIG · 1 BLOCKIERT')).toBeVisible();
+  await expect(page.getByText(/^11 AUFGABEN OFFEN · 1 ÜBERFÄLLIG · 1 BLOCKIERT · 3 FRAGEN$/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Alle ▾' }).click();
   await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Meine' }).click();
   await expect(page.getByRole('article')).toHaveCount(1);
-
-  const plenum = page.getByRole('button', { name: 'Fürs Plenum', exact: true });
-  await plenum.click();
-  await expect(page.getByRole('article')).toHaveCount(1);
-  await expect(card(page, 'Location für Winterrave')).toBeVisible();
-  await plenum.click();
-  await expect(plenum).toHaveAttribute('aria-pressed', 'false');
 
   await page.getByRole('button', { name: 'Meine ▾' }).click();
   await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Alle' }).click();
@@ -73,32 +62,81 @@ test('WF-ALL-05: leere Liste erklärt, was man tun kann', async ({ page }) => {
   await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
 });
 
-test('WF-AUF-02 / WF-ALL-02: Markierung auf der Karte setzen und rückgängig machen', async ({ page }) => {
-  const mark = card(page, 'Getränke bei der Brauerei').getByTestId('WF-AUF-02');
-  await expect(mark).toHaveAttribute('aria-pressed', 'false');
-  await mark.click();
-  await expect(mark).toHaveAttribute('aria-pressed', 'true');
-  await expect(undoBar(page)).toContainText('Fürs Plenum markiert');
-  await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
-  await expect(mark).toHaveAttribute('aria-pressed', 'false');
-});
-
-test('WF-AUF-06: „In Arbeit“ trägt ein, entfernt die Markierung und lässt sich zurücknehmen', async ({
+test('WF-AGE-01: Agenda mit Aufgaben, offenen Fragen und „Stimmt das noch?“; Filter nach Art', async ({
   page,
 }) => {
+  const review = page.getByRole('link', { name: /Awareness-Team mit mindestens 4 Personen/ });
+  const question = page.getByRole('link', { name: /Machen wir an Silvester eine Party/ });
+  await expect(page.getByText('Stimmt das noch?', { exact: true }).first()).toBeVisible();
+  await expect(review).toBeVisible();
+  await expect(question).toBeVisible();
+  await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Art ▾' }).click();
+  await page.getByRole('group', { name: 'Art' }).getByRole('button', { name: 'Fragen' }).click();
+  await expect(page.getByRole('article')).toHaveCount(0);
+  await expect(question).toBeVisible();
+  await expect(review).toHaveCount(0);
+  await page.getByRole('button', { name: 'Fragen ▾' }).click();
+  await page.getByRole('group', { name: 'Art' }).getByRole('button', { name: 'Aufgaben' }).click();
+  await expect(question).toHaveCount(0);
+  await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
+  await page.getByRole('button', { name: 'Aufgaben ▾' }).click();
+  await page.getByRole('group', { name: 'Art' }).getByRole('button', { name: 'Alles' }).click();
+
+  // die Frage öffnet sich in der Agenda, „Zurück“ führt zur Agenda
+  await question.click();
+  await expect(page.getByRole('heading', { name: 'Machen wir an Silvester eine Party?' })).toBeVisible();
+  await page.getByRole('link', { name: 'Zurück zu Agenda' }).click();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
+});
+
+test('WF-AGE-03: Entscheidung auf die Agenda setzen; „Stimmt noch“ nimmt sie wieder herunter', async ({
+  page,
+}) => {
+  await page.goto('/wissen');
+  await page.getByRole('link', { name: /Mate am Tresen für 2,50 €/ }).click();
+  await page.getByRole('button', { name: 'Auf die Agenda setzen' }).click();
+  await expect(undoBar(page)).toContainText('Auf der Agenda');
+  await page.goto('/agenda');
+  const review = page.getByRole('link', { name: /Mate am Tresen für 2,50 €/ });
+  await review.click();
+  await expect(page.getByText('Steht auf der Agenda: Stimmt das noch?')).toBeVisible();
+  await page.getByRole('button', { name: 'Stimmt noch' }).click();
+  await expect(undoBar(page)).toContainText('Bestätigt · von der Agenda genommen');
+  await page.getByRole('link', { name: 'Zurück zu Agenda' }).click();
+  await expect(review).toHaveCount(0);
+});
+
+test('WF-AGE-02: „Aufgaben und offene Fragen zu diesem Event“ filtert die Agenda', async ({ page }) => {
+  await openTask(page, 'Getränke bei der Brauerei bestellen');
+  await page.getByRole('button', { name: 'Aufgaben und offene Fragen zu diesem Event →' }).click();
+  await expect(page.getByRole('button', { name: 'Winterrave ▾' })).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: /Brauchen wir für den Winterrave eine Garderobe/ }),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: /Machen wir an Silvester/ })).toHaveCount(0);
+  await expect(card(page, 'Vereinshaftpflicht verlängern')).toHaveCount(0);
+});
+
+test('alte Adressen führen zur Agenda (Links in schon verschickten Nachrichten)', async ({ page }) => {
+  await page.goto('/aufgaben');
+  await expect(page).toHaveURL(/\/agenda$/);
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
+});
+
+test('WF-AUF-06: „In Arbeit“ trägt ein und lässt sich zurücknehmen', async ({ page }) => {
   await openTask(page, 'Vereinshaftpflicht verlängern');
   await expect(statusChip(page, 'Neu')).toHaveAttribute('aria-pressed', 'true');
   await statusChip(page, 'In Arbeit').click();
   await expect(undoBar(page)).toContainText('Status: In Arbeit · du bist eingetragen');
   await expect(page.getByRole('button', { name: 'Bearbeitende entfernen: Mo' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Fürs Plenum markieren' })).toBeVisible();
   // kein Übergang führt zurück zu „neu“
   await expect(statusChip(page, 'Neu')).toHaveAttribute('aria-disabled', 'true');
 
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
   await expect(statusChip(page, 'Neu')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Bearbeitende entfernen: Mo' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Fürs Plenum markiert' })).toBeVisible();
 });
 
 test('WF-AUF-07 / -08: Blockieren nur mit Grund, blockierende Aufgabe per Suche, Blockade lösen', async ({
@@ -121,7 +159,7 @@ test('WF-AUF-07 / -08: Blockieren nur mit Grund, blockierende Aufgabe per Suche,
   await expect(page.getByText('BLOCKIERT – GRUND')).toBeVisible();
   await expect(page.getByText('Ersatzteil fehlt noch')).toBeVisible();
   await expect(page.getByRole('link', { name: /Wartet auf Farben und Siebe besorgen/ })).toBeVisible();
-  await page.goto('/aufgaben');
+  await page.goto('/agenda');
   await expect(card(page, 'Nebelmaschine reparieren')).toContainText(
     /Wartet auf: Farben und Siebe besorgen/i,
   );
@@ -232,14 +270,14 @@ test('WF-AUF-14: Archivieren mit Bestätigung bei Kommentaren, Wiederherstellen'
   await sheet.getByRole('button', { name: 'Trotzdem archivieren' }).click();
   await expect(page.getByText('Archiviert – nicht mehr in den Listen.')).toBeVisible();
   const url = page.url();
-  await page.goto('/aufgaben');
+  await page.goto('/agenda');
   await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
   await expect(card(page, 'Nebelmaschine reparieren')).toHaveCount(0);
 
   await page.goto(url);
   await page.getByRole('button', { name: 'Wiederherstellen' }).click();
   await expect(page.getByText('Archiviert – nicht mehr in den Listen.')).toHaveCount(0);
-  await page.goto('/aufgaben');
+  await page.goto('/agenda');
   await expect(card(page, 'Nebelmaschine reparieren')).toBeVisible();
 });
 
@@ -379,8 +417,8 @@ test('lange Wörter im Titel sprengen das Layout nicht', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test('Tippflächen der Aufgabenliste sind mindestens 44 px hoch', async ({ page }) => {
-  for (const testId of ['WF-AUF-01', 'WF-AUF-02', 'WF-AUF-03']) {
+test('Tippflächen der Agenda sind mindestens 44 px hoch', async ({ page }) => {
+  for (const testId of ['WF-AUF-01', 'WF-AGE-01', 'WF-AUF-03']) {
     const size = await page
       .getByTestId(testId)
       .first()

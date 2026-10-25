@@ -90,7 +90,7 @@ test('WF-WIS-09: Datei aus dem Verzeichnis mit einer Aufgabe verknüpfen – der
   await expect(list(page).getByRole('listitem').filter({ hasText: 'Getränkeliste' })).toContainText(
     '1 Aufgabe',
   );
-  await page.goto('/aufgaben');
+  await page.goto('/agenda');
   await page.getByRole('link', { name: /Getränke bei der Brauerei/ }).click();
   await expect(page.getByRole('link', { name: /Getränkeliste/ })).toHaveAttribute(
     'href',

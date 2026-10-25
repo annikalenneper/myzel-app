@@ -41,7 +41,7 @@ beforeEach(async () => {
 describe('Zuweisung (6.4)', () => {
   it('„Übernehme ich“ setzt In Arbeit – mit Person in der Historie, ein zweiter Tipp ändert nichts', async () => {
     const id = await assignedToJule();
-    const msg = await tg('zuweisung', `/aufgaben/${id}`);
+    const msg = await tg('zuweisung', `/agenda/${id}`);
     expect(await press(msg.id, 'uebernehme')).toEqual({
       ok: true,
       text: 'Danke! „Kabel kaufen“ ist jetzt „In Arbeit“.',
@@ -59,7 +59,7 @@ describe('Zuweisung (6.4)', () => {
 
   it('„Passt nicht“ trägt aus, setzt „In Arbeit“ zurück und benachrichtigt, wer zugewiesen hat', async () => {
     const id = await assignedToJule();
-    const msg = await tg('zuweisung', `/aufgaben/${id}`);
+    const msg = await tg('zuweisung', `/agenda/${id}`);
     await press(msg.id, 'uebernehme');
     expect(await press(msg.id, 'passt_nicht')).toEqual({
       ok: true,
@@ -79,7 +79,7 @@ describe('Zuweisung (6.4)', () => {
 
   it('wer nicht mehr eingetragen ist, bekommt einen Hinweis statt einer Änderung', async () => {
     const id = await assignedToJule();
-    const msg = await tg('zuweisung', `/aufgaben/${id}`);
+    const msg = await tg('zuweisung', `/agenda/${id}`);
     await login('mo');
     await api.removeAssignee(id, await memberId('Jule'));
     await login('jule');
@@ -94,7 +94,7 @@ describe('Frist, Blockade, Termin (6.4)', () => {
   it('„Erledigt“ und „Bin dran“ an der Fristerinnerung', async () => {
     const id = await assignedToJule();
     await api.demo!.runJobNow();
-    const msg = await tg('frist_naht', `/aufgaben/${id}`);
+    const msg = await tg('frist_naht', `/agenda/${id}`);
     expect((await press(msg.id, 'bin_dran')).ok).toBe(true);
     expect((await api.getTask(id)).status).toBe('in_arbeit');
     expect(await press(msg.id, 'erledigt')).toEqual({
@@ -107,7 +107,7 @@ describe('Frist, Blockade, Termin (6.4)', () => {
   it('geht es nicht mehr, kommt ein freundlicher Hinweis – und nichts wird halb gespeichert', async () => {
     const id = await assignedToJule();
     await api.demo!.runJobNow();
-    const msg = await tg('frist_naht', `/aufgaben/${id}`);
+    const msg = await tg('frist_naht', `/agenda/${id}`);
     await login('mo');
     await api.archiveTask(id, (await api.getTask(id)).version);
     await login('jule');
@@ -125,7 +125,7 @@ describe('Frist, Blockade, Termin (6.4)', () => {
     await api.addAssignee(blocker, await memberId('Mo'));
     await api.setTaskStatus(blocker, { status: 'erledigt', version: (await api.getTask(blocker)).version });
     await login('jule');
-    const msg = await tg('blockade_aufgehoben', `/aufgaben/${waiting}`);
+    const msg = await tg('blockade_aufgehoben', `/agenda/${waiting}`);
     expect((await press(msg.id, 'weiter')).text).toBe('„Flyer verteilen“ ist jetzt „In Arbeit“.');
   });
 
@@ -154,7 +154,7 @@ describe('Frist, Blockade, Termin (6.4)', () => {
 
   it('nur eigene Telegram-Nachrichten und nur die Buttons der Nachricht', async () => {
     const id = await assignedToJule();
-    const msg = await tg('zuweisung', `/aufgaben/${id}`);
+    const msg = await tg('zuweisung', `/agenda/${id}`);
     // der Bot antwortet freundlich und ändert nichts
     expect(await press(msg.id, 'komme')).toEqual({
       ok: false,
@@ -172,7 +172,7 @@ describe('Frist, Blockade, Termin (6.4)', () => {
 describe('Verknüpfung (7.2)', () => {
   it('nach dem Trennen wirken Buttons alter Nachrichten nicht mehr', async () => {
     const id = await assignedToJule();
-    const msg = await tg('zuweisung', `/aufgaben/${id}`);
+    const msg = await tg('zuweisung', `/agenda/${id}`);
     await api.unlinkTelegram();
     expect(await press(msg.id, 'uebernehme')).toEqual({
       ok: false,

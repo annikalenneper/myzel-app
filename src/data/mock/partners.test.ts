@@ -98,30 +98,6 @@ describe('Verknüpfen mit Veranstaltungen (WF-VER-10)', () => {
   });
 });
 
-describe('Fürs Plenum (3.14, P4)', () => {
-  it('Partner lassen sich markieren und im Plenum besprechen oder mit einer Aufgabe versehen', async () => {
-    const p = await partner('Druckerei Tinte & Tusche');
-    await api.setMark('partner', p.id, true);
-    const plenumId = (await api.listAppointments()).find((a) => a.title === 'Plenum Oktober')!.id;
-    const item = (await api.getPlenum(plenumId)).agenda.find((a) => a.target === 'partner')!;
-    expect(item.label).toBe('Partner · Firma · 1 Veranstaltung');
-    await api.plenumAction(plenumId, {
-      kind: 'sub_task',
-      target: 'partner',
-      id: p.id,
-      title: 'Rechnung nachfragen',
-    });
-    expect(
-      (await api.listTasks()).some((t) => t.title === 'Rechnung nachfragen' && t.status === 'geplant'),
-    ).toBe(true);
-    await api.plenumAction(plenumId, { kind: 'discussed', target: 'partner', id: p.id });
-    expect((await api.getPartner(p.id)).marked).toBe(false);
-    expect((await api.getPlenum(plenumId)).results.find((g) => g.group === 'besprochen')!.lines).toEqual([
-      'Druckerei Tinte & Tusche',
-    ]);
-  });
-});
-
 describe('Deaktivieren (WF-ADM-03, ab P4)', () => {
   it('trägt die Person als interne Kontaktperson aus', async () => {
     const rana = await memberId('Rana');

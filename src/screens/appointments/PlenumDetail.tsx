@@ -1,4 +1,5 @@
-// S-33 Plenum – Detail · P3: ein Termin mit Agenda, Ergebnis und Protokoll (F-PLE-01 bis -05)
+// S-33 Plenum – Detail · P3: ein Termin mit Ergebnis und Protokoll (F-PLE-01, -04; 16.2). Die Agenda ist seit dem
+// Umbau 10/2026 eine eigene Ansicht.
 import { useState } from 'react';
 import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
 import { useNow } from '../../app/useNow';
@@ -26,7 +27,6 @@ import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
 import { TopBar } from './AppointmentDetail';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
 import { rsvpButton, useRsvp } from './AppointmentsScreen';
-import { Agenda } from './PlenumAgenda';
 
 const RESULT_TITLE: Record<ResultGroup, string> = {
   beschluesse: 'Entscheidungen & Fakten',
@@ -36,7 +36,7 @@ const RESULT_TITLE: Record<ResultGroup, string> = {
   besprochen: 'Besprochen',
 };
 
-type Tab = 'agenda' | 'ergebnis' | 'protokoll';
+type Tab = 'ergebnis' | 'protokoll';
 
 export function PlenumDetail({ plenumId }: { plenumId: string }) {
   const { data, error, reload } = useData(`plenum:${plenumId}`, () => api.getPlenum(plenumId));
@@ -62,9 +62,7 @@ function Loaded({ p }: { p: Detail }) {
   const cancelled = p.status === 'abgesagt';
   const open = !closed && !cancelled;
   const started = hasStarted(p, now);
-  const [picked, setTab] = useState<Tab>('agenda');
-  // ohne Agenda (abgeschlossen, abgesagt) zeigt die Ansicht das Ergebnis
-  const tab: Tab = picked === 'agenda' && !open ? 'ergebnis' : picked;
+  const [tab, setTab] = useState<Tab>('ergebnis');
   const [sheet, setSheet] = useState<'edit' | 'cancel' | 'close' | null>(null);
   const [menu, setMenu] = useState(false);
   // vergangen und nicht abgeschlossen: nur ein Hinweis (F-PLE-01), am Tag danach
@@ -72,7 +70,6 @@ function Loaded({ p }: { p: Detail }) {
   const resultCount = p.results.reduce((n, g) => n + g.lines.length, 0);
 
   const tabs: [Tab, string][] = [
-    ...(open ? [['agenda', `Agenda · ${p.agenda.length}`] as [Tab, string]] : []),
     ['ergebnis', `Ergebnis · ${resultCount}`],
     ['protokoll', 'Protokoll'],
   ];
@@ -174,7 +171,7 @@ function Loaded({ p }: { p: Detail }) {
 
         {cancelled && (
           <div className="rounded-[14px] border border-rot-rand bg-rot-flaeche px-3.5 py-3 text-[14px] leading-normal">
-            Abgesagt. Was markiert war, bleibt für das nächste Plenum auf der Agenda.
+            Abgesagt.
           </div>
         )}
         {overdue && (
@@ -297,7 +294,6 @@ function Loaded({ p }: { p: Detail }) {
           ))}
         </div>
 
-        {tab === 'agenda' && <Agenda plenum={p} />}
         {tab === 'ergebnis' && <Results p={p} />}
         {tab === 'protokoll' && <Protocol p={p} />}
       </div>
@@ -345,8 +341,7 @@ function Loaded({ p }: { p: Detail }) {
         <ConfirmDialog label="Plenum absagen" wf="WF-TER-05" onClose={() => setSheet(null)}>
           <h2 className="m-0 text-[20px] leading-[1.25] font-bold">{p.title} absagen?</h2>
           <span className="text-[15px] leading-normal text-weich">
-            Alle mit Zusage und ohne Antwort bekommen eine Nachricht. Die Agenda bleibt für das nächste Plenum
-            stehen.
+            Alle mit Zusage und ohne Antwort bekommen eine Nachricht.
           </span>
           <button
             type="button"
@@ -391,13 +386,13 @@ function Results({ p }: { p: Detail }) {
       ))}
       {p.results.length === 0 && (
         <span className="text-[14px] text-leise">
-          Noch nichts – alles, was in der Agenda passiert, landet hier.
+          Noch nichts – was während des Plenums angelegt oder geändert wird, landet hier.
         </span>
       )}
       <span className="pt-1.5 text-[13px] leading-[1.4] text-leise">
         {p.status === 'abgeschlossen'
           ? 'So ging es in die Zusammenfassung an alle.'
-          : 'Geht mit Bearbeitenden in die Zusammenfassung an alle. Was auf der Agenda bleibt, steht beim nächsten Plenum wieder drauf.'}
+          : 'Geht beim Abschließen als Zusammenfassung an alle.'}
       </span>
     </div>
   );
@@ -631,11 +626,6 @@ function CloseSheet({ p, onClose }: { p: Detail; onClose: () => void }) {
           </span>
         ))}
       </div>
-      <span className="text-[13px] leading-[1.4] text-leise">
-        {p.agenda.length
-          ? `${p.agenda.length} ${p.agenda.length === 1 ? 'Punkt bleibt' : 'Punkte bleiben'} markiert und ${p.agenda.length === 1 ? 'steht' : 'stehen'} beim nächsten Plenum wieder auf der Agenda.`
-          : 'Die Agenda ist leer.'}
-      </span>
       <button
         type="button"
         data-wf="WF-PLE-20"

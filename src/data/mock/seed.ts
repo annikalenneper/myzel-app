@@ -253,7 +253,6 @@ export function seedDb(now: Date): Db {
     due?: number;
     by: string;
     daysAgo: number;
-    plenum?: boolean;
   }
   const addTask = (s: TaskSeed) =>
     server.createTask(as(s.by, s.daysAgo, '19:38'), {
@@ -262,7 +261,6 @@ export function seedDb(now: Date): Db {
       event_id: s.event ?? null,
       priority: s.prio,
       due_date: s.due === undefined ? null : due(s.due),
-      mark_for_plenum: s.plenum ?? false,
     }).id;
   const plan = (id: string, by: string, daysAgo: number, assignees: string[]) => {
     server.setTaskStatus(as(by, daysAgo, '19:40'), id, { status: 'geplant', version: version(id) });
@@ -301,7 +299,6 @@ export function seedDb(now: Date): Db {
   );
   server.addComment(as('MO', 3, '09:15'), location, 'Begehung ist am Mittwoch um 17 Uhr, ich gehe hin.');
   server.addComment(as('LE', 1, '20:31'), location, 'Bitte auch nach der Lautstärke-Auflage fragen.');
-  server.setPlenumMark(as('LE', 1, '20:32'), location, true);
 
   const drinks = addTask({
     title: 'Getränke bei der Brauerei bestellen',
@@ -349,7 +346,6 @@ export function seedDb(now: Date): Db {
     'Location klärt sich bis Mittwoch, ich melde mich direkt hier.',
   );
   server.addFollower(as('LE', 0, '10:05'), flyer, member.LE!.id);
-  server.setPlenumMark(as('SA', 0, '10:06'), flyer, true);
 
   addTask({
     title: 'Vereinshaftpflicht verlängern',
@@ -358,7 +354,6 @@ export function seedDb(now: Date): Db {
     due: 20,
     by: 'NO',
     daysAgo: 4,
-    plenum: true,
   });
 
   const fog = addTask({
@@ -571,7 +566,7 @@ export function seedDb(now: Date): Db {
     ['LE', 'KI', 'JU', 'NO'],
     ['SA'],
   );
-  const vorbesprechung = addAppointment(
+  addAppointment(
     'Besprechung mit Externen',
     'Vorbesprechung Winterrave mit Kollektiv Sporenflug',
     23,
@@ -584,7 +579,6 @@ export function seedDb(now: Date): Db {
   );
   addAppointment('Plenum', 'Plenum November', 32, '19:00', 2, 'online', ['LE', 'EL', 'BE']);
   addAppointment('Bautag', 'Bautag November', 41, '10:00', 6, 'vor_ort', ['KI', 'TI']);
-  appts.setAppointmentMark(as('LE', 2), vorbesprechung, true);
   // Phase 6: Bis November von Hand angelegt, danach als Serie – jeden 3. Samstag (F-TER-02, Startbestand)
   series.createSeries(as('LE', 1), {
     type_id: type.Bautag!,
@@ -673,7 +667,7 @@ export function seedDb(now: Date): Db {
       topic_id: topicName ? topic[topicName]!.id : null,
     }).id;
   const coc = addDocument('Code of Conduct', 'leitlinie', 'drive-coc', 'Organisatorisches');
-  const hausordnung = addDocument('Hausordnung Lager', 'leitlinie', 'drive-hausordnung', 'Lager & Material');
+  addDocument('Hausordnung Lager', 'leitlinie', 'drive-hausordnung', 'Lager & Material');
   const protokollSept = addDocument('Protokoll Plenum September', 'protokoll', 'drive-protokoll-09');
   const flyerPdf = addDocument(
     'Flyer_Winterrave_v3.pdf',
@@ -685,7 +679,6 @@ export function seedDb(now: Date): Db {
   know.linkDocument(as('SA', 3), flyerPdf, 'task', flyer);
   know.linkDocument(as('LE', 20), coc, 'event', rave);
   know.linkDocument(as('LE', 20), coc, 'event', workshop);
-  know.setMark(as('KI', 2), 'document', hausordnung, true);
 
   const addDecision = (
     title: string,
@@ -738,9 +731,8 @@ export function seedDb(now: Date): Db {
     26,
     { plenum: plenumSept },
   );
-  know.setMark(as('RA', 2), 'decision', awareness4, true);
-  // die Agenda des nächsten Plenums zeigt jede Art einmal (F-PLE-03)
-  know.setMark(as('NO', 1), 'event', soli, true);
+  // „Stimmt das noch?“ auf der Agenda (16.1)
+  know.setDecisionAgenda(as('RA', 2), awareness4, true);
   addDecision('Unser Code of Conduct gilt für alle Veranstaltungen', 'fakt', 'Organisatorisches', 60, {
     document: coc,
   });
@@ -755,7 +747,7 @@ export function seedDb(now: Date): Db {
     title: string,
     topicName: string,
     urgency: Priority,
-    opts: { event?: string; description?: string; mark?: boolean } = {},
+    opts: { event?: string; description?: string } = {},
   ) =>
     know.createQuestion(as(by, daysAgo, '21:12'), {
       title,
@@ -763,10 +755,8 @@ export function seedDb(now: Date): Db {
       urgency,
       event_id: opts.event ?? null,
       description: opts.description ?? null,
-      mark_for_plenum: opts.mark ?? false,
     }).id;
   addQuestion('JU', 3, 'Machen wir an Silvester eine Party?', 'Veranstaltungen', 'hoch', {
-    mark: true,
     description:
       'Das Lager wäre frei. Wir müssten bis Ende Oktober wissen, ob wir einladen – sonst ist zu wenig Vorlauf für Getränke und Awareness.',
   });

@@ -1,9 +1,10 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
 import { AppShell } from './app/AppShell';
 import { FeedbackProvider } from './app/feedback';
 import { LookupsProvider } from './app/lookups';
 import { RequireAdmin, RequireMember, SessionProvider } from './app/session';
-import { TaskFilterProvider } from './app/taskFilter';
+import { AgendaFilterProvider } from './app/agendaFilter';
+import { AgendaScreen } from './screens/agenda/AgendaScreen';
 import { AppointmentsScreen } from './screens/appointments/AppointmentsScreen';
 import { PartnersScreen } from './screens/partners/PartnersScreen';
 import { Templates } from './screens/profile/Templates';
@@ -17,15 +18,20 @@ import { Members } from './screens/profile/Members';
 import { Profile } from './screens/profile/Profile';
 import { SystemStatus } from './screens/profile/SystemStatus';
 import { Topics } from './screens/profile/Topics';
-import { TasksScreen } from './screens/tasks/TasksScreen';
 import { DemoBanner } from './ui/DemoBanner';
+
+/** Alte Adressen (z. B. in schon verschickten Benachrichtigungen) führen zur neuen Stelle (16.1) */
+function Moved({ to }: { to: (id: string) => string }) {
+  const { id } = useParams();
+  return <Navigate to={to(id ?? '')} replace />;
+}
 
 function MemberArea() {
   return (
     <LookupsProvider>
-      <TaskFilterProvider>
+      <AgendaFilterProvider>
         <Outlet />
-      </TaskFilterProvider>
+      </AgendaFilterProvider>
     </LookupsProvider>
   );
 }
@@ -42,8 +48,12 @@ export function App() {
           <Route element={<RequireMember />}>
             <Route element={<MemberArea />}>
               <Route element={<AppShell />}>
-                <Route path="/aufgaben" element={<TasksScreen />} />
-                <Route path="/aufgaben/:taskId" element={<TasksScreen />} />
+                <Route path="/agenda" element={<AgendaScreen />} />
+                <Route path="/agenda/:id" element={<AgendaScreen />} />
+                <Route path="/agenda/frage/:id" element={<AgendaScreen detail="question" />} />
+                <Route path="/agenda/eintrag/:id" element={<AgendaScreen detail="decision" />} />
+                <Route path="/aufgaben" element={<Navigate to="/agenda" replace />} />
+                <Route path="/aufgaben/:id" element={<Moved to={(id) => `/agenda/${id}`} />} />
                 <Route path="/events" element={<EventsScreen />} />
                 <Route path="/events/:eventId" element={<EventsScreen />} />
                 <Route path="/partner" element={<PartnersScreen />} />
@@ -52,7 +62,7 @@ export function App() {
                 <Route path="/termine/:appointmentId" element={<AppointmentsScreen />} />
                 <Route path="/wissen" element={<KnowledgeScreen />} />
                 <Route path="/wissen/beschluesse/:id" element={<KnowledgeScreen detail="decision" />} />
-                <Route path="/wissen/fragen/:id" element={<KnowledgeScreen detail="question" />} />
+                <Route path="/wissen/fragen/:id" element={<Moved to={(id) => `/agenda/frage/${id}`} />} />
                 <Route path="/wissen/drive" element={<KnowledgeScreen drive />} />
                 <Route path="/wissen/drive/:folderId" element={<KnowledgeScreen drive />} />
                 <Route path="/profil" element={<Profile />} />
@@ -66,7 +76,7 @@ export function App() {
               </Route>
             </Route>
           </Route>
-          <Route path="*" element={<Navigate to="/aufgaben" replace />} />
+          <Route path="*" element={<Navigate to="/agenda" replace />} />
         </Routes>
       </FeedbackProvider>
     </SessionProvider>

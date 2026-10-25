@@ -1,4 +1,5 @@
-// S-40 Wissen · P3: Beschlüsse (Entscheidungen und Fakten), Fragen, Dokumente; P5: Drive-Verzeichnis.
+// S-40 Wissen · P3: Entscheidungen, Fakten, Dokumente; P5: Drive-Verzeichnis. Fragen stehen seit dem Umbau 10/2026
+// in der Agenda (16.1).
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ListDetailLayout } from '../../app/AppShell';
@@ -6,9 +7,8 @@ import { BarOffset, useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
-import type { DecisionListItem, DocumentListItem, DriveEntry, QuestionListItem } from '../../data/api';
-import { PRIORITY_LABEL } from '../../shared/labels';
-import { DECISION_KIND_LABEL, DECISION_STATUS_LABEL, DOC_TYPE_LABEL } from '../../shared/rules/knowledge';
+import type { DecisionListItem, DocumentListItem, DriveEntry } from '../../data/api';
+import { DECISION_STATUS_LABEL, DOC_TYPE_LABEL } from '../../shared/rules/knowledge';
 import { topicFilterIds } from '../../shared/rules/topics';
 import type { DecisionKind, DecisionStatus } from '../../shared/schema';
 import { cx, ListSkeleton, Pill } from '../../ui/bits';
@@ -19,108 +19,89 @@ import { DecisionDetail } from './DecisionDetail';
 import { DocumentLinkScreen } from './DocumentLinkScreen';
 import { DriveBrowser, useDriveSync } from './Drive';
 import { DriveMissing } from './LinkedDocuments';
-import { DecisionSheet, QuestionSheet } from './KnowledgeSheets';
-import { QuestionDetail } from './QuestionDetail';
+import { DecisionSheet } from './KnowledgeSheets';
 
 /** Link „Finanzen in MeinVerein“ – URL konfigurierbar (F-WIS-07) */
 // eine leer angelegte Variable gilt wie eine fehlende
 const MEINVEREIN_URL: string = import.meta.env.VITE_MEINVEREIN_URL?.trim() || 'https://www.meinverein.de/';
 
-export type KnowledgeTab = 'beschluesse' | 'fragen' | 'dokumente' | 'drive';
+type KnowledgeTab = 'entscheidungen' | 'fakten' | 'dokumente' | 'drive';
 const TABS: [KnowledgeTab, string][] = [
-  ['beschluesse', 'Beschlüsse'],
-  ['fragen', 'Fragen'],
+  ['entscheidungen', 'Entscheidungen'],
+  ['fakten', 'Fakten'],
   ['dokumente', 'Dokumente'],
   ['drive', 'Drive'],
 ];
 const ALL = '__alle__';
 
-export function KnowledgeScreen({ detail, drive }: { detail?: 'decision' | 'question'; drive?: boolean }) {
+export function KnowledgeScreen({ detail, drive }: { detail?: 'decision'; drive?: boolean }) {
   const { id } = useParams();
   return (
     <ListDetailLayout
       detailOpen={!!detail && !!id}
-      list={
-        <KnowledgeList
-          initialTab={detail === 'question' ? 'fragen' : 'beschluesse'}
-          drive={!!drive}
-          selectedId={id ?? null}
-        />
-      }
-      detail={
-        !id ? null : detail === 'decision' ? (
-          <DecisionDetail key={id} decisionId={id} />
-        ) : (
-          <QuestionDetail key={id} questionId={id} />
-        )
-      }
+      list={<KnowledgeList drive={!!drive} selectedId={id ?? null} />}
+      detail={id ? <DecisionDetail key={id} decisionId={id} /> : null}
     />
   );
 }
 
-export function MarkButton({
-  marked,
-  onToggle,
-  title,
-}: {
-  marked: boolean;
-  onToggle: () => void;
-  title: string;
-}) {
+/** WF-AGE-03: Entscheidung oder Fakt auf die Agenda setzen – das Lesezeichen an der Karte */
+function AgendaButton({ on, onToggle, title }: { on: boolean; onToggle: () => void; title: string }) {
   return (
     <button
       type="button"
-      data-wf="WF-WIS-05"
+      data-wf="WF-AGE-03"
       onClick={onToggle}
-      aria-pressed={marked}
-      aria-label={marked ? 'Markierung „Fürs Plenum“ entfernen' : `Fürs Plenum markieren: ${title}`}
+      aria-pressed={on}
+      aria-label={on ? `Von der Agenda nehmen: ${title}` : `Auf die Agenda setzen: ${title}`}
       className={cx(
         'hit absolute top-2 right-2 flex size-10 items-center justify-center rounded-full',
-        marked ? 'text-pink' : 'text-leise',
+        on ? 'text-pink' : 'text-leise',
       )}
     >
-      <IconBookmark filled={marked} />
+      <IconBookmark filled={on} />
     </button>
   );
 }
 
-/** WF-WIS-05: Markierung „Fürs Plenum“ an Entscheidung, Frage, Dokument */
-export function useMark() {
+function useAgendaToggle() {
   const { run } = useFeedback();
-  return (target: 'decision' | 'question' | 'document' | 'event' | 'partner', id: string, marked: boolean) =>
-    void run(() => api.setMark(target, id, !marked), {
-      success: marked ? 'Markierung entfernt' : 'Fürs Plenum markiert',
+  return (d: DecisionListItem) =>
+    void run(() => api.setDecisionAgenda(d.id, !d.marked), {
+      success: d.marked ? 'Von der Agenda genommen' : 'Auf der Agenda',
       undo: (r) => r.undo_token,
     });
 }
 
 function KnowledgeList({
-  initialTab,
   drive,
   selectedId,
 }: {
-  initialTab: KnowledgeTab;
   /** Drive-Reiter: eigene Adresse /wissen/drive, damit Ordner, Zurück und „im Drive suchen“ funktionieren */
   drive: boolean;
   selectedId: string | null;
 }) {
   const { barVisible } = useFeedback();
   const navigate = useNavigate();
-  const [appTab, setAppTab] = useState<KnowledgeTab>(initialTab);
+  // gewählter Reiter; solange keiner gewählt ist, steht ein geöffneter Fakt im Reiter „Fakten“
+  const [picked, setAppTab] = useState<KnowledgeTab | null>(null);
+  const { data: decisions } = useData('decisions', () => api.listDecisions());
+  const openKind = decisions?.find((d) => d.id === selectedId)?.kind;
+  const appTab = picked ?? (openKind === 'fakt' ? 'fakten' : 'entscheidungen');
   const tab = drive ? 'drive' : appTab;
   const setTab = (key: KnowledgeTab) => {
     if (key === 'drive') return navigate('/wissen/drive');
     setAppTab(key);
     if (drive) navigate('/wissen');
   };
-  const [sheet, setSheet] = useState<'decision' | 'question' | 'document' | null>(null);
+  const [sheet, setSheet] = useState<'entscheidung' | 'fakt' | 'document' | null>(null);
   const [driveFile, setDriveFile] = useState<DriveEntry | null>(null);
   const fab: Record<
     Exclude<KnowledgeTab, 'drive'>,
-    [wf: string, label: string, kind: 'decision' | 'question' | 'document']
+    [wf: string, label: string, kind: 'entscheidung' | 'fakt' | 'document']
   > = {
-    beschluesse: ['WF-WIS-01', 'Entscheidung oder Fakt anlegen', 'decision'],
-    fragen: ['WF-FRA-01', 'Frage stellen', 'question'],
+    entscheidungen: ['WF-WIS-01', 'Entscheidung festhalten', 'entscheidung'],
+    fakten: ['WF-WIS-01', 'Fakt festhalten', 'fakt'],
     dokumente: ['WF-WIS-06', 'Dokument per Link erfassen', 'document'],
   };
 
@@ -164,13 +145,17 @@ function KnowledgeList({
       </div>
 
       <div role="tabpanel" className="flex flex-1 flex-col gap-3 px-5 pt-3.5 pb-[180px] lg:pb-28">
-        {tab === 'beschluesse' && <Decisions selectedId={selectedId} onCreate={() => setSheet('decision')} />}
-        {tab === 'fragen' && <Questions selectedId={selectedId} onCreate={() => setSheet('question')} />}
+        {tab === 'entscheidungen' && (
+          <Decisions kind="entscheidung" selectedId={selectedId} onCreate={() => setSheet('entscheidung')} />
+        )}
+        {tab === 'fakten' && (
+          <Decisions kind="fakt" selectedId={selectedId} onCreate={() => setSheet('fakt')} />
+        )}
         {tab === 'dokumente' && <Documents onCreate={() => setSheet('document')} />}
         {tab === 'drive' && <DriveTab onLink={setDriveFile} />}
       </div>
 
-      {/* Kontextabhängiges „+“: Entscheidung/Fakt · Frage · Dokument per Link */}
+      {/* Kontextabhängiges „+“: Entscheidung · Fakt · Dokument per Link */}
       {!barVisible && tab !== 'drive' && (
         <button
           type="button"
@@ -182,8 +167,9 @@ function KnowledgeList({
           <IconPlus size={26} />
         </button>
       )}
-      {sheet === 'decision' && <DecisionSheet onClose={() => setSheet(null)} />}
-      {sheet === 'question' && <QuestionSheet onClose={() => setSheet(null)} />}
+      {(sheet === 'entscheidung' || sheet === 'fakt') && (
+        <DecisionSheet initialKind={sheet} onClose={() => setSheet(null)} />
+      )}
       {sheet === 'document' && <DocumentLinkScreen target={null} onClose={() => setSheet(null)} />}
       {/* WF-WIS-09 Datei aus dem Verzeichnis verknüpfen: S-43 mit dieser Datei, Ziel frei wählbar */}
       {driveFile && (
@@ -198,14 +184,21 @@ function KnowledgeList({
   );
 }
 
-type DecisionMenu = 'art' | 'status' | 'thema' | null;
+type DecisionMenu = 'status' | 'thema' | null;
 
-function Decisions({ selectedId, onCreate }: { selectedId: string | null; onCreate: () => void }) {
-  const mark = useMark();
+function Decisions({
+  kind,
+  selectedId,
+  onCreate,
+}: {
+  kind: DecisionKind;
+  selectedId: string | null;
+  onCreate: () => void;
+}) {
+  const toggleAgenda = useAgendaToggle();
   const { topics } = useLookups();
   const { data: decisions } = useData('decisions', () => api.listDecisions());
-  // WF-WIS-04 Filter Thema, Art, Status – kombinierbar, speichern nichts; Standard: nur gültige
-  const [kind, setKind] = useState<DecisionKind | null>(null);
+  // WF-WIS-04 Filter Thema und Status – kombinierbar, speichern nichts; Standard: nur gültige
   const [status, setStatus] = useState<DecisionStatus | 'alle'>('gueltig');
   const [topicId, setTopicId] = useState<string | null>(null);
   const [menu, setMenu] = useState<DecisionMenu>(null);
@@ -214,25 +207,16 @@ function Decisions({ selectedId, onCreate }: { selectedId: string | null; onCrea
   const shown = (decisions ?? []).filter(
     (d) =>
       (status === 'alle' || d.status === status) &&
-      (!kind || d.kind === kind) &&
+      d.kind === kind &&
       (!topicIds || topicIds.has(d.topic_id)),
   );
-  const filtered = kind !== null || status !== 'gueltig' || topicId !== null;
+  const filtered = status !== 'gueltig' || topicId !== null;
   const topLevel = topics.filter((t) => !t.parent_id && (!t.archived_at || t.id === topicId));
 
   const menus: Record<
     Exclude<DecisionMenu, null>,
     { label: string; options: MenuOption[]; pick: (k: string) => void }
   > = {
-    art: {
-      label: 'Art',
-      options: [
-        { key: ALL, label: 'Entscheidungen und Fakten', selected: !kind },
-        { key: 'entscheidung', label: 'Nur Entscheidungen', selected: kind === 'entscheidung' },
-        { key: 'fakt', label: 'Nur Fakten', selected: kind === 'fakt' },
-      ],
-      pick: (k) => setKind(k === ALL ? null : (k as DecisionKind)),
-    },
     status: {
       label: 'Status',
       options: [
@@ -255,7 +239,6 @@ function Decisions({ selectedId, onCreate }: { selectedId: string | null; onCrea
     },
   };
   const pills: [Exclude<DecisionMenu, null>, string, boolean][] = [
-    ['art', kind ? (kind === 'fakt' ? 'Fakten' : 'Entscheidungen') : 'Art', kind !== null],
     ['status', status === 'alle' ? 'Alle Status' : DECISION_STATUS_LABEL[status], status !== 'gueltig'],
     ['thema', topicId ? (topics.find((t) => t.id === topicId)?.name ?? 'Thema') : 'Thema', topicId !== null],
   ];
@@ -299,7 +282,6 @@ function Decisions({ selectedId, onCreate }: { selectedId: string | null; onCrea
               type="button"
               data-wf="WF-WIS-04"
               onClick={() => {
-                setKind(null);
                 setStatus('gueltig');
                 setTopicId(null);
               }}
@@ -311,21 +293,20 @@ function Decisions({ selectedId, onCreate }: { selectedId: string | null; onCrea
         </div>
       </div>
       {shown.map((d) => (
-        <DecisionCard
-          key={d.id}
-          d={d}
-          selected={d.id === selectedId}
-          onMark={() => mark('decision', d.id, d.marked)}
-        />
+        <DecisionCard key={d.id} d={d} selected={d.id === selectedId} onAgenda={() => toggleAgenda(d)} />
       ))}
       {shown.length === 0 && (
         <Empty
           text={
             filtered
               ? 'Mit diesen Filtern gibt es keine Einträge.'
-              : 'Noch nichts festgehalten. Halte die erste Entscheidung oder den ersten Fakt fest.'
+              : kind === 'fakt'
+                ? 'Noch kein Fakt festgehalten.'
+                : 'Noch keine Entscheidung festgehalten.'
           }
-          action={filtered ? undefined : ['WF-WIS-01', '+ Entscheidung oder Fakt', onCreate]}
+          action={
+            filtered ? undefined : ['WF-WIS-01', kind === 'fakt' ? '+ Fakt' : '+ Entscheidung', onCreate]
+          }
         />
       )}
     </>
@@ -335,11 +316,11 @@ function Decisions({ selectedId, onCreate }: { selectedId: string | null; onCrea
 function DecisionCard({
   d,
   selected,
-  onMark,
+  onAgenda,
 }: {
   d: DecisionListItem;
   selected: boolean;
-  onMark: () => void;
+  onAgenda: () => void;
 }) {
   const valid = d.status === 'gueltig';
   return (
@@ -351,8 +332,8 @@ function DecisionCard({
         className={cx('flex flex-col gap-2 py-3.5 pr-14 pl-4 text-text no-underline', !valid && 'opacity-60')}
       >
         <span className="label-mono flex items-center gap-2">
-          {DECISION_KIND_LABEL[d.kind]}
           <span className={valid ? 'text-gruen' : 'text-leise'}>{DECISION_STATUS_LABEL[d.status]}</span>
+          {d.marked && <span className="text-pink">Auf der Agenda</span>}
         </span>
         <span className={cx('text-[17px] leading-[1.3] font-semibold', !valid && 'line-through')}>
           {d.title}
@@ -364,93 +345,20 @@ function DecisionCard({
         )}
         <span className="label-mono">Quelle: {d.source_label}</span>
       </Link>
-      {/* nur gültige sind markierbar */}
-      {valid && <MarkButton marked={d.marked} onToggle={onMark} title={d.title} />}
+      {/* nur gültige lassen sich auf die Agenda setzen */}
+      {valid && <AgendaButton on={d.marked} onToggle={onAgenda} title={d.title} />}
     </article>
   );
 }
 
-function Questions({ selectedId, onCreate }: { selectedId: string | null; onCreate: () => void }) {
-  const mark = useMark();
-  const { topicName, eventById } = useLookups();
-  const { data: questions } = useData('questions', () => api.listQuestions());
-  const [now] = useState(() => Date.now());
-  if (!questions) return <ListSkeleton />;
-  const open = questions.filter((q) => q.status === 'offen');
-  const clarified = questions
-    .filter((q) => q.status === 'geklaert')
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-    .slice(0, 5);
-
-  const meta = (q: QuestionListItem) => {
-    const days = Math.floor((now - new Date(q.created_at).getTime()) / 86_400_000);
-    const event = q.event_id ? eventById.get(q.event_id)?.title : null;
-    return [
-      PRIORITY_LABEL[q.urgency],
-      days <= 0 ? 'seit heute' : days === 1 ? 'seit gestern' : `seit ${days} Tagen`,
-      event ? `Event ${event}` : topicName(q.topic_id),
-      q.marked && 'fürs Plenum',
-    ]
-      .filter(Boolean)
-      .join(' · ');
-  };
-
-  return (
-    <>
-      <span className="label-mono">Offen · nach Dringlichkeit und Alter</span>
-      {open.map((q) => (
-        <article
-          key={q.id}
-          className={cx(
-            'relative rounded-2xl border border-linie',
-            q.id === selectedId ? 'bg-erhoeht' : 'bg-flaeche',
-          )}
-        >
-          <Link
-            to={`/wissen/fragen/${q.id}`}
-            className="flex flex-col gap-2 py-3.5 pr-14 pl-4 text-text no-underline"
-          >
-            <span className={cx('label-mono', q.urgency === 'hoch' && 'text-bernstein')}>{meta(q)}</span>
-            <span className="text-[17px] leading-[1.3] font-semibold">{q.title}</span>
-          </Link>
-          <MarkButton marked={q.marked} onToggle={() => mark('question', q.id, q.marked)} title={q.title} />
-        </article>
-      ))}
-      {open.length === 0 && (
-        <Empty
-          text="Keine offenen Fragen. Stell eine, wenn etwas zu klären ist."
-          action={['WF-FRA-01', '+ Frage', onCreate]}
-        />
-      )}
-      {clarified.length > 0 && <span className="label-mono pt-2">Zuletzt geklärt</span>}
-      {clarified.map((q) => (
-        <Link
-          key={q.id}
-          to={`/wissen/fragen/${q.id}`}
-          className="flex flex-col gap-1.5 rounded-2xl border border-linie px-4 py-3 text-text no-underline"
-        >
-          <span className="text-[15px] leading-[1.35] text-weich">{q.title}</span>
-          <span className="text-[13px] leading-[1.4] text-leise">
-            →{' '}
-            {q.resulting_decision
-              ? `${DECISION_KIND_LABEL[q.resulting_decision.kind]}: ${q.resulting_decision.title}`
-              : q.answer}
-          </span>
-        </Link>
-      ))}
-    </>
-  );
-}
-
 function Documents({ onCreate }: { onCreate: () => void }) {
-  const mark = useMark();
   const { data: documents } = useData('documents', () => api.listDocuments());
   if (!documents) return <ListSkeleton />;
   const meta = (d: DocumentListItem) =>
     [
       DOC_TYPE_LABEL[d.doc_type],
       d.drive_file_id || /drive\.google\.com|docs\.google\.com/.test(d.url) ? 'Drive' : 'Link',
-      d.marked ? 'fürs Plenum' : d.link_summary,
+      d.link_summary,
     ].join(' · ');
   return (
     <>
@@ -468,17 +376,12 @@ function Documents({ onCreate }: { onCreate: () => void }) {
                 href={d.url}
                 target="_blank"
                 rel="noreferrer"
-                className="flex min-w-0 flex-1 flex-col gap-0.5 py-2 pr-14 pl-4 text-text no-underline"
+                className="flex min-w-0 flex-1 flex-col gap-0.5 py-2 pr-4 pl-4 text-text no-underline"
               >
                 <span className="text-[15px] font-medium">{d.title} ↗</span>
                 <span className="label-mono">{meta(d)}</span>
                 <DriveMissing doc={d} />
               </a>
-              <MarkButton
-                marked={d.marked}
-                onToggle={() => mark('document', d.id, d.marked)}
-                title={d.title}
-              />
             </div>
           ))}
         </div>

@@ -77,7 +77,7 @@ describe('check:integrity', () => {
     expect(report(await runChecks(local.db))).toMatch(/FEHLER .*Zyklen[\s\S]*3 Prüfung\(en\) mit Fehlern/);
   });
 
-  it('findet deaktivierte Bearbeitende, Markierungen an erledigten Aufgaben und fehlende Admins', async () => {
+  it('findet deaktivierte Bearbeitende, aufgehobene Einträge auf der Agenda und fehlende Admins', async () => {
     await act(
       'addAssignee',
       taskA,
@@ -89,10 +89,13 @@ describe('check:integrity', () => {
           .executeTakeFirstOrThrow()
       ).id,
     );
-    await act('setPlenumMark', taskB, true);
     await local.pg.exec(`
+      insert into decisions (title, kind, topic_id, decided_on, status, source_note, created_by)
+        select 'Alte Regel', 'entscheidung', '${topicId}', current_date, 'aufgehoben', 'Notiz', id
+        from members where not is_system;
+      insert into plenum_marks (decision_id, position, marked_by)
+        select id, 1, created_by from decisions where title = 'Alte Regel';
       update members set active = false where not is_system;
-      update tasks set status = 'erledigt' where id = '${taskB}';
     `);
     const found = Object.fromEntries(await failing());
     expect(found['Keine deaktivierten Bearbeitenden oder Folgenden']).toEqual([
@@ -100,7 +103,9 @@ describe('check:integrity', () => {
       '#1 Regal bauen: Lea (folgt)',
       '#2 Holz holen: Lea (folgt)',
     ]);
-    expect(found['Markierung „Fürs Plenum“ nur an aktiven Aufgaben']).toEqual(['#2 Holz holen (erledigt)']);
+    expect(found['Auf der Agenda nur gültige Entscheidungen und Fakten']).toEqual([
+      'Eintrag „Alte Regel“ (aufgehoben)',
+    ]);
     expect(found['Mindestens eine aktive Person mit Admin-Rechten']).toEqual(['keine aktive Admin-Person']);
   });
 

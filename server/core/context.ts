@@ -39,11 +39,7 @@ export type InverseOp =
   | { kind: 'follower_remove'; task_id: string; member_id: string }
   | { kind: 'follower_add'; task_id: string; member_id: string }
   | { kind: 'mark_restore'; row: Selectable<PlenumMarksTable> }
-  | {
-      kind: 'mark_remove';
-      target: 'task' | 'question' | 'decision' | 'event' | 'appointment' | 'document' | 'partner';
-      id: string;
-    }
+  | { kind: 'mark_remove'; decision_id: string }
   | { kind: 'blocker_remove'; task_id: string; blocker_task_id: string }
   | { kind: 'event_status'; event_id: string; status: string }
   // [P3]
@@ -114,7 +110,7 @@ export function parse<T>(schema: ZodType<T>, raw: unknown): T {
   return result.data;
 }
 
-export function requireAdmin(ctx: Ctx): void {
+export function requireAdmin(ctx: { actor: MemberRow }): void {
   if (!ctx.actor.is_admin) throw new AppError('forbidden', 'Das dürfen nur Personen mit Admin-Rechten.');
 }
 

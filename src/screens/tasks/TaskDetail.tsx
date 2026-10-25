@@ -17,7 +17,8 @@ import { canTransitionTask, isActiveTaskStatus } from '../../shared/rules/taskSt
 import { PRIORITIES, TASK_STATUSES, type Comment, type Member, type TaskStatus } from '../../shared/schema';
 import { Avatar, cx, FieldError, ListSkeleton, LoadError, PriorityBars } from '../../ui/bits';
 import { DateTile } from '../../ui/DateTile';
-import { IconBack, IconBookmark, IconMore, IconSend } from '../../ui/icons';
+import { IconBack, IconMore, IconSend } from '../../ui/icons';
+import { EventAgendaLink } from '../agenda/EventAgendaLink';
 import { LinkedDocuments } from '../knowledge/LinkedDocuments';
 import { ArchiveSheet, BlockSheet, DiscardSheet, PeopleSheet, PickerSheet } from './sheets';
 
@@ -47,8 +48,8 @@ export function TaskDetail({ taskId }: { taskId: string }) {
           {error?.code === 'not_found' ? (
             <div data-wf="WF-ALL-05" className="flex flex-col items-center gap-3 py-10 text-center">
               <span className="text-[16px] font-semibold">Diese Aufgabe gibt es nicht</span>
-              <Link to="/aufgaben" className="hit text-[14px] text-pink">
-                Zur Aufgabenliste
+              <Link to="/agenda" className="hit text-[14px] text-pink">
+                Zur Agenda
               </Link>
             </div>
           ) : error ? (
@@ -67,8 +68,8 @@ function TopBar({ label, children }: { label?: string; children?: React.ReactNod
   return (
     <div className="sticky top-0 z-10 flex h-[60px] flex-none items-center gap-1 border-b border-linie bg-grund px-3">
       <Link
-        to="/aufgaben"
-        aria-label="Zurück zu Aufgaben"
+        to="/agenda"
+        aria-label="Zurück zur Agenda"
         className="flex size-11 items-center justify-center text-text"
       >
         <IconBack />
@@ -145,12 +146,6 @@ function Loaded({ task }: { task: TaskDetailData }) {
       ownInput,
     });
 
-  const toggleMark = () =>
-    void act(() => api.setPlenumMark(task.id, !task.marked), {
-      success: task.marked ? 'Markierung entfernt' : 'Fürs Plenum markiert',
-      undo: (r) => r.undo_token,
-    });
-
   const archive = () =>
     void act(() => api.archiveTask(task.id, latest.current), {
       subject: SUBJECT,
@@ -216,7 +211,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
       {task.blockers.map((b) => (
         <div key={b.id} className="flex items-center gap-1 rounded-[10px] bg-flaeche pr-1 pl-3">
           <Link
-            to={`/aufgaben/${b.id}`}
+            to={`/agenda/${b.id}`}
             className="flex min-h-11 flex-1 items-center gap-2.5 py-1.5 text-text no-underline"
           >
             <span className="label-mono flex-none">Wartet auf</span>
@@ -331,22 +326,6 @@ function Loaded({ task }: { task: TaskDetailData }) {
             disabled={archived}
             onSave={(title) => saveFields({ title }, title)}
           />
-          {/* WF-AUF-02 – nur bei aktiven, nicht archivierten Aufgaben */}
-          {active && !archived && (
-            <button
-              type="button"
-              data-wf="WF-AUF-02"
-              onClick={toggleMark}
-              aria-pressed={task.marked}
-              className={cx(
-                'hit flex h-8 items-center gap-1.5 self-start rounded-2xl border px-3 text-[13px]',
-                task.marked ? 'border-pink bg-[rgba(240,98,192,0.14)] text-pink' : 'border-rand text-weich',
-              )}
-            >
-              <IconBookmark filled={task.marked} size={14} strokeWidth={2} />
-              {task.marked ? 'Fürs Plenum markiert' : 'Fürs Plenum markieren'}
-            </button>
-          )}
         </div>
 
         <div
@@ -471,6 +450,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
               )}
             </FieldTile>
           </div>
+          {event && <EventAgendaLink eventId={event.id} />}
 
           <Description task={task} act={act} />
 

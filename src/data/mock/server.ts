@@ -35,7 +35,6 @@ import {
   taskDescriptionSchema,
   taskFieldsSchema,
   taskStatusChangeSchema,
-  MARK_TARGETS,
   topicCreateSchema,
   topicUpdateSchema,
   type Comment,
@@ -63,7 +62,6 @@ import {
   type DocumentRow,
   type DriveItem,
   type DriveSyncState,
-  type MarkTarget,
   type Question,
   type JobRun,
   type OutboxEntry,
@@ -105,7 +103,7 @@ export type InverseOp =
   | { kind: 'follower_remove'; task_id: string; member_id: string }
   | { kind: 'follower_add'; task_id: string; member_id: string }
   | { kind: 'mark_restore'; row: PlenumMark }
-  | { kind: 'mark_remove'; target: MarkTarget; id: string }
+  | { kind: 'mark_remove'; decision_id: string }
   | { kind: 'rsvp_restore'; appointment_id: string; member_id: string; row: AppointmentRsvp | null }
   | {
       kind: 'appointment_state';
@@ -371,7 +369,6 @@ function taskListItem(db: Db, task: Task): TaskListItem {
     follower_ids: db.task_followers.filter((f) => f.task_id === task.id).map((f) => f.member_id),
     blocker_titles: db.tasks.filter((t) => blockerIds.includes(t.id) && !t.archived_at).map((t) => t.title),
     comment_count: db.comments.filter((c) => c.task_id === task.id).length,
-    marked: isMarked(db, 'task', task.id),
   };
 }
 
@@ -406,7 +403,6 @@ function eventListItem(db: Db, event: EventRow, today: string): EventListItem {
     task_total: tasks.length,
     task_done: tasks.filter((t) => t.status === 'erledigt').length,
     task_overdue: tasks.filter((t) => isOverdue(t.due_date, t.status, today)).length,
-    marked: isMarked(db, 'event', event.id),
     follow_up_since:
       event.status === 'in_nachbereitung'
         ? ([...db.history]
@@ -507,38 +503,31 @@ function follow(ctx: Ctx, taskId: string, memberId: string): boolean {
   return true;
 }
 
-const markColumn = (target: MarkTarget) => `${target}_id` as const;
-export const isMarked = (db: Db, target: MarkTarget, id: string) =>
-  db.plenum_marks.some((m) => m[markColumn(target)] === id);
+/** Entscheidung oder Fakt steht ausdrücklich auf der Agenda (16.1) */
+export const isMarked = (db: Db, decisionId: string) =>
+  db.plenum_marks.some((m) => m.decision_id === decisionId);
 
-/** Statusänderungen und Archivieren entfernen die Markierung „Fürs Plenum“ (3.14). */
-export function dropMark(ctx: Ctx, target: MarkTarget, id: string): boolean {
-  const mark = ctx.db.plenum_marks.find((m) => m[markColumn(target)] === id);
+/** Ersetzen und Aufheben nehmen den Eintrag von der Agenda. */
+export function dropMark(ctx: Ctx, decisionId: string): boolean {
+  const mark = ctx.db.plenum_marks.find((m) => m.decision_id === decisionId);
   if (!mark) return false;
   ctx.db.plenum_marks = ctx.db.plenum_marks.filter((m) => m !== mark);
   ctx.inverse.push({ kind: 'mark_restore', row: mark });
   return true;
 }
 
-/** Neu Markiertes kommt ans Ende der Agenda. */
-export function addMark(ctx: Ctx, target: MarkTarget, id: string): void {
+/** Neu Aufgesetztes kommt ans Ende der Agenda. */
+export function addMark(ctx: Ctx, decisionId: string): void {
   const position = Math.max(0, ...ctx.db.plenum_marks.map((m) => m.position)) + 1;
   ctx.db.plenum_marks.push({
     id: uuid(),
-    task_id: null,
-    question_id: null,
-    decision_id: null,
-    event_id: null,
-    appointment_id: null,
-    document_id: null,
-    partner_id: null,
-    [markColumn(target)]: id,
+    decision_id: decisionId,
     position,
     note: null,
     marked_by: ctx.actor.id,
     marked_at: iso(ctx),
   });
-  ctx.inverse.push({ kind: 'mark_remove', target, id });
+  ctx.inverse.push({ kind: 'mark_remove', decision_id: decisionId });
 }
 
 function taskState(task: Task): InverseOp {
@@ -590,9 +579,6 @@ export function createTask(ctx: Ctx, raw: unknown): { id: string } {
       assigned_at: now,
     });
     changes.assignee = { old: null, new: ctx.actor.id };
-  }
-  if (input.mark_for_plenum) {
-    addMark(ctx, 'task', task.id);
   }
   writeHistory(ctx, 'task', task.id, 'created', changes);
   return { id: task.id };
@@ -725,7 +711,6 @@ export function setTaskStatus(
     changes.assignee = { old: null, new: ctx.actor.id };
     self_assigned = true;
   }
-  dropMark(ctx, 'task', id);
   follow(ctx, id, ctx.actor.id);
   touch(ctx, task);
   writeHistory(ctx, 'task', id, 'status', changes);
@@ -783,7 +768,6 @@ function dropAssignee(ctx: Ctx, task: Task, memberId: string, reason?: 'deactiva
     ctx.inverse.push(taskState(task));
     changes.status = { old: task.status, new: next };
     task.status = next;
-    dropMark(ctx, 'task', task.id);
     statusReset = true;
   }
   touch(ctx, task);
@@ -851,20 +835,6 @@ export function removeBlocker(ctx: Ctx, taskId: string, blockerTaskId: string): 
   writeHistory(ctx, 'task', taskId, 'blocker_removed', { blocker: { old: blockerTaskId, new: null } });
 }
 
-export function setPlenumMark(ctx: Ctx, taskId: string, marked: boolean): Undoable {
-  const task = editableTask(ctx, taskId);
-  const exists = isMarked(ctx.db, 'task', taskId);
-  if (exists === marked) return { undo_token: '' };
-  if (marked) {
-    if (!isActiveTaskStatus(task.status))
-      throw rule('Abgeschlossene Aufgaben lassen sich nicht fürs Plenum markieren.');
-    addMark(ctx, 'task', taskId);
-    return registerUndo(ctx, 'task', task, 'Fürs Plenum markiert');
-  }
-  dropMark(ctx, 'task', taskId);
-  return registerUndo(ctx, 'task', task, 'Markierung entfernt');
-}
-
 export function addComment(ctx: Ctx, taskId: string, raw: unknown): { id: string; now_following: boolean } {
   const body = parse(commentBodySchema, raw);
   const task = editableTask(ctx, taskId);
@@ -919,7 +889,6 @@ export function archiveTask(ctx: Ctx, id: string, version: number): Undoable {
   ctx.inverse.push(taskState(task));
   const changes: HistoryChanges = {};
   task.archived_at = iso(ctx);
-  dropMark(ctx, 'task', id);
   touch(ctx, task);
   writeHistory(ctx, 'task', id, 'archived', changes);
   return registerUndo(ctx, 'task', task, 'Archiviert');
@@ -1070,12 +1039,11 @@ export function undo(ctx: Ctx, token: string): void {
           db.task_followers.push({ task_id: op.task_id, member_id: op.member_id });
         break;
       case 'mark_restore': {
+        // nur, wenn der Eintrag (nach den Gegenschritten davor) noch gilt – sonst bleibt er herunter
+        const d = db.decisions.find((x) => x.id === op.row.decision_id);
+        if (!d || d.archived_at || d.status !== 'gueltig') break;
+        if (isMarked(db, op.row.decision_id)) break;
         // der Punkt steht wieder an alter Stelle
-        const target = MARK_TARGETS.find((t) => op.row[markColumn(t)])!;
-        // eine Aufgabe nur, wenn sie (nach den Gegenschritten davor) aktiv ist – sonst bleibt sie unmarkiert
-        const task = op.row.task_id ? db.tasks.find((t) => t.id === op.row.task_id) : undefined;
-        if (task && (task.archived_at || !isActiveTaskStatus(task.status))) break;
-        if (isMarked(db, target, op.row[markColumn(target)]!)) break;
         // alte Stelle – ist sie inzwischen vergeben, am Ende
         const taken = db.plenum_marks.some((m) => m.position === op.row.position);
         const position = taken ? Math.max(0, ...db.plenum_marks.map((m) => m.position)) + 1 : op.row.position;
@@ -1087,7 +1055,7 @@ export function undo(ctx: Ctx, token: string): void {
         db.plenum_marks = db.plenum_marks.filter(
           (m) =>
             !(
-              m[markColumn(op.target)] === op.id &&
+              m.decision_id === op.decision_id &&
               m.marked_by === record.actor_id &&
               m.marked_at === record.created_at
             ),
@@ -1108,7 +1076,6 @@ export function undo(ctx: Ctx, token: string): void {
         db.tasks = db.tasks.filter((t) => t.id !== op.task_id);
         db.task_assignees = db.task_assignees.filter((a) => a.task_id !== op.task_id);
         db.task_followers = db.task_followers.filter((f) => f.task_id !== op.task_id);
-        db.plenum_marks = db.plenum_marks.filter((m) => m.task_id !== op.task_id);
         db.document_links = db.document_links.filter(
           (l) => !(l.target_type === 'task' && l.target_id === op.task_id),
         );
@@ -1308,7 +1275,6 @@ export function setEventStatus(ctx: Ctx, id: string, status: EventStatus, versio
   ctx.inverse.push({ kind: 'event_status', event_id: id, status: event.status });
   const changes: HistoryChanges = { status: { old: event.status, new: status } };
   event.status = status;
-  dropMark(ctx, 'event', id);
   touch(ctx, event);
   writeHistory(ctx, 'event', id, 'status', changes);
   return registerUndo(ctx, 'event', event, `Status: ${EVENT_STATUS_LABEL[status]}`);

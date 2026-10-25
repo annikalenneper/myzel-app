@@ -8,10 +8,10 @@ import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { AppointmentListItem } from '../../data/api';
 import { formatTime } from '../../shared/format';
-import { appointmentEnd, canMarkAppointment, canRsvp, FORMAT_LABEL } from '../../shared/rules/appointments';
+import { appointmentEnd, canRsvp, FORMAT_LABEL } from '../../shared/rules/appointments';
 import type { RsvpAnswer } from '../../shared/schema';
 import { Avatar, cx, ListSkeleton, LoadError, Pill } from '../../ui/bits';
-import { IconBookmark, IconPlus } from '../../ui/icons';
+import { IconPlus } from '../../ui/icons';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { AppointmentDetail } from './AppointmentDetail';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
@@ -85,7 +85,7 @@ export const rsvpButton = (on: boolean, kind: RsvpAnswer) =>
 
 function AppointmentList({ selectedId }: { selectedId: string | null }) {
   const me = useMe();
-  const { run, barVisible } = useFeedback();
+  const { barVisible } = useFeedback();
   const rsvp = useRsvp();
   const { data: appointments, error, reload } = useData('appointments', () => api.listAppointments());
   const { data: types } = useData('appointment-types', () => api.listAppointmentTypes());
@@ -109,12 +109,6 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
     if (months.at(-1)?.name === name) months.at(-1)!.items.push(a);
     else months.push({ name, items: [a] });
   }
-
-  const toggleMark = (a: AppointmentListItem) =>
-    void run(() => api.setAppointmentMark(a.id, !a.marked), {
-      success: a.marked ? 'Markierung entfernt' : `Fürs Plenum markiert: ${a.title}`,
-      undo: (r) => r.undo_token,
-    });
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
@@ -229,22 +223,6 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
                       </span>
                     </div>
                   </div>
-                  {/* WF-TER-08 Markierung „Fürs Plenum“ – nicht bei Plenum-Terminen */}
-                  {canMarkAppointment(a, a.is_plenum) && (
-                    <button
-                      type="button"
-                      data-wf="WF-TER-08"
-                      onClick={() => toggleMark(a)}
-                      aria-pressed={a.marked}
-                      aria-label={a.marked ? 'Markierung „Fürs Plenum“ entfernen' : 'Fürs Plenum markieren'}
-                      className={cx(
-                        'hit absolute top-2 right-2 flex size-10 items-center justify-center rounded-full',
-                        a.marked ? 'text-pink' : 'text-leise',
-                      )}
-                    >
-                      <IconBookmark filled={a.marked} />
-                    </button>
-                  )}
                 </article>
               );
             })}

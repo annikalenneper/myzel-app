@@ -80,7 +80,7 @@ describe('Joblauf mit echtem Versand', () => {
     const run = await runJob(local.db, now, senders);
     expect(sent.sort()).toEqual([
       'push:Du bist jetzt bei „Kabel kaufen“ eingetragen.',
-      `telegram:chat-jule:/aufgaben/${id}`,
+      `telegram:chat-jule:/agenda/${id}`,
     ]);
     expect(run).toMatchObject({
       result: 'ok',

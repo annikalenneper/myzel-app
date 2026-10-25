@@ -89,18 +89,16 @@ test('WF-TER-02: Terminart belegt vor; Ort bzw. Link sind je nach Format Pflicht
   await expect(created).toContainText('0 ✓');
 });
 
-test('WF-PLE-01: Plenum anlegen mit Hinweis zur Agenda; Plenum ist nicht markierbar', async ({ page }) => {
+test('WF-PLE-01: Plenum anlegen mit Hinweis zum Ergebnis', async ({ page }) => {
   await open(page);
   await page.getByRole('button', { name: 'Termin anlegen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
   await sheet.getByRole('button', { name: 'Plenum' }).click();
-  await expect(sheet.getByTestId('WF-PLE-01')).toContainText('Die Agenda füllt sich aus allem');
+  await expect(sheet.getByTestId('WF-PLE-01')).toContainText('Ins Ergebnis kommt alles');
   await expect(sheet.getByLabel('Ort *')).toHaveCount(0);
-  await expect(card(page, 'Plenum Oktober').getByTestId('WF-TER-08')).toHaveCount(0);
-  await expect(card(page, 'Bautag Oktober').getByTestId('WF-TER-08')).toHaveCount(1);
 });
 
-test('WF-TER-04 / -05 / -07 / -08: Detail – verschieben, Aufgabe, markieren, absagen', async ({ page }) => {
+test('WF-TER-04 / -05 / -07: Detail – verschieben, Aufgabe, absagen', async ({ page }) => {
   await open(page);
   await card(page, 'Bautag Oktober').getByRole('link').click();
   await expect(page.getByRole('heading', { name: 'Bautag Oktober' })).toBeVisible();
@@ -109,9 +107,6 @@ test('WF-TER-04 / -05 / -07 / -08: Detail – verschieben, Aufgabe, markieren, a
   await expect(page.getByText('Aufgaben zum Termin · 2')).toBeVisible();
   // „Hat stattgefunden“ geht erst nach Beginn
   await expect(page.getByRole('button', { name: 'Hat stattgefunden' })).toBeDisabled();
-
-  await page.getByRole('button', { name: 'Fürs Plenum markieren' }).click();
-  await expect(page.getByRole('button', { name: 'Markierung „Fürs Plenum“ entfernen' })).toBeVisible();
 
   await page.getByRole('button', { name: '+ Aufgabe zum Termin' }).click();
   const task = page.getByRole('dialog', { name: 'Neue Aufgabe' });
@@ -131,14 +126,10 @@ test('WF-TER-04 / -05 / -07 / -08: Detail – verschieben, Aufgabe, markieren, a
 
   await page.getByRole('button', { name: 'Absagen', exact: true }).click();
   const ask = page.getByRole('alertdialog', { name: 'Termin absagen' });
-  await expect(ask).toContainText('Eine Markierung „Fürs Plenum“ wird entfernt.');
   await ask.getByRole('button', { name: 'Absagen und benachrichtigen' }).click();
   await expect(
     page.getByText('Abgesagt. Alle mit Zusage und ohne Antwort wurden benachrichtigt.'),
   ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: /Fürs Plenum markieren|Markierung „Fürs Plenum“ entfernen/ }),
-  ).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Bearbeiten' })).toHaveCount(0);
 });
 

@@ -32,14 +32,14 @@ export async function findPartner(trx: Db, id: string, lock = true): Promise<Par
 async function listItems(trx: Db, rows: PartnerRow[]): Promise<PartnerListItem[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((p) => p.id);
-  const [links, marks] = await Promise.all([
-    trx.selectFrom('event_partners').select('partner_id').where('partner_id', 'in', ids).execute(),
-    trx.selectFrom('plenum_marks').select('partner_id').where('partner_id', 'in', ids).execute(),
-  ]);
+  const links = await trx
+    .selectFrom('event_partners')
+    .select('partner_id')
+    .where('partner_id', 'in', ids)
+    .execute();
   return rows.map((p) => ({
     ...p,
     event_count: links.filter((l) => l.partner_id === p.id).length,
-    marked: marks.some((m) => m.partner_id === p.id),
   }));
 }
 

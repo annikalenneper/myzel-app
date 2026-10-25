@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useNow } from '../../app/useNow';
-import { BarOffset, useFeedback } from '../../app/feedback';
+import { BarOffset } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
 import { useActions, useLatest } from '../../app/useActions';
 import { useData } from '../../app/useData';
@@ -13,14 +13,13 @@ import { TASK_STATUS_COLOR, TASK_STATUS_LABEL } from '../../shared/labels';
 import {
   APPOINTMENT_STATUS_COLOR,
   APPOINTMENT_STATUS_LABEL,
-  canMarkAppointment,
   canMarkHappened,
   canRsvp,
   FORMAT_LABEL,
   whenText,
 } from '../../shared/rules/appointments';
 import { Avatar, cx, GhostButton, ListSkeleton, LoadError } from '../../ui/bits';
-import { IconBack, IconBookmark } from '../../ui/icons';
+import { IconBack } from '../../ui/icons';
 import { ConfirmDialog } from '../knowledge/DetailParts';
 import { LinkedDocuments } from '../knowledge/LinkedDocuments';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
@@ -75,7 +74,6 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
 }
 
 function Loaded({ a }: { a: Detail }) {
-  const { run } = useFeedback();
   const act = useActions();
   const latest = useLatest(a.version);
   const rsvp = useRsvp();
@@ -100,36 +98,12 @@ function Loaded({ a }: { a: Detail }) {
     ['Offen', 'text-bernstein', a.open_ids],
   ];
 
-  const toggleMark = () =>
-    void run(() => api.setAppointmentMark(a.id, !a.marked), {
-      success: a.marked ? 'Markierung entfernt' : 'Fürs Plenum markiert',
-      undo: (r) => r.undo_token,
-    });
-
   const place = a.format === 'online' ? null : a.format === 'hybrid' ? `${a.location} + Call` : a.location;
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={cancelled ? 24 : 92} />
-      <TopBar>
-        {/* WF-TER-08 – nur geplant, nie bei Plenum-Terminen */}
-        {canMarkAppointment(a, a.is_plenum) && (
-          <button
-            type="button"
-            data-wf="WF-TER-08"
-            onClick={toggleMark}
-            aria-pressed={a.marked}
-            aria-label={a.marked ? 'Markierung „Fürs Plenum“ entfernen' : 'Fürs Plenum markieren'}
-            className={cx(
-              'hit mr-2 flex h-[34px] items-center gap-1.5 rounded-[17px] border px-3 font-mono text-[12px]',
-              a.marked ? 'border-pink text-pink' : 'border-rand text-leise',
-            )}
-          >
-            <IconBookmark filled={a.marked} size={14} />
-            {a.marked ? 'Fürs Plenum markiert' : 'Fürs Plenum markieren'}
-          </button>
-        )}
-      </TopBar>
+      <TopBar />
 
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className="flex flex-col gap-2">
@@ -237,7 +211,7 @@ function Loaded({ a }: { a: Detail }) {
           {a.tasks.map((t) => (
             <Link
               key={t.id}
-              to={`/aufgaben/${t.id}`}
+              to={`/agenda/${t.id}`}
               className="flex min-h-11 items-center gap-2.5 rounded-xl border border-linie bg-flaeche px-3 py-1.5 text-text no-underline"
             >
               <span
@@ -383,8 +357,7 @@ function Loaded({ a }: { a: Detail }) {
         <ConfirmDialog label="Termin absagen" wf="WF-TER-05" onClose={() => setSheet(null)}>
           <h2 className="m-0 text-[20px] leading-[1.25] font-bold">{a.title} absagen?</h2>
           <span className="text-[15px] leading-normal text-weich">
-            Alle mit Zusage und ohne Antwort bekommen eine Nachricht. Eine Markierung „Fürs Plenum“ wird
-            entfernt.
+            Alle mit Zusage und ohne Antwort bekommen eine Nachricht.
           </span>
           <button
             type="button"

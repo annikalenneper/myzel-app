@@ -133,17 +133,10 @@ export interface CommentsTable {
   updated_at: Timestamp;
 }
 
+/** Entscheidung oder Fakt ausdrücklich auf der Agenda (16.1) */
 export interface PlenumMarksTable {
   id: Generated<string>;
-  task_id: string | null;
-  /** [P3] */
-  question_id: string | null;
-  decision_id: string | null;
-  event_id: string | null;
-  appointment_id: string | null;
-  document_id: string | null;
-  /** [P4] */
-  partner_id: string | null;
+  decision_id: string;
   position: number;
   note: string | null;
   marked_by: string;

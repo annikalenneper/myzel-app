@@ -13,9 +13,8 @@ import type { PartnerDetail as Detail, PartnerListItem } from '../../data/api';
 import { formatEventRange } from '../../shared/format';
 import { EVENT_STATUS_LABEL } from '../../shared/labels';
 import { Avatar, cx, FieldError, LightButton, ListSkeleton, LoadError, PrimaryButton } from '../../ui/bits';
-import { IconBack, IconBookmark, IconEdit, IconPlus } from '../../ui/icons';
+import { IconBack, IconEdit, IconPlus } from '../../ui/icons';
 import { Sheet } from '../../ui/Sheet';
-import { useMark } from '../knowledge/KnowledgeScreen';
 
 const WF_LIST = 'WF-VER-13';
 
@@ -104,12 +103,6 @@ function PartnerCard({ p, selected }: { p: PartnerListItem; selected: boolean })
     >
       <span className="flex items-center gap-2">
         <span className="flex-1 text-[17px] font-semibold">{p.name}</span>
-        {p.marked && (
-          <span className="flex items-center gap-1 font-mono text-[11px] text-pink">
-            <IconBookmark filled size={14} />
-            FÜRS PLENUM
-          </span>
-        )}
       </span>
       <span className="font-mono text-[11px] text-leise uppercase">
         {[p.kind, p.contact_person, count(p.event_count)].filter(Boolean).join(' · ')}
@@ -161,7 +154,6 @@ function DetailTop({ children }: { children?: React.ReactNode }) {
 }
 
 function Loaded({ p }: { p: Detail }) {
-  const mark = useMark();
   const { memberById } = useLookups();
   const [editing, setEditing] = useState(false);
   const contact = p.internal_contact_member_id ? memberById.get(p.internal_contact_member_id) : undefined;
@@ -186,16 +178,6 @@ function Loaded({ p }: { p: Detail }) {
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={24} />
       <DetailTop>
-        <button
-          type="button"
-          data-wf="WF-VER-13"
-          onClick={() => mark('partner', p.id, p.marked)}
-          aria-pressed={p.marked}
-          aria-label={p.marked ? 'Markierung „Fürs Plenum“ entfernen' : 'Fürs Plenum markieren'}
-          className={cx('flex size-11 items-center justify-center', p.marked ? 'text-pink' : 'text-leise')}
-        >
-          <IconBookmark filled={p.marked} />
-        </button>
         <button
           type="button"
           data-wf="WF-VER-13"

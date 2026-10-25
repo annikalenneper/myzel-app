@@ -186,7 +186,7 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
         .execute();
     if (data.template_applications.length)
       await trx.insertInto('template_applications').values(data.template_applications).execute();
-    // Markierungen aller Arten
+    // Entscheidungen und Fakten auf der Agenda (16.1)
     if (data.plenum_marks.length) await trx.insertInto('plenum_marks').values(data.plenum_marks).execute();
     const history = data.history.filter((h) => SERVER_HISTORY.has(h.entity_type));
     for (let i = 0; i < history.length; i += 200)

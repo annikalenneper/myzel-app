@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { BarOffset, useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
 import { useMe } from '../../app/session';
-import { DEFAULT_TASK_FILTER, useTaskFilter } from '../../app/taskFilter';
+import { DEFAULT_AGENDA_FILTER, useAgendaFilter } from '../../app/agendaFilter';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
 import { isJobOverdue } from '../../shared/rules/notifications';
@@ -18,7 +18,7 @@ export function Profile() {
   const me = useMe();
   const { run } = useFeedback();
   const { activeMembers, topics } = useLookups();
-  const { setFilter } = useTaskFilter();
+  const { setFilter } = useAgendaFilter();
   const [name, setName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -168,7 +168,7 @@ export function Profile() {
         type="button"
         data-wf="WF-LOG-03"
         onClick={() => {
-          setFilter(DEFAULT_TASK_FILTER);
+          setFilter(DEFAULT_AGENDA_FILTER);
           void run(() => api.signOut());
         }}
         className="flex h-[46px] items-center justify-center rounded-[23px] border border-rand text-[15px] text-weich"

@@ -34,7 +34,7 @@ export async function listTopics(db: Db): Promise<TopicWithUsage[]> {
 async function taskItems(db: Db, tasks: Task[]): Promise<TaskListItem[]> {
   if (tasks.length === 0) return [];
   const ids = tasks.map((t) => t.id);
-  const [assignees, followers, blockers, comments, marks] = await Promise.all([
+  const [assignees, followers, blockers, comments] = await Promise.all([
     db
       .selectFrom('task_assignees')
       .select(['task_id', 'member_id'])
@@ -55,16 +55,13 @@ async function taskItems(db: Db, tasks: Task[]): Promise<TaskListItem[]> {
       .where('task_id', 'in', ids)
       .groupBy('task_id')
       .execute(),
-    db.selectFrom('plenum_marks').select('task_id').where('task_id', 'in', ids).execute(),
   ]);
-  const marked = new Set(marks.map((m) => m.task_id));
   return tasks.map((t) => ({
     ...t,
     assignee_ids: assignees.filter((a) => a.task_id === t.id).map((a) => a.member_id),
     follower_ids: followers.filter((f) => f.task_id === t.id).map((f) => f.member_id),
     blocker_titles: blockers.filter((b) => b.task_id === t.id).map((b) => b.title),
     comment_count: Number(comments.find((c) => c.task_id === t.id)?.n ?? 0),
-    marked: marked.has(t.id),
   }));
 }
 
@@ -124,7 +121,7 @@ async function eventItems(db: Db, events: EventRow[], now: Date): Promise<EventL
   if (events.length === 0) return [];
   const ids = events.map((e) => e.id);
   const today = berlinDate(now);
-  const [tasks, followUp, marks] = await Promise.all([
+  const [tasks, followUp] = await Promise.all([
     db
       .selectFrom('tasks')
       .select(['event_id', 'status', 'due_date'])
@@ -141,7 +138,6 @@ async function eventItems(db: Db, events: EventRow[], now: Date): Promise<EventL
       .where(sql<boolean>`changes -> 'status' ->> 'new' = 'in_nachbereitung'`)
       .groupBy('entity_id')
       .execute(),
-    db.selectFrom('plenum_marks').select('event_id').where('event_id', 'in', ids).execute(),
   ]);
   return events.map((e) => {
     const own = tasks.filter((t) => t.event_id === e.id);
@@ -150,7 +146,6 @@ async function eventItems(db: Db, events: EventRow[], now: Date): Promise<EventL
       task_total: own.length,
       task_done: own.filter((t) => t.status === 'erledigt').length,
       task_overdue: own.filter((t) => isOverdue(t.due_date, t.status, today)).length,
-      marked: marks.some((m) => m.event_id === e.id),
       follow_up_since:
         e.status === 'in_nachbereitung'
           ? (followUp.find((f) => f.entity_id === e.id)?.since ?? e.updated_at)

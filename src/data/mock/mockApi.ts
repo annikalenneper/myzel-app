@@ -225,7 +225,6 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     removeFollower: (taskId, memberId) => write((ctx) => server.removeFollower(ctx, taskId, memberId)),
     addBlocker: (taskId, blockerId) => write((ctx) => server.addBlocker(ctx, taskId, blockerId)),
     removeBlocker: (taskId, blockerId) => write((ctx) => server.removeBlocker(ctx, taskId, blockerId)),
-    setPlenumMark: (taskId, marked) => write((ctx) => server.setPlenumMark(ctx, taskId, marked)),
     addComment: (taskId, body) => write((ctx) => server.addComment(ctx, taskId, body)),
     updateComment: (commentId, body) => write((ctx) => server.updateComment(ctx, commentId, body)),
     archiveTask: (id, version) => write((ctx) => server.archiveTask(ctx, id, version)),
@@ -309,7 +308,6 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     markAppointmentHappened: (id, attendeeIds, version) =>
       write((ctx) => appts.markHappened(ctx, id, attendeeIds, version)),
     setAttendee: (id, memberId, present) => write((ctx) => appts.setAttendee(ctx, id, memberId, present)),
-    setAppointmentMark: (id, marked) => write((ctx) => appts.setAppointmentMark(ctx, id, marked)),
     getSeries: (id) => read((d, n) => series.seriesDetail(d, id, n)),
     createSeries: (input) => write((ctx) => series.createSeries(ctx, input)),
     updateSeries: (id, input) => write((ctx) => series.updateSeries(ctx, id, input)),
@@ -332,7 +330,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
       write((ctx) => know.linkDocument(ctx, documentId, target, targetId)),
     unlinkDocument: (documentId, target, targetId) =>
       write((ctx) => know.unlinkDocument(ctx, documentId, target, targetId)),
-    setMark: (target, id, marked) => write((ctx) => know.setMark(ctx, target, id, marked)),
+    setDecisionAgenda: (id, onAgenda) => write((ctx) => know.setDecisionAgenda(ctx, id, onAgenda)),
     search: (query) => read((d, n) => know.search(d, query, n)),
 
     getDriveFolder: (folderId) => read((d) => drive.getDriveFolder(d, folderId)),
@@ -352,10 +350,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     setEventDriveFolder: (eventId, folderId, version) =>
       write((ctx) => events.setDriveFolder(ctx, eventId, folderId, version)),
 
-    getPlenum: (id) => read((d, n) => plenum.getPlenum(d, id, actor().id, n)),
-    plenumAction: (plenumId, input) => write((ctx) => plenum.plenumAction(ctx, plenumId, input)),
-    moveAgendaItem: (markId, toIndex) => write((ctx) => plenum.moveMark(ctx, markId, toIndex)),
-    plenumAdd: (plenumId, input) => write((ctx) => plenum.plenumAdd(ctx, plenumId, input)),
+    getPlenum: (id) => read((d) => plenum.getPlenum(d, id, actor().id)),
     updateProtocol: (plenumId, input) => write((ctx) => plenum.updateProtocol(ctx, plenumId, input)),
     closePlenum: (plenumId, attendeeIds, version) =>
       write((ctx) => plenum.closePlenum(ctx, plenumId, attendeeIds, version)),

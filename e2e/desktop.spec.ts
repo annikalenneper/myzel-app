@@ -8,7 +8,7 @@ test('Desktop: Seitenleiste, Liste und Detail nebeneinander', async ({ page }) =
   await login(page);
   await page.getByRole('link', { name: /Flyer drucken lassen/ }).click();
   await expect(page.getByRole('navigation', { name: 'Hauptnavigation' }).first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
   await expect(page.getByText('BLOCKIERT – GRUND')).toBeVisible();
 });
 

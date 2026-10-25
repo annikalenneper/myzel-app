@@ -33,7 +33,6 @@ export function TaskCreateSheet({
   const [priority, setPriority] = useState<Priority>('mittel');
   const [dueDate, setDueDate] = useState('');
   const [mine, setMine] = useState(false);
-  const [plenum, setPlenum] = useState(true);
   const [error, setError] = useState<{ field: string | null; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const event = eventId ? eventById.get(eventId) : undefined;
@@ -73,7 +72,6 @@ export function TaskCreateSheet({
           event_id: linkedEventId,
           appointment_id: appointmentId,
           assign_self: mine,
-          mark_for_plenum: plenum,
         }),
       {
         success: linkedEvent
@@ -198,9 +196,6 @@ export function TaskCreateSheet({
           <FieldError>{error?.field === 'due_date' && error.message}</FieldError>
           <CheckRow data-wf={wf} checked={mine} onChange={setMine}>
             Ich übernehme das
-          </CheckRow>
-          <CheckRow data-wf={wf} checked={plenum} onChange={setPlenum} hint="Nächste Agenda">
-            Fürs Plenum
           </CheckRow>
         </div>
 

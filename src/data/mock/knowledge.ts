@@ -7,7 +7,6 @@ import { EVENT_STATUS_LABEL, PRIORITY_LABEL, TASK_STATUS_LABEL } from '../../sha
 import { APPOINTMENT_STATUS_LABEL, FORMAT_LABEL } from '../../shared/rules/appointments';
 import { driveFileIdFromUrl } from '../../shared/rules/drive';
 import { toIsoDate } from '../../shared/rules/due';
-import { isFinalEventStatus } from '../../shared/rules/eventStatus';
 import {
   canSupersede,
   DECISION_KIND_LABEL,
@@ -27,7 +26,6 @@ import {
   type DocumentLinkTarget,
   type DocumentRow,
   type HistoryChanges,
-  type MarkTarget,
   type Question,
 } from '../../shared/schema';
 import type {
@@ -90,7 +88,7 @@ function decisionItem(db: Db, d: Decision): DecisionListItem {
     superseded_by_title: d.superseded_by_id
       ? (db.decisions.find((x) => x.id === d.superseded_by_id)?.title ?? null)
       : null,
-    marked: isMarked(db, 'decision', d.id),
+    marked: isMarked(db, d.id),
   };
 }
 
@@ -234,7 +232,7 @@ export function replaceDecision(ctx: Ctx, id: string, raw: unknown): Undoable & 
   };
   old.status = 'ersetzt';
   old.superseded_by_id = successor.id;
-  dropMark(ctx, 'decision', id);
+  dropMark(ctx, id);
   touch(ctx, old);
   writeHistory(ctx, 'decision', id, 'replaced', changes);
   return { ...registerUndo(ctx, 'decision', old, 'Ersetzt'), successor_id: successor.id };
@@ -256,7 +254,7 @@ export function revokeDecision(
   if (note?.trim()) changes.note = { old: null, new: note.trim() };
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
   d.status = 'aufgehoben';
-  dropMark(ctx, 'decision', id);
+  dropMark(ctx, id);
   touch(ctx, d);
   writeHistory(ctx, 'decision', id, 'revoked', changes);
   return registerUndo(ctx, 'decision', d, 'Aufgehoben');
@@ -272,7 +270,6 @@ function findQuestion(db: Db, id: string): Question {
 
 const questionItem = (db: Db, q: Question): QuestionListItem => ({
   ...q,
-  marked: isMarked(db, 'question', q.id),
   resulting_decision: q.resulting_decision_id
     ? (() => {
         const d = db.decisions.find((x) => x.id === q.resulting_decision_id);
@@ -317,9 +314,6 @@ export function createQuestion(ctx: Ctx, raw: unknown, originPlenumId: string | 
   };
   ctx.db.questions.push(question);
   const changes: HistoryChanges = { title: { old: null, new: question.title } };
-  if (input.mark_for_plenum) {
-    addMark(ctx, 'question', question.id);
-  }
   if (originPlenumId) changes.plenum_id = { old: null, new: originPlenumId };
   writeHistory(ctx, 'question', question.id, 'created', changes);
   ctx.inverse = [];
@@ -378,7 +372,6 @@ export function clarifyQuestion(
   q.answer = input.answer;
   q.answered_in_plenum_id = plenumId;
   q.resulting_decision_id = decision?.id ?? null;
-  dropMark(ctx, 'question', id);
   touch(ctx, q);
   writeHistory(ctx, 'question', id, 'clarified', changes);
   return {
@@ -401,7 +394,6 @@ export function discardQuestion(
   const changes: HistoryChanges = { status: { old: q.status, new: 'verworfen' } };
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
   q.status = 'verworfen';
-  dropMark(ctx, 'question', id);
   touch(ctx, q);
   writeHistory(ctx, 'question', id, 'discarded', changes);
   return registerUndo(ctx, 'question', q, 'Frage verworfen');
@@ -442,7 +434,6 @@ export function documentItem(db: Db, d: DocumentRow): DocumentListItem {
     ...d,
     link_count: total,
     link_summary: summary,
-    marked: isMarked(db, 'document', d.id),
     drive_missing: driveMissing(db, d),
   };
 }
@@ -535,40 +526,19 @@ export function createDocument(ctx: Ctx, raw: unknown): { id: string; created: b
   return { id: document.id, created: true };
 }
 
-// ── Markierung „Fürs Plenum“ für Entscheidungen, Fragen, Dokumente, Veranstaltungen ──
+// ── Entscheidung oder Fakt auf die Agenda (16.1): „Stimmt das noch?“ ────────
 
-export function setMark(
-  ctx: Ctx,
-  target: Exclude<MarkTarget, 'task' | 'appointment'>,
-  id: string,
-  marked: boolean,
-): Undoable {
-  const db = ctx.db;
-  const entity =
-    target === 'decision'
-      ? findDecision(db, id)
-      : target === 'question'
-        ? findQuestion(db, id)
-        : target === 'document'
-          ? findDocument(db, id)
-          : target === 'partner'
-            ? db.partners.find((p) => p.id === id)
-            : db.events.find((e) => e.id === id);
-  if (!entity) throw notFound('Diesen Eintrag');
-  if (isMarked(db, target, id) === marked) return { undo_token: '' };
-  if (marked) {
-    if (entity.archived_at) throw rule('Archivierte Einträge lassen sich nicht fürs Plenum markieren.');
-    if (target === 'decision' && (entity as Decision).status !== 'gueltig')
-      throw rule('Nur gültige Einträge lassen sich fürs Plenum markieren.');
-    if (target === 'question' && (entity as Question).status !== 'offen')
-      throw rule('Nur offene Fragen lassen sich fürs Plenum markieren.');
-    if (target === 'event' && isFinalEventStatus(db.events.find((e) => e.id === id)!.status))
-      throw rule('Abgeschlossene und abgesagte Veranstaltungen lassen sich nicht markieren.');
-    addMark(ctx, target, id);
-    return registerUndo(ctx, target, entity, 'Fürs Plenum markiert');
+export function setDecisionAgenda(ctx: Ctx, id: string, onAgenda: boolean): Undoable {
+  const d = findDecision(ctx.db, id);
+  if (isMarked(ctx.db, id) === onAgenda) return { undo_token: '' };
+  if (onAgenda) {
+    if (d.archived_at || d.status !== 'gueltig')
+      throw rule('Nur gültige Einträge lassen sich auf die Agenda setzen.');
+    addMark(ctx, id);
+    return registerUndo(ctx, 'decision', d, 'Auf der Agenda');
   }
-  dropMark(ctx, target, id);
-  return registerUndo(ctx, target, entity, 'Markierung entfernt');
+  dropMark(ctx, id);
+  return registerUndo(ctx, 'decision', d, 'Von der Agenda genommen');
 }
 
 // ── Globale Suche (F-WIS-06): nur App-Daten, gruppiert nach Art ─────────────
@@ -599,7 +569,7 @@ export function search(db: Db, query: string, now: Date): SearchGroup[] {
           ]
             .filter(Boolean)
             .join(' · '),
-          link: `/aufgaben/${t.id}`,
+          link: `/agenda/${t.id}`,
         })),
     ],
     [
@@ -647,7 +617,7 @@ export function search(db: Db, query: string, now: Date): SearchGroup[] {
           id: x.id,
           title: x.title,
           meta: `${QUESTION_STATUS_LABEL[x.status]} · ${PRIORITY_LABEL[x.urgency]}`,
-          link: `/wissen/fragen/${x.id}`,
+          link: `/agenda/frage/${x.id}`,
         })),
     ],
     [

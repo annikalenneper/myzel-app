@@ -1,4 +1,4 @@
-// S-41 Frage – Detail · P3 (WF-FRA-02, WF-FRA-03, WF-WIS-05)
+// S-41 Frage – Detail · P3 (WF-FRA-02, WF-FRA-03); steht seit dem Umbau 10/2026 in der Agenda (16.1)
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
@@ -13,8 +13,15 @@ import { PRIORITY_LABEL } from '../../shared/labels';
 import { DECISION_KIND_LABEL, QUESTION_STATUS_LABEL } from '../../shared/rules/knowledge';
 import { cx, FieldError, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
 import { Sheet } from '../../ui/Sheet';
-import { ActionBar, DetailTopBar, KnowledgeHistory, NotFound, StatusPill } from './DetailParts';
-import { useMark } from './KnowledgeScreen';
+import { EventAgendaLink } from '../agenda/EventAgendaLink';
+import {
+  ActionBar,
+  BACK_TO_AGENDA,
+  DetailTopBar,
+  KnowledgeHistory,
+  NotFound,
+  StatusPill,
+} from './DetailParts';
 import { Segmented } from './KnowledgeSheets';
 import { EMPTY_SOURCE, SourceFields, sourceReady, type SourceValue } from './SourceFields';
 
@@ -23,10 +30,10 @@ export function QuestionDetail({ questionId }: { questionId: string }) {
   if (!data)
     return (
       <div className="flex min-h-dvh flex-col lg:min-h-0">
-        <DetailTopBar label="Fragen" />
+        <DetailTopBar label="Frage" back={BACK_TO_AGENDA} />
         <div className="px-5 py-[18px]">
           {error?.code === 'not_found' ? (
-            <NotFound text="Diese Frage gibt es nicht" />
+            <NotFound text="Diese Frage gibt es nicht" back={BACK_TO_AGENDA} />
           ) : error ? (
             <LoadError message={error.message} onRetry={reload} />
           ) : (
@@ -41,7 +48,6 @@ export function QuestionDetail({ questionId }: { questionId: string }) {
 type Result = 'antwort' | 'entscheidung' | 'fakt';
 
 function Loaded({ q }: { q: Detail }) {
-  const mark = useMark();
   const act = useActions();
   const latest = useLatest(q.version);
   const { topicName, memberById, eventById } = useLookups();
@@ -52,10 +58,7 @@ function Loaded({ q }: { q: Detail }) {
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={open ? 128 : 24} />
-      <DetailTopBar
-        label="Fragen"
-        mark={open ? { marked: q.marked, onToggle: () => mark('question', q.id, q.marked) } : undefined}
-      />
+      <DetailTopBar label="Frage" back={BACK_TO_AGENDA} />
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className="flex flex-col gap-2">
           <span className="label-mono flex flex-wrap items-center gap-2">
@@ -82,6 +85,7 @@ function Loaded({ q }: { q: Detail }) {
             {formatDayMonth(new Date(q.created_at))}
           </span>
         </div>
+        {event && <EventAgendaLink eventId={event.id} />}
         {q.description && (
           <div className="text-[15px] leading-normal whitespace-pre-wrap text-weich">{q.description}</div>
         )}

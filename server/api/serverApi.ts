@@ -134,7 +134,7 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
       authUserId = null;
       emit();
     },
-    getNotificationSettings: () => write('getNotificationSettings', [device.endpoint]) as never,
+    getNotificationSettings: () => read('getNotificationSettings', [device.endpoint]) as never,
     setPush: async (on) => {
       await write(on ? 'savePushSubscription' : 'removePushSubscription', [on ? device : device.endpoint]);
     },

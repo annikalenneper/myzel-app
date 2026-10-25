@@ -83,7 +83,9 @@ test('WF-VER-04: nur der nächste Schritt oder Absage, mit Rückgängig und Best
   await expect(eventStatus(page, 'In Nachbereitung')).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('WF-VER-05: Aufgabe aus der Veranstaltung anlegen, Fortschritt und Aufgabenliste', async ({ page }) => {
+test('WF-VER-05 / WF-AGE-02: Aufgabe aus der Veranstaltung anlegen, Fortschritt und Agenda', async ({
+  page,
+}) => {
   await page.getByRole('link', { name: /Winterrave/ }).click();
   await expect(page.getByText('4 VON 9 ERLEDIGT · 1 ÜBERFÄLLIG')).toBeVisible();
   await page.getByTestId('WF-VER-05').click();
@@ -94,11 +96,15 @@ test('WF-VER-05: Aufgabe aus der Veranstaltung anlegen, Fortschritt und Aufgaben
   await sheet.locator('button[type=submit]').click();
   await expect(page.getByText('4 VON 10 ERLEDIGT')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Aufgaben dieser Veranstaltung ansehen' }).click();
-  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await page.getByRole('button', { name: 'Aufgaben und offene Fragen zu diesem Event' }).click();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Winterrave ▾' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('article')).toHaveCount(6);
   await expect(page.getByRole('article').filter({ hasText: 'Garderobe organisieren' })).toBeVisible();
+  // offene Fragen zur Veranstaltung stehen mit auf der Agenda
+  await expect(
+    page.getByRole('link', { name: /Brauchen wir für den Winterrave eine Garderobe/ }),
+  ).toBeVisible();
 });
 
 test('WF-ALL-01: Änderung aus einem zweiten Tab führt zum Konflikt statt zum Überschreiben', async ({

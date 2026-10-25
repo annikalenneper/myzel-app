@@ -6,7 +6,6 @@ import type { PartnerDetail, PartnerListItem, Undoable } from '../api';
 import {
   checkVersion,
   findEvent,
-  isMarked,
   notFound,
   parse,
   registerUndo,
@@ -29,7 +28,6 @@ function listItem(db: Db, p: Partner): PartnerListItem {
   return {
     ...p,
     event_count: db.event_partners.filter((ep) => ep.partner_id === p.id).length,
-    marked: isMarked(db, 'partner', p.id),
   };
 }
 

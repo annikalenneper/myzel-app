@@ -1,5 +1,5 @@
 // App-Gerüst (ANFORDERUNGEN 8.3): mobil untere Navigation, am Desktop eine Seitenleiste.
-// Aufgaben, Events, Termine (ab P3), Wissen (ab P3), Profil.
+// Agenda (16.1), Events, Termine (ab P3), Wissen (ab P3), Profil.
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useMatch } from 'react-router-dom';
 import { Avatar, cx } from '../ui/bits';
@@ -7,7 +7,7 @@ import { IconCalendar, IconEvents, IconKnowledge, IconProfile, IconTasks } from 
 import { useMe } from './session';
 
 const NAV: { to: string; label: string; icon: (p: { size?: number }) => ReactNode }[] = [
-  { to: '/aufgaben', label: 'Aufgaben', icon: IconTasks },
+  { to: '/agenda', label: 'Agenda', icon: IconTasks },
   { to: '/events', label: 'Events', icon: IconEvents },
   { to: '/termine', label: 'Termine', icon: IconCalendar },
   { to: '/wissen', label: 'Wissen', icon: IconKnowledge },
@@ -90,14 +90,22 @@ function Sidebar() {
 
 export function AppShell() {
   // Detailansichten haben mobil keine Navigation, sondern einen Zurück-Pfeil (8.3)
-  const taskDetail = useMatch('/aufgaben/:id');
+  const agendaDetail = useMatch('/agenda/:id');
+  const agendaSubDetail = useMatch('/agenda/:kind/:id');
   const eventDetail = useMatch('/events/:id');
   const appointmentDetail = useMatch('/termine/:id');
   const knowledgeDetail = useMatch('/wissen/:kind/:id');
   const subPage = useMatch('/profil/:page');
   // Partner (S-24) erreicht man aus der Veranstaltung – mit Zurück-Pfeil statt Navigation
   const partners = useMatch('/partner/*');
-  const detail = taskDetail || eventDetail || appointmentDetail || knowledgeDetail || subPage || partners;
+  const detail =
+    agendaDetail ||
+    agendaSubDetail ||
+    eventDetail ||
+    appointmentDetail ||
+    knowledgeDetail ||
+    subPage ||
+    partners;
   return (
     <div className="lg:pl-[220px]">
       <Sidebar />

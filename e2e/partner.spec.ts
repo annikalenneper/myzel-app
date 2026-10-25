@@ -50,7 +50,7 @@ test('WF-VER-10: neuen Partner direkt aus der Veranstaltung anlegen und verknüp
   await expect(partner.getByRole('link', { name: /Radio Myzel/ })).toBeVisible();
 });
 
-test('WF-VER-13: Partnerliste mit Suche, Detail mit bisherigen Veranstaltungen, bearbeiten, markieren', async ({
+test('WF-VER-13: Partnerliste mit Suche, Detail mit bisherigen Veranstaltungen, bearbeiten', async ({
   page,
 }) => {
   const partner = await openRavePartners(page);
@@ -72,14 +72,6 @@ test('WF-VER-13: Partnerliste mit Suche, Detail mit bisherigen Veranstaltungen, 
   await form.getByLabel('Telefon').fill('0170 1234567');
   await form.getByRole('button', { name: 'Speichern' }).click();
   await expect(page.getByRole('link', { name: '0170 1234567' })).toBeVisible();
-
-  await page.getByRole('button', { name: 'Fürs Plenum markieren' }).click();
-  await expect(undoBar(page)).toContainText('Fürs Plenum markiert');
-  await page.goto('/termine');
-  await page.getByRole('article').filter({ hasText: 'Plenum Oktober' }).getByRole('link').first().click();
-  await expect(page.getByRole('article', { name: 'Kollektiv Sporenflug', exact: true })).toContainText(
-    'Partner · Kollektiv · 3 Veranstaltungen',
-  );
 });
 
 test('WF-WIS-11: die Suche findet Partner', async ({ page }) => {

@@ -32,7 +32,7 @@ async function signIn(page: Page, authUserId: string, email: string) {
 test.describe.configure({ mode: 'serial' });
 
 test('ohne Login: Anmeldeseite, keine Daten', async ({ page }) => {
-  await page.goto('/aufgaben');
+  await page.goto('/agenda');
   await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
   await expect(page.getByText('Location für Winterrave bestätigen')).toHaveCount(0);
 });
@@ -43,11 +43,11 @@ test('WF-LOG-01: wer nicht auf der Mitgliederliste steht, sieht keine Daten', as
   await expect(page.getByText('fremd@example.org')).toBeVisible();
 });
 
-test('Aufgaben: Liste, Schnellanlage, Status mit Rückgängig, Kommentar – alles bleibt nach Neuladen', async ({
+test('Agenda: Liste, Schnellanlage, Status mit Rückgängig, Kommentar – alles bleibt nach Neuladen', async ({
   page,
 }) => {
   await signIn(page, authId(1), 'mo@example.org');
-  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
   await expect(
     page.getByRole('link', { name: /Winterrave Priorität hoch Location für Winterrave bestätigen/ }),
   ).toBeVisible();
@@ -139,7 +139,7 @@ test('Phase 2: Telegram über den Einmal-Code verknüpfen, Systemstatus für Adm
   await expect(page.getByText('7 / 11')).toBeVisible();
 });
 
-test('Phase 3: Zusage am Termin, Plenum-Agenda, Einplanen mit Ergebnis und Rückgängig', async ({ page }) => {
+test('Phase 3: Zusage am Termin; „Stimmt das noch?“ auf der Agenda bestätigen', async ({ page }) => {
   await signIn(page, authId(1), 'mo@example.org');
   await page.goto('/termine');
   await expect(page.getByRole('heading', { name: 'Termine' })).toBeVisible();
@@ -150,44 +150,32 @@ test('Phase 3: Zusage am Termin, Plenum-Agenda, Einplanen mit Ergebnis und Rück
   await page.reload();
   await expect(page.getByRole('article').filter({ hasText: 'Bautag Oktober' })).toContainText('5 ✓');
 
-  await page.getByRole('article').filter({ hasText: 'Plenum Oktober' }).getByRole('link').first().click();
-  await expect(page.getByRole('heading', { name: 'Plenum Oktober' })).toBeVisible();
-  const item = (title: string) => page.getByRole('article', { name: new RegExp(`^${title}`) });
-  // frühere Smoke-Tests haben Aufgaben „Fürs Plenum“ angelegt – gezählt wird relativ
-  const agendaTab = page.getByRole('tab', { name: /^Agenda · \d+/ });
-  const before = Number((await agendaTab.textContent())!.match(/\d+/)![0]);
-  await expect(item('Awareness-Team')).toContainText('Entscheidung · Gültig');
-  const task = item('Vereinshaftpflicht');
-  await task.getByRole('button', { name: 'Einplanen' }).click();
-  await task.getByRole('button', { name: 'Jule' }).click();
-  await task.getByTestId('WF-PLE-07').getByRole('button', { name: 'Einplanen' }).click();
-  await expect(page.getByTestId('WF-ALL-02')).toContainText('Eingeplant');
-  await expect(page.getByRole('tab', { name: new RegExp(`Agenda · ${before - 1}`) })).toBeVisible();
-  await expect(item('Vereinshaftpflicht')).toHaveCount(0);
-  await page.getByRole('tab', { name: /Ergebnis · 1/ }).click();
-  await expect(page.getByRole('region', { name: 'Aufgaben' })).toContainText(
-    'Eingeplant: Vereinshaftpflicht verlängern · Jule',
-  );
-  await page.getByTestId('WF-ALL-02').getByRole('button', { name: 'Rückgängig' }).click();
-  await expect(page.getByRole('tab', { name: /Ergebnis · 0/ })).toBeVisible();
+  // 16.1: ausdrücklich aufgesetzte Entscheidung – bestätigen nimmt sie von der Agenda
+  await page.goto('/agenda');
+  const review = page.getByRole('link', { name: /Awareness-Team mit mindestens 4 Personen/ });
+  await review.click();
+  await page.getByRole('button', { name: 'Stimmt noch' }).click();
+  await expect(page.getByTestId('WF-ALL-02')).toContainText('Bestätigt · von der Agenda genommen');
+  await page.goto('/agenda');
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
+  await expect(review).toHaveCount(0);
 });
 
-test('Phase 3: Beschlüsse lesen, Frage stellen – bleibt nach Neuladen', async ({ page }) => {
+test('Phase 3: Wissen lesen, Frage auf der Agenda stellen – bleibt nach Neuladen', async ({ page }) => {
   await signIn(page, authId(1), 'mo@example.org');
   await page.goto('/wissen');
   await expect(page.getByRole('heading', { name: 'Wissen' })).toBeVisible();
-  await expect(page.getByText('5 Einträge')).toBeVisible();
-  await page.getByRole('tab', { name: 'Fragen' }).click();
-  await page.getByRole('button', { name: 'Frage stellen' }).click();
+  await expect(page.getByText('4 Einträge')).toBeVisible();
+  await page.goto('/agenda');
+  await page.getByTestId('WF-FRA-01').filter({ hasText: '+ Frage' }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Neue Frage' });
   await sheet.getByLabel('Frage *').fill('Smoke: Wer hat den Zweitschlüssel?');
   await sheet.getByLabel('Thema *').selectOption({ label: 'Lager & Material' });
   await sheet.locator('button[type=submit]').click();
-  const card = page.getByRole('article').filter({ hasText: 'Smoke: Wer hat den Zweitschlüssel?' });
-  await expect(card).toContainText(/fürs Plenum/i);
+  const question = page.getByRole('link', { name: /Smoke: Wer hat den Zweitschlüssel/ });
+  await expect(question).toBeVisible();
   await page.reload();
-  await page.getByRole('tab', { name: 'Fragen' }).click();
-  await expect(card).toBeVisible();
+  await expect(question).toBeVisible();
 });
 
 test('Phase 4: Party mit Vorlagen-Dialog anlegen, Detailbereich pflegen – bleibt nach Neuladen', async ({
@@ -257,21 +245,18 @@ test('Demo neben dem echten Backend: Testdaten nur im Browser, mit Hinweisband, 
   await expect(page.locator('[data-demo="end-login"]')).toBeVisible();
   await page.getByTestId('WF-LOG-01').click();
   await page.getByRole('button', { name: /^Mo / }).click();
-  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
   await expect(
     page.getByRole('article').filter({ hasText: 'Location für Winterrave bestätigen' }).first(),
   ).toBeVisible();
   // Zurücksetzen holt den Ausgangsstand zurück
-  const mark = page
-    .getByRole('article')
-    .filter({ hasText: 'Getränke bei der Brauerei' })
-    .first()
-    .getByTestId('WF-AUF-02');
-  await expect(mark).toHaveAttribute('aria-pressed', 'false');
-  await mark.click();
-  await expect(mark).toHaveAttribute('aria-pressed', 'true');
+  const review = page.getByRole('link', { name: /Awareness-Team mit mindestens 4 Personen/ });
+  await review.click();
+  await page.getByRole('button', { name: 'Stimmt noch' }).click();
+  await page.getByRole('link', { name: 'Zurück zu Agenda' }).click();
+  await expect(review).toHaveCount(0);
   await page.locator('[data-demo="reset"]').click();
-  await expect(mark).toHaveAttribute('aria-pressed', 'false');
+  await expect(review).toBeVisible();
   // ein neuer Tab beginnt mit der echten Anmeldung
   const fresh = await page.context().newPage();
   await fresh.goto('/anmelden');

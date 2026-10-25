@@ -1,8 +1,7 @@
 // S-22 Veranstaltung – Detail · P1 (Ausbau in P3, P4; Drive-Ordner und Dokumente P5)
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { BarOffset } from '../../app/feedback';
-import { DEFAULT_TASK_FILTER, useTaskFilter } from '../../app/taskFilter';
 import { useActions, useLatest } from '../../app/useActions';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
@@ -12,14 +11,14 @@ import { EVENT_STATUS_LABEL, EVENT_TYPE_LABEL } from '../../shared/labels';
 import { canTransitionEvent, isFinalEventStatus } from '../../shared/rules/eventStatus';
 import { EVENT_STATUSES, type EventStatus } from '../../shared/schema';
 import { Avatar, cx, GhostButton, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
-import { IconBack, IconBookmark, IconEdit } from '../../ui/icons';
-import { useMark } from '../knowledge/KnowledgeScreen';
+import { IconBack, IconEdit } from '../../ui/icons';
 import { Sheet } from '../../ui/Sheet';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { EventFormSheet } from './EventFormSheet';
 import { EventSections } from './EventSections';
 import { TemplateSheet } from './TemplateSheet';
 import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
+import { useShowEventOnAgenda } from '../agenda/EventAgendaLink';
 import { LinkedDocuments } from '../knowledge/LinkedDocuments';
 import { EventDriveFolder } from './EventDrive';
 import { readDraft, writeDraft } from '../../app/drafts';
@@ -70,10 +69,7 @@ function TopBar({ children }: { children?: React.ReactNode }) {
 }
 
 function Loaded({ event }: { event: Detail }) {
-  const navigate = useNavigate();
-  const { setFilter } = useTaskFilter();
   const act = useActions();
-  const mark = useMark();
   const latest = useLatest(event.version);
   const [sheet, setSheet] = useState<'edit' | 'close' | 'task' | 'shiftplan' | 'lead' | 'template' | null>(
     null,
@@ -104,30 +100,12 @@ function Loaded({ event }: { event: Detail }) {
     else void setStatus(status);
   };
 
-  const showTasks = () => {
-    setFilter({ ...DEFAULT_TASK_FILTER, eventId: event.id });
-    navigate('/aufgaben');
-  };
+  const showOnAgenda = useShowEventOnAgenda();
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={24} />
       <TopBar>
-        {!final && (
-          <button
-            type="button"
-            data-wf="WF-VER-06"
-            onClick={() => mark('event', event.id, event.marked)}
-            aria-pressed={event.marked}
-            aria-label={event.marked ? 'Markierung „Fürs Plenum“ entfernen' : 'Fürs Plenum markieren'}
-            className={cx(
-              'flex size-11 items-center justify-center',
-              event.marked ? 'text-pink' : 'text-leise',
-            )}
-          >
-            <IconBookmark filled={event.marked} />
-          </button>
-        )}
         <button
           type="button"
           data-wf="WF-VER-03"
@@ -229,11 +207,12 @@ function Loaded({ event }: { event: Detail }) {
         <div className="flex flex-col gap-2 rounded-2xl border border-linie bg-flaeche px-4 py-3.5">
           <button
             type="button"
-            onClick={showTasks}
-            aria-label="Aufgaben dieser Veranstaltung ansehen"
+            data-wf="WF-AGE-02"
+            onClick={() => showOnAgenda(event.id)}
+            aria-label="Aufgaben und offene Fragen zu diesem Event"
             className="-mt-2.5 -mb-1 flex min-h-11 flex-wrap items-center justify-between gap-x-3 text-left text-[14px] text-text"
           >
-            <span className="font-semibold">Aufgaben ›</span>
+            <span className="font-semibold">Aufgaben und offene Fragen ›</span>
             <span className="font-mono text-[12px] text-leise">
               {event.task_total
                 ? `${event.task_done} VON ${event.task_total} ERLEDIGT`

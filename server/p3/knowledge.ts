@@ -17,7 +17,6 @@ import { EVENT_STATUS_LABEL, PRIORITY_LABEL, TASK_STATUS_LABEL } from '../../src
 import { APPOINTMENT_STATUS_LABEL, FORMAT_LABEL } from '../../src/shared/rules/appointments';
 import { driveFileIdFromUrl } from '../../src/shared/rules/drive';
 import { berlinDate } from '../../src/shared/rules/due';
-import { isFinalEventStatus } from '../../src/shared/rules/eventStatus';
 import {
   canSupersede,
   DECISION_KIND_LABEL,
@@ -303,7 +302,7 @@ export async function replaceDecision(
     status: { old: old.status, new: 'ersetzt' },
     superseded_by_id: { old: null, new: successor.id },
   };
-  await dropMark(ctx, 'decision', id);
+  await dropMark(ctx, id);
   await touch(ctx, 'decisions', 'decision', old, { status: 'ersetzt', superseded_by_id: successor.id });
   await writeHistory(ctx, 'decision', id, 'replaced', changes);
   return { ...(await registerUndo(ctx, 'decision', old, 'Ersetzt')), successor_id: successor.id };
@@ -325,7 +324,7 @@ export async function revokeDecision(
   const changes: HistoryChanges = { status: { old: d.status, new: 'aufgehoben' } };
   if (text) changes.note = { old: null, new: text };
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
-  await dropMark(ctx, 'decision', id);
+  await dropMark(ctx, id);
   await touch(ctx, 'decisions', 'decision', d, { status: 'aufgehoben' });
   await writeHistory(ctx, 'decision', id, 'revoked', changes);
   return registerUndo(ctx, 'decision', d, 'Aufgehoben');
@@ -347,23 +346,15 @@ async function findQuestion(trx: Db, id: string, lock = true): Promise<QuestionR
 async function questionItems(trx: Db, rows: QuestionRow[]): Promise<QuestionListItem[]> {
   if (rows.length === 0) return [];
   const decisionIds = rows.flatMap((q) => (q.resulting_decision_id ? [q.resulting_decision_id] : []));
-  const [marks, decisions] = await Promise.all([
-    trx
-      .selectFrom('plenum_marks')
-      .select('question_id')
-      .where(
-        'question_id',
-        'in',
-        rows.map((q) => q.id),
-      )
-      .execute(),
-    decisionIds.length
-      ? trx.selectFrom('decisions').select(['id', 'title', 'kind']).where('id', 'in', decisionIds).execute()
-      : [],
-  ]);
+  const decisions = decisionIds.length
+    ? await trx
+        .selectFrom('decisions')
+        .select(['id', 'title', 'kind'])
+        .where('id', 'in', decisionIds)
+        .execute()
+    : [];
   return rows.map((q) => ({
     ...q,
-    marked: marks.some((m) => m.question_id === q.id),
     resulting_decision: decisions.find((d) => d.id === q.resulting_decision_id) ?? null,
   }));
 }
@@ -418,9 +409,6 @@ export async function createQuestion(
     .returning('id')
     .executeTakeFirstOrThrow();
   const changes: HistoryChanges = { title: { old: null, new: input.title } };
-  if (input.mark_for_plenum) {
-    await addMark(ctx, 'question', question.id);
-  }
   if (originPlenumId) changes.plenum_id = { old: null, new: originPlenumId };
   await writeHistory(ctx, 'question', question.id, 'created', changes);
   ctx.inverse.length = 0;
@@ -475,7 +463,6 @@ export async function clarifyQuestion(
     changes.resulting_decision_id = { old: null, new: decision.id };
   }
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
-  await dropMark(ctx, 'question', id);
   await touch(ctx, 'questions', 'question', q, {
     status: 'geklaert',
     answer: input.answer,
@@ -502,7 +489,6 @@ export async function discardQuestion(
   ctx.inverse.push(questionState(q));
   const changes: HistoryChanges = { status: { old: q.status, new: 'verworfen' } };
   if (plenumId) changes.plenum_id = { old: null, new: plenumId };
-  await dropMark(ctx, 'question', id);
   await touch(ctx, 'questions', 'question', q, { status: 'verworfen' });
   await writeHistory(ctx, 'question', id, 'discarded', changes);
   return registerUndo(ctx, 'question', q, 'Frage verworfen');
@@ -531,7 +517,7 @@ export async function documentItems(
 ): Promise<DocumentListItem[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((d) => d.id);
-  const [links, protocols, sources, marks, missing] = await Promise.all([
+  const [links, protocols, sources, missing] = await Promise.all([
     trx.selectFrom('document_links').selectAll().where('document_id', 'in', ids).execute(),
     trx
       .selectFrom('appointments')
@@ -539,7 +525,6 @@ export async function documentItems(
       .where('protocol_document_id', 'in', ids)
       .execute(),
     trx.selectFrom('decisions').select('source_document_id').where('source_document_id', 'in', ids).execute(),
-    trx.selectFrom('plenum_marks').select('document_id').where('document_id', 'in', ids).execute(),
     // [P5] verknüpfte Dateien, die in Drive verschwunden sind (3.13)
     missingDriveDocuments(trx, rows, driveIndex),
   ]);
@@ -562,7 +547,6 @@ export async function documentItems(
       ...d,
       link_count: total,
       link_summary: summary,
-      marked: marks.some((m) => m.document_id === d.id),
       drive_missing: missing.has(d.id),
     };
   });
@@ -682,43 +666,19 @@ export async function createDocument(ctx: Ctx, raw: unknown): Promise<{ id: stri
   return { id: document.id, created: true };
 }
 
-// ── Markierung „Fürs Plenum“ für Entscheidungen, Fragen, Dokumente, Veranstaltungen ──
+// ── Entscheidung oder Fakt auf die Agenda (16.1): „Stimmt das noch?“ ────────
 
-type KnowledgeTarget = 'decision' | 'question' | 'document' | 'event' | 'partner';
-const MARK_TABLE = {
-  decision: 'decisions',
-  question: 'questions',
-  document: 'documents',
-  event: 'events',
-  partner: 'partners',
-} as const;
-
-export async function setMark(ctx: Ctx, target: unknown, id: string, marked: boolean): Promise<Undoable> {
-  if (typeof target !== 'string' || !Object.hasOwn(MARK_TABLE, target))
-    throw rule('Das kommt mit einer späteren Phase.');
-  const kind = target as KnowledgeTarget;
-  const entity = (await ctx.trx
-    .selectFrom(MARK_TABLE[kind])
-    .selectAll()
-    .where('id', '=', id)
-    .forUpdate()
-    .executeTakeFirst()) as
-    ({ id: string; version: number; status?: string } & Record<string, unknown>) | undefined;
-  if (!entity) throw notFound('Diesen Eintrag');
-  if ((await isMarked(ctx.trx, kind, id)) === marked) return { undo_token: '' };
-  if (marked) {
-    if (entity.archived_at) throw rule('Archivierte Einträge lassen sich nicht fürs Plenum markieren.');
-    if (kind === 'decision' && entity.status !== 'gueltig')
-      throw rule('Nur gültige Einträge lassen sich fürs Plenum markieren.');
-    if (kind === 'question' && entity.status !== 'offen')
-      throw rule('Nur offene Fragen lassen sich fürs Plenum markieren.');
-    if (kind === 'event' && isFinalEventStatus(entity.status as never))
-      throw rule('Abgeschlossene und abgesagte Veranstaltungen lassen sich nicht markieren.');
-    await addMark(ctx, kind, id);
-    return registerUndo(ctx, kind, entity, 'Fürs Plenum markiert');
+export async function setDecisionAgenda(ctx: Ctx, id: string, onAgenda: boolean): Promise<Undoable> {
+  const d = await findDecision(ctx.trx, id);
+  if ((await isMarked(ctx.trx, id)) === onAgenda) return { undo_token: '' };
+  if (onAgenda) {
+    if (d.archived_at || d.status !== 'gueltig')
+      throw rule('Nur gültige Einträge lassen sich auf die Agenda setzen.');
+    await addMark(ctx, id);
+    return registerUndo(ctx, 'decision', d, 'Auf der Agenda');
   }
-  await dropMark(ctx, kind, id);
-  return registerUndo(ctx, kind, entity, 'Markierung entfernt');
+  await dropMark(ctx, id);
+  return registerUndo(ctx, 'decision', d, 'Von der Agenda genommen');
 }
 
 // ── Globale Suche (F-WIS-06): nur App-Daten, gruppiert nach Art ─────────────
@@ -815,7 +775,7 @@ export async function search(trx: Db, query: unknown, now: Date): Promise<Search
         ]
           .filter(Boolean)
           .join(' · '),
-        link: `/aufgaben/${t.id}`,
+        link: `/agenda/${t.id}`,
       })),
     ],
     [
@@ -857,7 +817,7 @@ export async function search(trx: Db, query: unknown, now: Date): Promise<Search
         id: x.id,
         title: x.title,
         meta: `${QUESTION_STATUS_LABEL[x.status]} · ${PRIORITY_LABEL[x.urgency]}`,
-        link: `/wissen/fragen/${x.id}`,
+        link: `/agenda/frage/${x.id}`,
       })),
     ],
     [

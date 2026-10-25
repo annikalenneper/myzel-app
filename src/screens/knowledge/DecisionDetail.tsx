@@ -1,4 +1,4 @@
-// S-42 Entscheidung / Fakt – Detail · P3 (WF-WIS-02, WF-WIS-03, WF-WIS-05)
+// S-42 Entscheidung / Fakt – Detail · P3 (WF-WIS-02, WF-WIS-03); auf die Agenda (WF-AGE-03, 16.1)
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
@@ -14,14 +14,15 @@ import { cx, FieldError, GhostButton, LightButton, ListSkeleton, LoadError } fro
 import { Sheet } from '../../ui/Sheet';
 import {
   ActionBar,
+  BACK_TO_KNOWLEDGE,
   ConfirmDialog,
   DetailTopBar,
   KnowledgeHistory,
   NotFound,
   StatusPill,
+  type BackTarget,
 } from './DetailParts';
 import { LinkedDocuments } from './LinkedDocuments';
-import { useMark } from './KnowledgeScreen';
 import { Segmented } from './KnowledgeSheets';
 import { EMPTY_SOURCE, SourceFields, sourceReady, type SourceValue } from './SourceFields';
 
@@ -30,15 +31,21 @@ const dateText = (isoDate: string) => {
   return `${formatDayMonth(new Date(y, m - 1, d))}${y}`;
 };
 
-export function DecisionDetail({ decisionId }: { decisionId: string }) {
+export function DecisionDetail({
+  decisionId,
+  back = BACK_TO_KNOWLEDGE,
+}: {
+  decisionId: string;
+  back?: BackTarget;
+}) {
   const { data, error, reload } = useData(`decision:${decisionId}`, () => api.getDecision(decisionId));
   if (!data)
     return (
       <div className="flex min-h-dvh flex-col lg:min-h-0">
-        <DetailTopBar label="Beschlüsse" />
+        <DetailTopBar label="Beschlüsse" back={back} />
         <div className="px-5 py-[18px]">
           {error?.code === 'not_found' ? (
-            <NotFound text="Diesen Eintrag gibt es nicht" />
+            <NotFound text="Diesen Eintrag gibt es nicht" back={back} />
           ) : error ? (
             <LoadError message={error.message} onRetry={reload} />
           ) : (
@@ -47,11 +54,10 @@ export function DecisionDetail({ decisionId }: { decisionId: string }) {
         </div>
       </div>
     );
-  return <Loaded d={data} />;
+  return <Loaded d={data} back={back} />;
 }
 
-function Loaded({ d }: { d: Detail }) {
-  const mark = useMark();
+function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
   const act = useActions();
   const latest = useLatest(d.version);
   const { topicName } = useLookups();
@@ -59,13 +65,16 @@ function Loaded({ d }: { d: Detail }) {
   const [note, setNote] = useState('');
   const valid = d.status === 'gueltig';
   const noun = DECISION_KIND_LABEL[d.kind];
+  const setAgenda = (on: boolean, success = on ? 'Auf der Agenda' : 'Von der Agenda genommen') =>
+    void act(() => api.setDecisionAgenda(d.id, on), { success, undo: (r) => r.undo_token });
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={valid ? 100 : 24} />
       <DetailTopBar
         label="Beschlüsse"
-        mark={valid ? { marked: d.marked, onToggle: () => mark('decision', d.id, d.marked) } : undefined}
+        back={back}
+        agenda={valid ? { on: d.marked, onToggle: () => setAgenda(!d.marked) } : undefined}
       />
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className={cx('flex flex-col gap-2', !valid && 'opacity-60')}>
@@ -85,6 +94,23 @@ function Loaded({ d }: { d: Detail }) {
             {d.kind === 'fakt' ? 'Festgehalten' : 'Beschlossen'} am {dateText(d.decided_on)}
           </span>
         </div>
+        {/* 16.1 „Stimmt das noch?“ – ausdrücklich auf die Agenda gesetzt */}
+        {valid && d.marked && (
+          <div className="flex flex-col gap-2.5 rounded-[14px] border border-pink px-3.5 py-3">
+            <span className="text-[15px] font-semibold">Steht auf der Agenda: Stimmt das noch?</span>
+            <span className="text-[13px] leading-[1.45] text-weich">
+              Gilt es weiter, nimm es von der Agenda. Sonst unten ersetzen oder aufheben.
+            </span>
+            <button
+              type="button"
+              data-wf="WF-AGE-03"
+              onClick={() => setAgenda(false, 'Bestätigt · von der Agenda genommen')}
+              className="hit h-10 self-start rounded-[20px] border border-rand-stark px-4 text-[14px] text-text"
+            >
+              Stimmt noch
+            </button>
+          </div>
+        )}
         {d.status === 'ersetzt' && d.superseded_by_id && (
           <Link
             to={`/wissen/beschluesse/${d.superseded_by_id}`}

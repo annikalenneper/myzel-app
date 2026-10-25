@@ -7,7 +7,7 @@ import { PRIORITY_LABEL } from '../../shared/labels';
 import { DECISION_KIND_LABEL } from '../../shared/rules/knowledge';
 import { toIsoDate } from '../../shared/rules/due';
 import { DECISION_KINDS, PRIORITIES, type DecisionKind, type Priority } from '../../shared/schema';
-import { CheckRow, cx, FieldError, LightButton } from '../../ui/bits';
+import { cx, FieldError, LightButton } from '../../ui/bits';
 import { DateTile } from '../../ui/DateTile';
 import { Sheet } from '../../ui/Sheet';
 import { EMPTY_SOURCE, SourceFields, sourceReady, type SourceValue } from './SourceFields';
@@ -92,9 +92,12 @@ export function DecisionSheet({
   onClose,
   plenumId,
   sourceNote,
+  initialKind = 'entscheidung',
   onCreated,
 }: {
   onClose: () => void;
+  /** vorausgewählte Art, z. B. im Reiter „Fakten“ */
+  initialKind?: DecisionKind;
   /** im Plenum angelegt: das Plenum ist die Quelle (WF-PLE-05) */
   plenumId?: string;
   /** vorbelegte Notiz als Quelle, z. B. „Nachbereitung Winterrave“ */
@@ -104,7 +107,7 @@ export function DecisionSheet({
   const WF = plenumId ? 'WF-PLE-05' : 'WF-WIS-01';
   const { run } = useFeedback();
   const { topics } = useLookups();
-  const [kind, setKind] = useState<DecisionKind>('entscheidung');
+  const [kind, setKind] = useState<DecisionKind>(initialKind);
   const [title, setTitle] = useState('');
   const [topicId, setTopicId] = useState(
     () => topics.find((t) => t.name === 'Organisatorisches' && !t.archived_at)?.id ?? '',
@@ -208,7 +211,7 @@ export function DecisionSheet({
   );
 }
 
-/** WF-FRA-01 – „Fürs Plenum“ ist beim Anlegen vorausgewählt */
+/** WF-FRA-01 – offene Fragen stehen von selbst auf der Agenda (16.1) */
 export function QuestionSheet({ onClose, wf = 'WF-FRA-01' }: { onClose: () => void; wf?: string }) {
   const { run } = useFeedback();
   const { events } = useLookups();
@@ -216,7 +219,6 @@ export function QuestionSheet({ onClose, wf = 'WF-FRA-01' }: { onClose: () => vo
   const [topicId, setTopicId] = useState('');
   const [eventId, setEventId] = useState('');
   const [urgency, setUrgency] = useState<Priority>('mittel');
-  const [plenum, setPlenum] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const missing = !title.trim()
@@ -236,7 +238,6 @@ export function QuestionSheet({ onClose, wf = 'WF-FRA-01' }: { onClose: () => vo
           topic_id: topicId,
           event_id: eventId || null,
           urgency,
-          mark_for_plenum: plenum,
         }),
       { success: 'Frage gestellt', onInvalid: (e) => setError(e.message) },
     );
@@ -295,9 +296,6 @@ export function QuestionSheet({ onClose, wf = 'WF-FRA-01' }: { onClose: () => vo
             options={PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const)}
           />
         </div>
-        <CheckRow data-wf={wf} checked={plenum} onChange={setPlenum} hint="Nächste Agenda">
-          Fürs Plenum
-        </CheckRow>
         <FieldError>{error}</FieldError>
         <LightButton type="submit" data-wf={wf} disabled={!!missing || saving}>
           {missing ?? 'Frage stellen'}

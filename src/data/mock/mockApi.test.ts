@@ -121,22 +121,20 @@ describe('Aufgabe anlegen (WF-AUF-03)', () => {
     );
   });
 
-  it('legt im Status neu an, Anlegende folgt, „Fürs Plenum“ ist vorausgewählt', async () => {
+  it('legt im Status neu an, Anlegende folgt', async () => {
     const me = (await ids()).member('Mo');
     const task = await newTask();
     expect(task.status).toBe('neu');
     expect(task.priority).toBe('mittel');
     expect(task.follower_ids).toEqual([me.id]);
     expect(task.assignee_ids).toEqual([]);
-    expect(task.marked).toBe(true);
   });
 
   it('trägt bei „Ich übernehme das“ nur ein – der Status bleibt neu', async () => {
     const me = (await ids()).member('Mo');
-    const task = await newTask({ assign_self: true, mark_for_plenum: false });
+    const task = await newTask({ assign_self: true });
     expect(task.status).toBe('neu');
     expect(task.assignee_ids).toEqual([me.id]);
-    expect(task.marked).toBe(false);
   });
 
   it('vergibt fortlaufende Nummern', async () => {
@@ -174,14 +172,13 @@ describe('Status (WF-AUF-06 bis -09)', () => {
     await expectError(api.setTaskStatus(task.id, { status: 'verworfen', version: 3 }), 'rule');
   });
 
-  it('trägt bei „In Arbeit“ die handelnde Person ein und entfernt die Markierung', async () => {
+  it('trägt bei „In Arbeit“ die handelnde Person ein', async () => {
     const me = (await ids()).member('Mo');
     const task = await newTask();
     const result = await api.setTaskStatus(task.id, { status: 'in_arbeit', version: 1 });
     expect(result.self_assigned).toBe(true);
     const after = await api.getTask(task.id);
     expect(after.assignee_ids).toEqual([me.id]);
-    expect(after.marked).toBe(false);
     expect(after.version).toBe(2);
   });
 
@@ -295,15 +292,6 @@ describe('Bearbeitende, Folgende, Markierung (WF-AUF-02, -10, -11)', () => {
     expect(result.status_reset).toBe(true);
     expect((await api.getTask(task.id)).status).toBe('geplant');
   });
-
-  it('markiert nur aktive Aufgaben und hängt Neues ans Ende', async () => {
-    const task = await newTask({ mark_for_plenum: false });
-    await api.setPlenumMark(task.id, true);
-    expect((await api.getTask(task.id)).marked).toBe(true);
-    await api.setTaskStatus(task.id, { status: 'erledigt', version: 1 });
-    expect((await api.getTask(task.id)).marked).toBe(false);
-    await expectError(api.setPlenumMark(task.id, true), 'rule');
-  });
 });
 
 describe('Rückgängig (WF-ALL-02)', () => {
@@ -314,13 +302,12 @@ describe('Rückgängig (WF-ALL-02)', () => {
     const after = await api.getTask(task.id);
     expect(after.status).toBe('neu');
     expect(after.assignee_ids).toEqual([]);
-    expect(after.marked).toBe(true);
     expect(after.history[0]!.action).toBe('undo');
     // was zurückgesetzt wurde, steht als alt → neu in der Historie (3.10)
     expect(after.history[0]!.changes.status).toEqual({ old: 'in_arbeit', new: 'neu' });
   });
 
-  it('stellt nach „Blockiert“ Grund, Abhängigkeit und Markierung wieder her', async () => {
+  it('stellt nach „Blockiert“ Grund und Abhängigkeit wieder her', async () => {
     const { task } = await ids();
     const flyer = await api.getTask(task('Flyer').id);
     const { undo_token } = await api.setTaskStatus(flyer.id, { status: 'geplant', version: flyer.version });
@@ -329,41 +316,20 @@ describe('Rückgängig (WF-ALL-02)', () => {
     const after = await api.getTask(flyer.id);
     expect(after.status).toBe('blockiert');
     expect(after.block_reason).toBe(flyer.block_reason);
-    expect(after.marked).toBe(true);
   });
 
   it('gilt nur kurz, nur einmal und nur für die Person selbst', async () => {
     const task = await newTask();
-    const first = await api.setPlenumMark(task.id, false);
+    const lea = (await ids()).member('Lea');
+    const first = await api.addFollower(task.id, lea.id);
     await api.undo(first.undo_token);
     await expectError(api.undo(first.undo_token), 'rule');
-    const second = await api.setPlenumMark(task.id, false);
+    const second = await api.addFollower(task.id, lea.id);
     await login('lea');
     await expectError(api.undo(second.undo_token), 'rule');
     await login('mo');
     clock = new Date(clock.getTime() + 60_000);
     await expectError(api.undo(second.undo_token), 'rule');
-  });
-
-  it('setzt keine Markierung an eine inzwischen erledigte Aufgabe zurück', async () => {
-    const task = await newTask();
-    const { undo_token } = await api.setPlenumMark(task.id, false);
-    await login('lea');
-    await api.setTaskStatus(task.id, { status: 'erledigt', version: (await api.getTask(task.id)).version });
-    await login('mo');
-    await api.undo(undo_token);
-    expect((await api.getTask(task.id)).marked).toBe(false);
-  });
-
-  it('nimmt keine Markierung zurück, die inzwischen jemand anderes gesetzt hat', async () => {
-    const task = await newTask({ mark_for_plenum: false });
-    const { undo_token } = await api.setPlenumMark(task.id, true);
-    await login('lea');
-    await api.setTaskStatus(task.id, { status: 'geplant', version: (await api.getTask(task.id)).version });
-    await api.setPlenumMark(task.id, true);
-    await login('mo');
-    await api.undo(undo_token);
-    expect((await api.getTask(task.id)).marked).toBe(true);
   });
 
   it('stellt „In Arbeit“ nicht ohne Bearbeitende wieder her', async () => {
@@ -448,13 +414,12 @@ describe('Bearbeiten, Kommentare, Archiv (WF-AUF-04, -05, -12, -14)', () => {
     });
   });
 
-  it('archiviert statt zu löschen, entfernt die Markierung und stellt wieder her', async () => {
+  it('archiviert statt zu löschen und stellt wieder her', async () => {
     const task = await newTask();
     await api.archiveTask(task.id, 1);
     expect((await api.listTasks()).some((t) => t.id === task.id)).toBe(false);
     const archived = await api.getTask(task.id);
     expect(archived.archived_at).not.toBeNull();
-    expect(archived.marked).toBe(false);
     await expectError(api.updateTaskFields(task.id, { title: 'x' }, archived.version), 'rule');
     await api.restoreTask(task.id, archived.version);
     expect((await api.listTasks()).some((t) => t.id === task.id)).toBe(true);

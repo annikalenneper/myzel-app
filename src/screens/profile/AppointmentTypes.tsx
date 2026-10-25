@@ -292,7 +292,7 @@ function TypeSheet({ type, onClose }: { type: AppointmentTypeWithUsage | null; o
             <span className="text-[12px] leading-[1.4] text-leise">
               {type
                 ? 'Nach dem Anlegen nicht mehr änderbar.'
-                : 'Agenda, Ergebnis und Abschluss – nur beim Anlegen festlegbar.'}
+                : 'Ergebnis, Protokoll und Abschluss – nur beim Anlegen festlegbar.'}
             </span>
           </span>
         </button>

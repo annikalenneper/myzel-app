@@ -63,7 +63,7 @@ const day = (isoDate: string) => {
   return formatDayMonth(new Date(y, m - 1, d));
 };
 const title = (task: TaskRef) => `„${task.title}“`;
-export const taskLink = (taskId: string) => `/aufgaben/${taskId}`;
+export const taskLink = (taskId: string) => `/agenda/${taskId}`;
 const unique = (ids: readonly string[]) => [...new Set(ids)];
 
 /** Zuweisung: an die neu zugewiesene Person, nicht an sich selbst. */

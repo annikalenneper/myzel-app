@@ -48,7 +48,7 @@ test('WF-ADM-01 / -02: Mitglied anlegen, Kürzel-Vorschlag, eindeutige Angaben, 
   await page.getByLabel('E-Mail-Adresse').fill('leon@example.org');
   await page.getByTestId('WF-LOG-02').click();
   await page.locator('[data-demo="magic-link"]').click();
-  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
 });
 
 test('WF-ADM-03 / -04: Deaktivieren zeigt die Folgen, trägt überall aus; Reaktivieren stellt nichts wieder her', async ({
@@ -200,7 +200,7 @@ test('WF-ADM-09: weitere Adresse eintragen, damit anmelden, wieder entfernen', a
   await page.getByLabel('E-Mail-Adresse').fill('jule.privat@example.net');
   await page.getByTestId('WF-LOG-02').click();
   await page.locator('[data-demo="magic-link"]').click();
-  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
   await page.goto('/profil');
   await expect(page.getByRole('heading', { name: 'Jule' })).toBeVisible();
   await page.getByTestId('WF-LOG-03').click();

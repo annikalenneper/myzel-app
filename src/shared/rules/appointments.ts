@@ -39,9 +39,6 @@ export const canRsvp = (a: Timed, now: Date) => a.status === 'geplant' && !hasSt
 /** „Hat stattgefunden“: erst nach Beginn (WF-TER-06). */
 export const canMarkHappened = (a: Timed, now: Date) => a.status === 'geplant' && hasStarted(a, now);
 
-/** Markierung „Fürs Plenum“: nur geplante Termine, nie Plenum-Termine selbst (WF-TER-08, 7.2). */
-export const canMarkAppointment = (a: Timed, isPlenum: boolean) => a.status === 'geplant' && !isPlenum;
-
 /** Bis wann ein Termin als „kommend“ zählt: bis zum Ende, ohne Ende bis zum Ende seines Tages. */
 export function appointmentEnd(a: Pick<Appointment, 'starts_at' | 'ends_at'>): number {
   if (a.ends_at) return new Date(a.ends_at).getTime();

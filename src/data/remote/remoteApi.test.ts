@@ -1,5 +1,5 @@
-// Anbindung ans echte Backend: Lesen meldet sich nicht bei den Ansichten (sonst lädt die Sitzung endlos neu),
-// Schreiben schon; Fehler des Servers kommen als dieselben AppErrors wie in der Testdaten-Schicht.
+// Anbindung ans echte Backend: nur was laut Server Daten geändert hat, meldet sich bei den Ansichten (sonst lädt die
+// Sitzung endlos neu); Fehler des Servers kommen als dieselben AppErrors wie in der Testdaten-Schicht.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../shared/errors';
 import { createRemoteApi } from './remoteApi';
@@ -11,8 +11,13 @@ afterEach(() => {
 });
 
 describe('Remote-Schnittstelle', () => {
-  it('Lesen löst kein Neuladen aus, Schreiben schon', async () => {
-    const fetchMock = reply({ result: { state: 'anonymous' } });
+  it('Lesen löst kein Neuladen aus, Schreiben schon – das sagt der Server', async () => {
+    const fetchMock = vi.fn<typeof fetch>(
+      async (url) =>
+        new Response(
+          JSON.stringify({ result: { state: 'anonymous' }, changed: String(url).endsWith('/createTopic') }),
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const api = createRemoteApi({ supabaseUrl: 'https://x.supabase.co', anonKey: 'k', apiBase: '/api' });
     const listener = vi.fn();

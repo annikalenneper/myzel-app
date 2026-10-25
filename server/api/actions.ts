@@ -63,6 +63,18 @@ export const READ_ACTIONS: Record<
   syncDrive: (db, _, now) => drive.syncDrive(db, now),
   rebuildDrive: (db, _, now) => drive.rebuildDrive(db, now),
   // ohne Transaktion: die Abfragen laufen parallel (16.6)
+  // lesen auch über die handelnde Person (Admin-Rechte, eigene Einstellungen)
+  getDeactivationImpact: (db, [memberId], now, actor) =>
+    members.getDeactivationImpact({ trx: db, actor, now }, s(memberId)),
+  listMemberEmails: (db, [memberId], now, actor) =>
+    members.listMemberEmails({ trx: db, actor, now }, s(memberId)),
+  getNotificationSettings: (db, [endpoint], now, actor) =>
+    notify.notificationSettings(
+      { trx: db, actor, now },
+      typeof endpoint === 'string' ? endpoint : null,
+      botUsername(),
+    ),
+  getSystemStatus: (db, _, now, actor) => notify.systemStatus({ trx: db, actor, now }),
   listAppointmentTypes: (db, _, now, actor) => appts.listAppointmentTypes({ trx: db, actor, now }),
   listAppointments: (db, _, now, actor) => appts.listAppointments({ trx: db, actor, now }),
   getAppointment: (db, [id], _, actor) => appts.getAppointment(db, s(id), actor.id),
@@ -92,7 +104,6 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   removeFollower: (ctx, [taskId, memberId]) => tasks.removeFollower(ctx, s(taskId), s(memberId)),
   addBlocker: (ctx, [taskId, blockerId]) => tasks.addBlocker(ctx, s(taskId), s(blockerId)),
   removeBlocker: (ctx, [taskId, blockerId]) => tasks.removeBlocker(ctx, s(taskId), s(blockerId)),
-  setPlenumMark: (ctx, [taskId, marked]) => tasks.setPlenumMark(ctx, s(taskId), marked === true),
   addComment: (ctx, [taskId, body]) => tasks.addComment(ctx, s(taskId), body),
   updateComment: (ctx, [commentId, body]) => tasks.updateComment(ctx, s(commentId), body),
   archiveTask: (ctx, [id, version]) => tasks.archiveTask(ctx, s(id), n(version)),
@@ -107,11 +118,8 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   updateOwnName: (ctx, [name]) => members.updateOwnName(ctx, name),
   createMember: (ctx, [input]) => members.createMember(ctx, input),
   updateMember: (ctx, [id, input]) => members.updateMember(ctx, s(id), input),
-  // liest nur, prüft aber Admin-Rechte über die handelnde Person
-  getDeactivationImpact: (ctx, [memberId]) => members.getDeactivationImpact(ctx, s(memberId)),
   deactivateMember: (ctx, [memberId]) => members.deactivateMember(ctx, s(memberId)),
   reactivateMember: (ctx, [memberId]) => members.reactivateMember(ctx, s(memberId)),
-  listMemberEmails: (ctx, [memberId]) => members.listMemberEmails(ctx, s(memberId)),
   addMemberEmail: (ctx, [memberId, email]) => members.addMemberEmail(ctx, s(memberId), email),
   removeMemberEmail: (ctx, [id]) => members.removeMemberEmail(ctx, s(id)),
   createTopic: (ctx, [input]) => members.createTopic(ctx, input),
@@ -121,13 +129,10 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   deleteTopic: (ctx, [id]) => members.deleteTopic(ctx, s(id)),
 
   // [P2] Erinnerungen – lesen auch über die handelnde Person (eigene Einstellungen, Admin-Status)
-  getNotificationSettings: (ctx, [endpoint]) =>
-    notify.notificationSettings(ctx, typeof endpoint === 'string' ? endpoint : null, botUsername()),
   savePushSubscription: (ctx, [subscription]) => notify.savePushSubscription(ctx, subscription),
   removePushSubscription: (ctx, [endpoint]) => notify.removePushSubscription(ctx, endpoint),
   startTelegramLink: (ctx) => notify.startTelegramLink(ctx, botUsername()),
   unlinkTelegram: (ctx) => notify.unlinkTelegram(ctx),
-  getSystemStatus: (ctx) => notify.systemStatus(ctx),
 
   // [P3] Termine, Terminarten (Lesen über die handelnde Person: eigene Zusage)
   createAppointmentType: (ctx, [input]) => appts.createAppointmentType(ctx, input),
@@ -142,7 +147,6 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   markAppointmentHappened: (ctx, [id, attendees, version]) =>
     appts.markHappened(ctx, s(id), attendees as unknown[], n(version)),
   setAttendee: (ctx, [id, memberId, present]) => appts.setAttendee(ctx, s(id), s(memberId), present === true),
-  setAppointmentMark: (ctx, [id, marked]) => appts.setAppointmentMark(ctx, s(id), marked === true),
 
   // [P3] Wissen
   createDecision: (ctx, [input]) => know.createDecision(ctx, input),
@@ -156,7 +160,7 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
     know.linkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
   unlinkDocument: (ctx, [documentId, target, targetId]) =>
     know.unlinkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
-  setMark: (ctx, [target, id, marked]) => know.setMark(ctx, target, s(id), marked === true),
+  setDecisionAgenda: (ctx, [id, onAgenda]) => know.setDecisionAgenda(ctx, s(id), onAgenda === true),
 
   // [P4] Veranstaltungen ausgebaut, Partner, Vorlagen
   updateEventDetail: (ctx, [id, input]) => p4events.updateEventDetail(ctx, s(id), input),
@@ -182,9 +186,6 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
     drive.setEventDriveFolder(ctx, s(eventId), folderId ?? null, n(version)),
 
   // [P3] Plenum
-  plenumAction: (ctx, [id, input]) => plenum.plenumAction(ctx, s(id), input),
-  moveAgendaItem: (ctx, [markId, toIndex]) => plenum.moveMark(ctx, markId, toIndex),
-  plenumAdd: (ctx, [id, input]) => plenum.plenumAdd(ctx, s(id), input),
   updateProtocol: (ctx, [id, input]) => plenum.updateProtocol(ctx, s(id), input),
   closePlenum: (ctx, [id, attendees, version]) => plenum.closePlenum(ctx, s(id), attendees, n(version)),
 };

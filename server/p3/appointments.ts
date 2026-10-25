@@ -8,7 +8,6 @@ import type {
 } from '../../src/data/api';
 import { AppError } from '../../src/shared/errors';
 import {
-  canMarkAppointment,
   canMarkHappened,
   canRsvp,
   changeMessages,
@@ -40,7 +39,6 @@ import {
   type Db,
   type ReadCtx,
 } from '../core/context';
-import { addMark, dropMark, isMarked } from '../core/marks';
 import type { AppointmentRow, AppointmentTypeRow } from '../db/types';
 import { notify } from '../p2/notify';
 
@@ -228,10 +226,9 @@ export async function isPlenum(trx: Db, appointment: Pick<AppointmentRow, 'type_
 async function listItems(trx: Db, rows: AppointmentRow[], meId: string): Promise<AppointmentListItem[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((a) => a.id);
-  const [types, rsvps, marks, tasks] = await Promise.all([
+  const [types, rsvps, tasks] = await Promise.all([
     trx.selectFrom('appointment_types').select(['id', 'label', 'color', 'has_plenum_features']).execute(),
     trx.selectFrom('appointment_rsvps').selectAll().where('appointment_id', 'in', ids).execute(),
-    trx.selectFrom('plenum_marks').select('appointment_id').where('appointment_id', 'in', ids).execute(),
     trx
       .selectFrom('tasks')
       .select('appointment_id')
@@ -250,7 +247,6 @@ async function listItems(trx: Db, rows: AppointmentRow[], meId: string): Promise
       is_plenum: type.has_plenum_features,
       yes_count: own.filter((r) => r.answer === 'ja').length,
       my_answer: own.find((r) => r.member_id === meId)?.answer ?? null,
-      marked: marks.some((m) => m.appointment_id === a.id),
       task_count: tasks.filter((t) => t.appointment_id === a.id).length,
     };
   });
@@ -483,7 +479,6 @@ export async function cancelAppointment(
   await checkVersion(ctx, 'appointment', a, version);
   if (a.status !== 'geplant') throw rule('Nur geplante Termine lassen sich absagen.');
   const changes: HistoryChanges = { status: { old: a.status, new: 'abgesagt' } };
-  await dropMark(ctx, 'appointment', id);
   await touchAppointment(ctx, a, { status: 'abgesagt' });
   await writeHistory(ctx, 'appointment', id, 'status', changes);
   const recipients = await rsvpRecipients(ctx, id);
@@ -540,7 +535,6 @@ export async function markHappened(
     attendees: { old: null, new: attendeeIds.length },
   };
   await replaceAttendees(ctx, id, attendeeIds);
-  await dropMark(ctx, 'appointment', id);
   await touchAppointment(ctx, a, { status: 'stattgefunden' });
   await writeHistory(ctx, 'appointment', id, 'status', changes);
   return registerUndo(ctx, 'appointment', a, 'Als stattgefunden gespeichert');
@@ -579,20 +573,6 @@ export async function setAttendee(ctx: Ctx, id: string, memberId: string, presen
   await writeHistory(ctx, 'appointment', id, present ? 'attendee_added' : 'attendee_removed', {
     attendee: present ? { old: null, new: memberId } : { old: memberId, new: null },
   });
-}
-
-/** WF-TER-08: Markierung „Fürs Plenum“ – nur geplant, nie bei Plenum-Terminen */
-export async function setAppointmentMark(ctx: Ctx, id: string, marked: boolean): Promise<Undoable> {
-  const a = await findAppointment(ctx.trx, id);
-  if ((await isMarked(ctx.trx, 'appointment', id)) === marked) return { undo_token: '' };
-  if (marked) {
-    if (await isPlenum(ctx.trx, a)) throw rule('Plenum-Termine lassen sich nicht fürs Plenum markieren.');
-    if (!canMarkAppointment(a, false)) throw rule('Nur geplante Termine lassen sich fürs Plenum markieren.');
-    await addMark(ctx, 'appointment', id);
-    return registerUndo(ctx, 'appointment', a, 'Fürs Plenum markiert');
-  }
-  await dropMark(ctx, 'appointment', id);
-  return registerUndo(ctx, 'appointment', a, 'Markierung entfernt');
 }
 
 /** Beim Deaktivieren: Zusagen für künftige Termine (F-LOG-03, ab P3) */

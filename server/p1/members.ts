@@ -23,6 +23,8 @@ import {
   rule,
   writeHistory,
   type Ctx,
+  type Db,
+  type ReadCtx,
 } from '../core/context';
 import type { MemberRow } from '../db/types';
 import { dropChannels } from '../p2/notify';
@@ -31,12 +33,12 @@ import { dropLeads, leadCount } from '../p4/events';
 import { dropPartnerContacts, partnerContactCount } from '../p4/partners';
 import { dropAssignee, dropFollower } from './tasks';
 
-async function findMember(ctx: Ctx, id: string): Promise<MemberRow> {
+async function findMember(ctx: { trx: Db }, id: string, lock = true): Promise<MemberRow> {
   const member = await ctx.trx
     .selectFrom('members')
     .selectAll()
     .where('id', '=', id)
-    .forUpdate()
+    .$if(lock, (q) => q.forUpdate())
     .executeTakeFirst();
   if (!member) throw notFound('Dieses Mitglied');
   return member;
@@ -149,9 +151,9 @@ export async function updateMember(ctx: Ctx, id: string, raw: unknown): Promise<
   await writeHistory(ctx, 'member', id, 'updated', changes);
 }
 
-export async function getDeactivationImpact(ctx: Ctx, memberId: string): Promise<DeactivationImpact> {
+export async function getDeactivationImpact(ctx: ReadCtx, memberId: string): Promise<DeactivationImpact> {
   requireAdmin(ctx);
-  await findMember(ctx, memberId);
+  await findMember(ctx, memberId, false);
   const [assigned, following] = await Promise.all([
     ctx.trx
       .selectFrom('task_assignees as a')
@@ -427,9 +429,9 @@ export async function deleteTopic(ctx: Ctx, id: string): Promise<void> {
 // ── Weitere Login-Adressen (WF-ADM-09, nur Admins) ──────────────────────────
 // Eigene Zeilen wie Kommentare: das Mitglied selbst (version) bleibt unverändert, die Historie hält es fest.
 
-export async function listMemberEmails(ctx: Ctx, memberId: string): Promise<MemberEmail[]> {
+export async function listMemberEmails(ctx: ReadCtx, memberId: string): Promise<MemberEmail[]> {
   requireAdmin(ctx);
-  await findMember(ctx, memberId);
+  await findMember(ctx, memberId, false);
   return ctx.trx
     .selectFrom('member_emails')
     .select(['id', 'member_id', 'email', 'created_at', 'created_by'])

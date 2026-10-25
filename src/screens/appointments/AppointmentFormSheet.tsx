@@ -243,8 +243,8 @@ export function AppointmentFormSheet({
             data-wf="WF-PLE-01"
             className="rounded-[14px] border border-rand bg-grund px-3.5 py-2.5 text-[13px] leading-normal text-weich"
           >
-            Plenum: Die Agenda füllt sich aus allem, was „Fürs Plenum“ markiert ist. Ein Drive-Protokoll ist
-            nicht nötig.
+            Plenum: Ins Ergebnis kommt alles, was während des Plenums angelegt oder geändert wird. Ein
+            Drive-Protokoll ist nicht nötig.
           </span>
         )}
         <label className="label-mono flex flex-col gap-1.5">

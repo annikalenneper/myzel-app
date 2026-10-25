@@ -20,18 +20,7 @@ import {
 import type { SeriesDetail } from '../api';
 import { activeIds, checkRefs } from './appointments';
 import { enqueue } from './notify';
-import {
-  checkVersion,
-  dropMark,
-  isMarked,
-  notFound,
-  parse,
-  rule,
-  touch,
-  writeHistory,
-  type Ctx,
-  type Db,
-} from './server';
+import { checkVersion, notFound, parse, rule, touch, writeHistory, type Ctx, type Db } from './server';
 
 const iso = (ctx: Ctx) => ctx.now.toISOString();
 
@@ -216,13 +205,12 @@ export function createSeries(ctx: Ctx, raw: unknown): { id: string; created: num
 
 /**
  * Ein Serientermin fällt weg (Regel geändert oder Serie beendet): Wer schon eingeladen ist oder geantwortet hat,
- * bekommt eine Absage. Ist er mit nichts verbunden (keine Antworten, Aufgaben, Dokumente, Markierung), verschwindet
- * er still (archiviert). Die Markierung „Fürs Plenum“ fällt in beiden Fällen weg.
+ * bekommt eine Absage. Ist er mit nichts verbunden (keine Antworten, Aufgaben, Dokumente), verschwindet
+ * er still (archiviert).
  */
 function dropOccurrence(ctx: Ctx, a: Appointment): number {
   const rsvps = ctx.db.appointment_rsvps.filter((r) => r.appointment_id === a.id);
   const linked =
-    isMarked(ctx.db, 'appointment', a.id) ||
     ctx.db.tasks.some((t) => t.appointment_id === a.id && !t.archived_at) ||
     ctx.db.document_links.some((l) => l.target_type === 'appointment' && l.target_id === a.id);
   if (!invited(ctx.db, a) && rsvps.length === 0 && !linked) {
@@ -234,7 +222,6 @@ function dropOccurrence(ctx: Ctx, a: Appointment): number {
   }
   const changes: HistoryChanges = { status: { old: 'geplant', new: 'abgesagt' } };
   a.status = 'abgesagt';
-  dropMark(ctx, 'appointment', a.id);
   touch(ctx, a);
   writeHistory(ctx, 'appointment', a.id, 'status', changes);
   const recipients = concerned(ctx, a);

@@ -5,154 +5,6 @@ import { AppError, type AppErrorCode, type ConflictInfo } from '../../shared/err
 import { emailInputSchema } from '../../shared/schema';
 import type { MyzelApi, Session } from '../api';
 
-/** Aktionen, die Phase 1 auf dem Server kennt – alles Weitere kommt mit späteren Phasen */
-const P1_ACTIONS = [
-  'listMembers',
-  'listTopics',
-  'listTasks',
-  'getTask',
-  'listEvents',
-  'getEvent',
-  'getEventDetail',
-  'listLinkedDocuments',
-  'createTask',
-  'updateTaskFields',
-  'updateTaskDescription',
-  'setTaskStatus',
-  'addAssignee',
-  'removeAssignee',
-  'addFollower',
-  'removeFollower',
-  'addBlocker',
-  'removeBlocker',
-  'setPlenumMark',
-  'addComment',
-  'updateComment',
-  'archiveTask',
-  'restoreTask',
-  'undo',
-  'createEvent',
-  'updateEvent',
-  'setEventStatus',
-  'updateOwnName',
-  'createMember',
-  'updateMember',
-  'getDeactivationImpact',
-  'deactivateMember',
-  'reactivateMember',
-  'listMemberEmails',
-  'addMemberEmail',
-  'removeMemberEmail',
-  'createTopic',
-  'updateTopic',
-  'archiveTopic',
-  'restoreTopic',
-  'deleteTopic',
-  // [P2] Erinnerungen
-  'startTelegramLink',
-  'unlinkTelegram',
-  'getSystemStatus',
-  // [P4] Veranstaltungen ausgebaut
-  'listPartners',
-  'getPartner',
-  'getTemplateDialog',
-  'listTemplates',
-  'updateEventDetail',
-  'addBooking',
-  'updateBooking',
-  'removeBooking',
-  'addEventLead',
-  'removeEventLead',
-  'setShiftPlan',
-  'createPartner',
-  'updatePartner',
-  'linkPartner',
-  'unlinkPartner',
-  'applyTemplate',
-  'createTemplateItem',
-  'updateTemplateItem',
-  'removeTemplateItem',
-  // [P3] Plenum-Zyklus
-  'listAppointmentTypes',
-  'listAppointments',
-  'getAppointment',
-  'listDecisions',
-  'getDecision',
-  'listQuestions',
-  'getQuestion',
-  'listDocuments',
-  'search',
-  'getPlenum',
-  'createAppointmentType',
-  'updateAppointmentType',
-  'archiveAppointmentType',
-  'restoreAppointmentType',
-  'deleteAppointmentType',
-  'createAppointment',
-  'updateAppointment',
-  'setRsvp',
-  'cancelAppointment',
-  'markAppointmentHappened',
-  'setAttendee',
-  'setAppointmentMark',
-  'createDecision',
-  'replaceDecision',
-  'revokeDecision',
-  'createQuestion',
-  'clarifyQuestion',
-  'discardQuestion',
-  'createDocument',
-  'linkDocument',
-  'unlinkDocument',
-  'setMark',
-  'plenumAction',
-  'moveAgendaItem',
-  'plenumAdd',
-  'updateProtocol',
-  'closePlenum',
-  // [P5] Wissen & Drive
-  'getDriveFolder',
-  'searchDrive',
-  'recentDrive',
-  'syncDrive',
-  'rebuildDrive',
-  'linkDriveFile',
-  'setEventDriveFolder',
-] as const;
-/** schreibende Aktionen melden sich danach bei allen Ansichten (subscribe); Lesen nie – sonst lädt die Ansicht endlos */
-const READS = new Set([
-  'getSession',
-  'listMembers',
-  'listTopics',
-  'listTasks',
-  'getTask',
-  'listEvents',
-  'getEvent',
-  'getEventDetail',
-  'listLinkedDocuments',
-  'getDeactivationImpact',
-  'listMemberEmails',
-  'getNotificationSettings',
-  'getSystemStatus',
-  'listAppointmentTypes',
-  'listAppointments',
-  'getAppointment',
-  'listDecisions',
-  'getDecision',
-  'listQuestions',
-  'getQuestion',
-  'listDocuments',
-  'search',
-  'getPlenum',
-  'listPartners',
-  'getPartner',
-  'getTemplateDialog',
-  'listTemplates',
-  'getDriveFolder',
-  'searchDrive',
-  'recentDrive',
-]);
-
 export interface RemoteOptions {
   supabaseUrl: string;
   anonKey: string;
@@ -212,7 +64,7 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
       throw new AppError('network', 'Keine Verbindung – nicht gespeichert.');
     }
     const body = (await response.json().catch(() => null)) as
-      | { result: T }
+      | { result: T; changed?: boolean }
       | {
           error: {
             code: AppErrorCode;
@@ -229,9 +81,8 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
         field: body.error.field ?? undefined,
         conflict: body.error.conflict ?? undefined,
       });
-    // der Abgleich meldet sich nur, wenn der Server wirklich bei Drive nachgefragt hat (höchstens einmal pro Minute)
-    const quiet = action === 'syncDrive' && (body.result as { checked?: boolean } | null)?.checked === false;
-    if (!READS.has(action) && !quiet) emit();
+    // nur was Daten geändert hat, meldet sich bei allen Ansichten (subscribe) – das sagt der Server
+    if (body.changed) emit();
     return body.result;
   }
 
@@ -308,14 +159,12 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
       await call('savePushSubscription', [sub.toJSON()]);
     },
   };
-  for (const action of P1_ACTIONS)
-    (base as Record<string, unknown>)[action] = (...args: unknown[]) => call(action, args);
-
-  // was erst spätere Phasen bringen, meldet sich verständlich statt still zu fehlen
+  // alle übrigen Aktionen gehen an den Server: /api/<aktion>. Was er nicht kennt, beantwortet er mit
+  // „Das kommt mit einer späteren Phase.“
   return new Proxy(base as MyzelApi, {
     get(target, prop, receiver) {
       if (typeof prop === 'string' && prop !== 'then' && prop !== 'demo' && !(prop in target))
-        return () => Promise.reject(new AppError('rule', 'Das kommt mit einer späteren Phase.'));
+        return (...args: unknown[]) => call(prop, args);
       return Reflect.get(target, prop, receiver);
     },
   });
