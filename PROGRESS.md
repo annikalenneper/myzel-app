@@ -49,6 +49,23 @@ Live am 25.10.2026 (Deploy defc1e1), typische Werte je Anfrage aus dem Netlify-L
   listTasks + getTask + Nachschlagedaten ≈ 3 s, bis die Oberfläche wieder ruhig ist).
 - Größter Hebel: Function näher an die Datenbank (EU) – dann wenige ms je Abfrage. Danach: Login lokal prüfen.
 
+Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 20:29:
+
+| Aktion      | vorher  | warm nachher | Bemerkung                                     |
+| ----------- | ------- | ------------ | --------------------------------------------- |
+| Login       | 340 ms  | 1 ms         | außer getSession (fragt weiter Supabase)      |
+| listTasks   | 950 ms  | 353 ms       | 7 Abfragen gleichzeitig statt nacheinander    |
+| listTopics  | 590 ms  | 176 ms       |                                               |
+| listEvents  | 780 ms  | 265 ms       |                                               |
+| getTask     | 1230 ms | 910 ms       | Abfragen hängen voneinander ab (nacheinander) |
+| getDecision | –       | 865 ms       | 10 Abfragen nacheinander                      |
+
+- Neu sichtbar: viele Anfragen 1,2–1,3 s bei 0,2–0,4 s DB-Zeit – Neuaufbau der Verbindungen (600–900 ms), weil
+  `pg` ruhende Verbindungen nach 10 s schloss. Behoben in a609982 (5 Minuten offen, Prüfung nach Ruhe); noch zu
+  messen.
+- Offen in Phase 1: Detail-Lesungen (getTask, getDecision, getAppointment, getEventDetail) mit abhängigen Abfragen
+  zusammenziehen; Schreibaktionen bleiben bei 10–20 Rundreisen in einer Transaktion (Region, U7).
+
 ## Offene Fragen und Annahmen
 
 | Nr. | Datum      | Frage / Annahme                                                                                                                                                         | Stand   |
