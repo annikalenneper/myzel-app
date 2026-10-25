@@ -45,9 +45,14 @@ Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
            Prototyp S-41: Hinweis wie in der App
      - [x] Kein Schalter „Auch eigene Statusänderungen“: eigene Statusänderungen werden nie gemeldet
            (members.notify_own_status entfällt im Datenvertrag; in der Datenbank gab es die Spalte nie)
-3. [ ] Netlify-Variablen setzen, Mitglieder importieren (`npm run db:import-members`), Push = Produktions-Deploy
+3. [x] Netlify-Variablen setzen, Mitglieder importieren (`npm run db:import-members`), Push = Produktions-Deploy
+       (25.10.2026: Migration 20261023000003 eingespielt, fehlende Variablen gesetzt – geheime nur im Kontext
+       „production“; VAPID_SUBJECT in Netlify = App-Adresse, weil „mailto:“ in der .env ohne Adresse ist;
+       10 Mitglieder angelegt, 1 aktualisiert)
 4. [ ] Nach dem Deploy: Telegram-Webhook, cron-job.org (Nutzerin), Test-Checkliste; Abweichung von 10.7 (keine Vorschau
-       mit Beispieldaten, es gibt nur ein Supabase-Projekt) von der Nutzerin freigegeben
+       mit Beispieldaten, es gibt nur ein Supabase-Projekt) von der Nutzerin freigegeben. Auf die Test-Checkliste
+       gehört WF-ALL-04 (Push- bzw. Telegram-Link auf dem Handy antippen → Zielansicht öffnet sich direkt): seit dem
+       Wegfall der Nachrichtenliste in der Demo prüft das kein E2E-Test mehr (24.10.2026)
 
 ### 10.0 Vorbereitung
 
