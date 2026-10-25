@@ -10,8 +10,17 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 - [x] **Phase 0 – Ordnung und Messung:** PROGRESS.md neu, ANFORDERUNGEN.md Abschnitt 16, `Server-Timing` je Anfrage;
       Messung live je Hauptansicht (Werte unten unter _Messungen_)
-- [ ] **Phase 1 – Ladezeit:** Login lokal prüfen (JWT/JWKS), Function-Region EU prüfen, teure Lese-Aktionen
-      zusammenziehen, Lese-Bündel je Ansicht, Browser-Cache mit gezieltem Neuladen
+- [ ] **Phase 1 – Ladezeit:**
+  - [x] Login lokal am Token prüfen (5119511)
+  - [x] bis zu vier DB-Verbindungen, Lese-Abfragen gleichzeitig (dbb20e0); Verbindungen 5 Min. offen, nach Ruhe
+        geprüft (a609982)
+  - [x] Browser-Zwischenspeicher, gleiche Anfragen zusammengelegt (d595158)
+  - [x] Sofort anzeigen: Status, Folgen, Personen an der Aufgabe (06115ba)
+  - [x] Weniger Rundreisen: Statuswechsel, Benachrichtigungen, Rückgängig (ec83b60)
+  - [ ] Wirkung von a609982 und ec83b60 live messen
+  - [ ] Detail-Lesungen (getTask, getDecision, getAppointment, getEventDetail) zusammenziehen
+  - [ ] Sofort anzeigen und weniger Rundreisen auch für Zuweisen, Folgen, Kommentare
+  - [ ] Function-Region EU (U7, offen)
 - [ ] **Phase 2 – Agenda als Hauptansicht:** „Aufgaben“ → „Agenda“ mit Aufgaben und offenen Fragen; Wissen mit Reitern
       Entscheidungen · Fakten · Dokumente · Drive; Markierungen nur noch für Entscheidungen/Fakten („Stimmt das noch?“);
       Link „Aufgaben und offene Fragen zu diesem Event“
