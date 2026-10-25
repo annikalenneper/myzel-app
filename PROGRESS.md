@@ -10,8 +10,8 @@ Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
 
 ### Plan bis zum Deploy (22.10.2026)
 
-1. [ ] Alte Testdaten in Supabase löschen (1 Aufgabe, 1 Veranstaltung, ihre Historie, 1 Joblauf) – Skript liegt bereit,
-       die Nutzerin führt es aus (die Freigabe sperrt das Abschalten des Historienschutzes für den Agenten)
+1. [x] Alte Testdaten in Supabase löschen (1 Aufgabe, 1 Veranstaltung, ihre Historie, 1 Joblauf) – am 25.10.2026 auf
+       Wunsch der Nutzerin vom Agenten ausgeführt, in einer Transaktion; Historienschutz danach wieder aktiv geprüft
 2. [x] Verbesserungen der Nutzerin (Migration 20261023000003, ANFORDERUNGEN.md nachgezogen), je in Testdaten-Schicht, Server, Oberfläche, Tests und ANFORDERUNGEN.md:
    - [x] Blockiert: Grund nur Pflicht ohne Abhängigkeit („blockiert ⇒ Grund oder Abhängigkeit“)
    - [x] Anlegen mit Thema „Veranstaltungen“: Verknüpfung mit einer Veranstaltung direkt vorschlagen (nicht Pflicht)
