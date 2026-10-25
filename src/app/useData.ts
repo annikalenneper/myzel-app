@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { api } from '../data';
 import { AppError, isAppError } from '../shared/errors';
 
@@ -43,6 +43,75 @@ function loadShared<T>(key: string, load: () => Promise<T>): Promise<T> {
   };
   promise.then(done, done);
   return promise;
+}
+
+// ── Sofort anzeigen (16.6) ──────────────────────────────────────────────────
+// Eine Aktion legt ihre erwartete Wirkung über die angezeigten Daten, bis der Server geantwortet hat und der neue
+// Stand geladen ist – oder sie scheitert: dann zeigt die Ansicht sofort wieder den wahren Stand.
+
+/** erwartete Wirkung einer Aktion auf die Daten eines Schlüssels */
+export interface OptimisticPatch {
+  key: string;
+  change: (data: unknown) => unknown;
+}
+
+export function optimisticPatch<T>(key: string, change: (data: T) => T): OptimisticPatch {
+  return { key, change: change as (data: unknown) => unknown };
+}
+
+/** angezeigte Änderungen; `until`: ab dieser Runde geladene Daten enthalten die Wirkung schon */
+const patches = new Map<OptimisticPatch, { until: number | null }>();
+const patchListeners = new Set<() => void>();
+const patchesChanged = () => patchListeners.forEach((l) => l());
+/** spätestens dann verschwindet eine bestätigte Änderung, auch wenn das Neuladen hängt */
+const SETTLE_FALLBACK_MS = 10_000;
+
+export interface Optimistic {
+  /** gescheitert: sofort wieder den wahren Stand zeigen */
+  hide(): void;
+  /** gespeichert: verschwindet, sobald der neue Stand des jeweiligen Schlüssels geladen ist */
+  settle(): void;
+}
+
+export function showOptimistic(...next: OptimisticPatch[]): Optimistic {
+  next.forEach((patch) => patches.set(patch, { until: null }));
+  patchesChanged();
+  const hide = () => {
+    if (!next.some((patch) => patches.delete(patch))) return;
+    patchesChanged();
+  };
+  return {
+    hide,
+    settle() {
+      for (const patch of next) {
+        const entry = patches.get(patch);
+        if (!entry) continue;
+        // was gerade niemand anzeigt, wird auch nicht neu geladen
+        if (mounted.get(patch.key)) entry.until = generation;
+        else patches.delete(patch);
+      }
+      patchesChanged();
+      window.setTimeout(hide, SETTLE_FALLBACK_MS);
+    },
+  };
+}
+
+/** nach einem Ladevorgang: bestätigte Änderungen, die der geladene Stand schon enthält, verschwinden */
+function retirePatches(key: string, loadedAt: number): void {
+  let changed = false;
+  for (const [patch, entry] of patches)
+    if (patch.key === key && entry.until !== null && loadedAt >= entry.until) {
+      patches.delete(patch);
+      changed = true;
+    }
+  if (changed) patchesChanged();
+}
+
+function withPatches<T>(key: string, data: T | undefined): T | undefined {
+  if (data === undefined) return data;
+  let result: unknown = data;
+  for (const patch of patches.keys()) if (patch.key === key) result = patch.change(result);
+  return result as T;
 }
 
 /** Lädt alle sichtbaren Daten neu, z. B. nach „Neu laden“ im Konfliktdialog. */
@@ -96,6 +165,13 @@ export function useData<T>(key: string, load: () => Promise<T>): DataState<T> {
     data: cache.get(key) as T | undefined,
     error: null,
   }));
+  const [patchRound, patched] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    patchListeners.add(patched);
+    return () => {
+      patchListeners.delete(patched);
+    };
+  }, []);
   const loadRef = useRef(load);
   useEffect(() => {
     loadRef.current = load;
@@ -131,6 +207,7 @@ export function useData<T>(key: string, load: () => Promise<T>): DataState<T> {
         loadDone();
         if (startedAt === generation || mounted.get(key)) cache.set(key, data);
         if (!cancelled) setState({ key, data, error: null });
+        retirePatches(key, startedAt);
       },
       (e: unknown) => {
         loadDone();
@@ -149,8 +226,10 @@ export function useData<T>(key: string, load: () => Promise<T>): DataState<T> {
   }, [key, tick]);
 
   const current = state.key === key ? state : { data: cache.get(key) as T | undefined, error: null };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- patchRound zeigt neue oder entfernte Änderungen an
+  const data = useMemo(() => withPatches(key, current.data), [key, current.data, patchRound]);
   return {
-    data: current.data,
+    data,
     error: current.error,
     loading: current.data === undefined && !current.error,
     reload,

@@ -6,7 +6,7 @@ import { BarOffset, useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
 import { useMe } from '../../app/session';
 import { useActions, useLatest } from '../../app/useActions';
-import { useData } from '../../app/useData';
+import { optimisticPatch, useData } from '../../app/useData';
 import { api } from '../../data';
 import type { TaskDetail as TaskDetailData, TaskListItem } from '../../data/api';
 import { formatCommentTime, formatHistoryTime } from '../../shared/format';
@@ -107,9 +107,25 @@ function Loaded({ task }: { task: TaskDetailData }) {
   // die version wird erst beim Start einer Aktion gelesen – Aktionen können in der Reihe warten
   const latest = useLatest(task.version);
 
+  /** erwartete Wirkung auf Detail und Liste – sofort sichtbar, bis der Server bestätigt (16.6) */
+  const onTask = (change: (t: TaskListItem) => Partial<TaskListItem>) => [
+    optimisticPatch<TaskDetailData>(`task:${task.id}`, (t) => ({ ...t, ...change(t) })),
+    optimisticPatch<TaskListItem[]>('tasks', (list) =>
+      list.map((t) => (t.id === task.id ? { ...t, ...change(t) } : t)),
+    ),
+  ];
+  const withId = (ids: string[], id: string) => (ids.includes(id) ? ids : [...ids, id]);
+  const withoutId = (ids: string[], id: string) => ids.filter((x) => x !== id);
+
   const setStatus = (status: TaskStatus) =>
     act(() => api.setTaskStatus(task.id, { status, version: latest.current }), {
       subject: SUBJECT,
+      // wer ändert, folgt; wer loslegt, wird Bearbeitende*r (4.1)
+      optimistic: onTask((t) => ({
+        status,
+        follower_ids: withId(t.follower_ids, me.id),
+        ...(status === 'in_arbeit' && { assignee_ids: withId(t.assignee_ids, me.id) }),
+      })),
       success: (r) =>
         `${task.status === 'blockiert' && isActiveTaskStatus(status) ? 'Blockade gelöst · ' : 'Status: '}${TASK_STATUS_LABEL[status]}${r.self_assigned ? ' · du bist eingetragen' : ''}`,
       undo: (r) => r.undo_token,
@@ -144,6 +160,9 @@ function Loaded({ task }: { task: TaskDetailData }) {
 
   const toggleFollow = () =>
     void act(() => (following ? api.removeFollower(task.id, me.id) : api.addFollower(task.id, me.id)), {
+      optimistic: onTask((t) => ({
+        follower_ids: following ? withoutId(t.follower_ids, me.id) : withId(t.follower_ids, me.id),
+      })),
       success: following ? 'Du folgst nicht mehr' : 'Du folgst jetzt',
       undo: (r) => r.undo_token,
     });
@@ -151,6 +170,11 @@ function Loaded({ task }: { task: TaskDetailData }) {
   const addPerson = (kind: 'assign' | 'followers', m: Member) =>
     void act(() => (kind === 'assign' ? api.addAssignee(task.id, m.id) : api.addFollower(task.id, m.id)), {
       subject: SUBJECT,
+      optimistic: onTask((t) =>
+        kind === 'assign'
+          ? { assignee_ids: withId(t.assignee_ids, m.id) }
+          : { follower_ids: withId(t.follower_ids, m.id) },
+      ),
       success: `${m.display_name} eingetragen`,
       undo: (r) => r.undo_token,
     });
@@ -160,6 +184,11 @@ function Loaded({ task }: { task: TaskDetailData }) {
       () => (kind === 'assign' ? api.removeAssignee(task.id, m.id) : api.removeFollower(task.id, m.id)),
       {
         subject: SUBJECT,
+        optimistic: onTask((t) =>
+          kind === 'assign'
+            ? { assignee_ids: withoutId(t.assignee_ids, m.id) }
+            : { follower_ids: withoutId(t.follower_ids, m.id) },
+        ),
         success: (r) => `${m.display_name} entfernt${r.status_reset ? ' · Status zurück auf Geplant' : ''}`,
         undo: (r) => r.undo_token,
       },

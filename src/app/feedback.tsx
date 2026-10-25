@@ -34,6 +34,8 @@ export interface RunOptions<T> {
   draftKept?: boolean;
   /** wie das Objekt im Konfliktdialog heißt, z. B. „diese Aufgabe“ */
   subject?: string;
+  /** die Aktion ist gescheitert (auch Netzfehler, Konflikt) – vor jeder Meldung */
+  onFailed?: () => void;
 }
 
 type Bar =
@@ -102,6 +104,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         if (text && undoToken !== '') show({ kind: 'done', text, undoToken });
         return result;
       } catch (e) {
+        options.onFailed?.();
         if (!isAppError(e)) {
           console.error(e);
           show({ kind: 'error', text: 'Das hat nicht geklappt. Bitte versuch es noch einmal.' });

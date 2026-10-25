@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useFeedback, type RunOptions } from './feedback';
-import { dataSettled } from './useData';
+import { dataSettled, showOptimistic, type OptimisticPatch } from './useData';
+
+export interface ActOptions<T> extends RunOptions<T> {
+  /** erwartete Wirkung, sofort angezeigt – bis der neue Stand geladen ist oder die Aktion scheitert (16.6) */
+  optimistic?: OptimisticPatch[];
+}
 
 // Eine Reihe für alle Aktionen mit Versionsprüfung – auch „Rückgängig“ stellt sich hier an.
 let queue: Promise<unknown> = Promise.resolve();
@@ -25,18 +30,35 @@ export function enqueueAction(action: () => Promise<boolean>): Promise<boolean> 
 export function useActions() {
   const { run, dismissNetwork } = useFeedback();
   return useCallback(
-    function act<T>(action: () => Promise<T>, options?: RunOptions<T>): Promise<boolean> {
+    function act<T>(action: () => Promise<T>, options: ActOptions<T> = {}): Promise<boolean> {
       // Wer bei offener Netzfehler-Meldung weitermacht, verzichtet auf „Nochmal“ – sonst bliebe der
       // neue Tipp ohne sichtbare Wirkung hinter der Meldung hängen.
       dismissNetwork();
+      const { optimistic, ...runOptions } = options;
+      const shown = optimistic?.length ? showOptimistic(...optimistic) : null;
+      const hide = () => shown?.hide();
       return enqueueAction(async () => {
         let ok = false;
-        await run(async () => {
-          const result = await action();
-          ok = true;
-          return result;
-        }, options);
+        await run(
+          async () => {
+            const result = await action();
+            ok = true;
+            return result;
+          },
+          {
+            ...runOptions,
+            onFailed: () => {
+              hide();
+              runOptions.onFailed?.();
+            },
+          },
+        );
+        if (ok) shown?.settle();
+        else hide();
         return ok;
+      }).catch((e: unknown) => {
+        hide();
+        throw e;
       });
     },
     [run, dismissNetwork],

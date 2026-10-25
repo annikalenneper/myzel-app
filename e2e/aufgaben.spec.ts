@@ -319,6 +319,27 @@ test('WF-ALL-03: „Nochmal“ in der Schnellanlage legt genau eine Aufgabe an; 
   await expect(page.getByRole('tab', { name: 'KOMMENTARE · 1' })).toBeVisible();
 });
 
+test('16.6: Status steht sofort da und springt bei Netzfehler zurück; „Nochmal“ speichert', async ({
+  page,
+}) => {
+  await openTask(page, 'Kasse für Winterrave besorgen');
+  const before = await page
+    .getByRole('group', { name: 'Status' })
+    .getByRole('button', { pressed: true })
+    .textContent();
+  await page.evaluate(() => window.__myzelDemo!.failNextWrites(1));
+  await statusChip(page, 'Erledigt').click();
+  const bar = page.getByTestId('WF-ALL-03');
+  await expect(bar).toBeVisible();
+  // nicht gespeichert: die Anzeige zeigt wieder den wahren Stand
+  await expect(statusChip(page, 'Erledigt')).toHaveAttribute('aria-pressed', 'false');
+  await expect(statusChip(page, before!.trim())).toHaveAttribute('aria-pressed', 'true');
+  await bar.getByRole('button', { name: 'Nochmal' }).click();
+  await expect(statusChip(page, 'Erledigt')).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(statusChip(page, 'Erledigt')).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('WF-ALL-03: Blockade-Grund bleibt bei Netzfehler als Entwurf erhalten', async ({ page }) => {
   await openTask(page, 'Kasse für Winterrave besorgen');
   await statusChip(page, 'Blockiert').click();
