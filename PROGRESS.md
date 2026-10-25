@@ -51,14 +51,16 @@ Live am 25.10.2026 (Deploy defc1e1), typische Werte je Anfrage aus dem Netlify-L
 
 ## Offene Fragen und Annahmen
 
-| Nr. | Datum      | Frage / Annahme                                                                                                       | Stand   |
-| --- | ---------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
-| U1  | 25.10.2026 | Markierungen außer an Entscheidungen/Fakten werden beim Umbau ohne Ersatz gelöscht (sie haben keine Historie).        | Annahme |
-| U2  | 25.10.2026 | Fakten brauchen keine Bestätigung, nur Entscheidungen; bestehende Entscheidungen bleiben „gültig“.                    | Annahme |
-| U3  | 25.10.2026 | Text von Fakten/Entscheidungen max. 300 Zeichen; längere Bestandstexte bleiben, beim Bearbeiten muss gekürzt werden.  | Annahme |
-| U4  | 25.10.2026 | Plenum ohne Ende: Zeitraum Beginn + 3 Stunden, längstens bis zum Abschließen.                                         | Annahme |
-| U5  | 25.10.2026 | Rückfrage „Gehört das zum Plenum?“ nur bei Schreibaktionen an Artefakten (nicht Profil, Benachrichtigungen, Zusagen). | Annahme |
-| U6  | 25.10.2026 | Entscheidungen: Titel/Text-Korrektur im Detail erlaubt, Inhaltliches weiter über „Ersetzen“.                          | Annahme |
+| Nr. | Datum      | Frage / Annahme                                                                                                                                                         | Stand   |
+| --- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| U1  | 25.10.2026 | Markierungen außer an Entscheidungen/Fakten werden beim Umbau ohne Ersatz gelöscht (sie haben keine Historie).                                                          | Annahme |
+| U2  | 25.10.2026 | Fakten brauchen keine Bestätigung, nur Entscheidungen; bestehende Entscheidungen bleiben „gültig“.                                                                      | Annahme |
+| U3  | 25.10.2026 | Text von Fakten/Entscheidungen max. 300 Zeichen; längere Bestandstexte bleiben, beim Bearbeiten muss gekürzt werden.                                                    | Annahme |
+| U4  | 25.10.2026 | Plenum ohne Ende: Zeitraum Beginn + 3 Stunden, längstens bis zum Abschließen.                                                                                           | Annahme |
+| U5  | 25.10.2026 | Rückfrage „Gehört das zum Plenum?“ nur bei Schreibaktionen an Artefakten (nicht Profil, Benachrichtigungen, Zusagen).                                                   | Annahme |
+| U6  | 25.10.2026 | Entscheidungen: Titel/Text-Korrektur im Detail erlaubt, Inhaltliches weiter über „Ersetzen“.                                                                            | Annahme |
+| U7  | 25.10.2026 | Function-Region EU (Frankfurt): in Netlify (Free) keine Einstellung gefunden. Klären: geht es im Free-Tarif, sonst Pro? Bis dahin us-east-2.                            | offen   |
+| U8  | 25.10.2026 | Login wird außer bei getSession lokal am Token geprüft: ein abgemeldetes Token gilt bis zu seinem Ablauf (1 h); Deaktivierte scheitern weiter an der Mitgliederprüfung. | Annahme |
 
 ## Entscheidungsprotokoll
 

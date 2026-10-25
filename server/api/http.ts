@@ -18,7 +18,7 @@ export async function respond(
   req: Request,
   action: string,
   db: () => Kysely<Database>,
-  loginFrom: (req: Request) => Promise<Login | null>,
+  loginFrom: (req: Request, action: string) => Promise<Login | null>,
 ): Promise<Response> {
   if (req.method !== 'POST') return json(405, { error: { code: 'rule', message: 'Nur POST.' } });
   let args: unknown[] = [];
@@ -38,7 +38,7 @@ export async function respond(
     return json(status, body, { 'server-timing': serverTimingHeader(timing) });
   };
   try {
-    const login = await loginFrom(req);
+    const login = await loginFrom(req, action);
     loginMs = performance.now() - started;
     const result = await countingQueries(stats, () => handleAction(db(), login, action, args, new Date()));
     return timed(200, { result: result ?? null });
