@@ -66,22 +66,34 @@ export async function enqueue(
 ): Promise<number> {
   if (messages.length === 0) return 0;
   const memberIds = [...new Set(messages.map((m) => m.member_id))];
-  const [active, push, telegram] = await Promise.all([
-    trx
-      .selectFrom('members')
-      .select('id')
-      .where('id', 'in', memberIds)
-      .where('active', '=', true)
-      .where('is_system', '=', false)
-      .execute(),
-    trx.selectFrom('push_subscriptions').select('member_id').where('member_id', 'in', memberIds).execute(),
-    trx.selectFrom('telegram_links').select('member_id').where('member_id', 'in', memberIds).execute(),
-  ]);
-  const isActive = new Set(active.map((r) => r.id));
-  const hasPush = new Set(push.map((r) => r.member_id));
-  const hasTelegram = new Set(telegram.map((r) => r.member_id));
+  // aktive Empfänger samt ihren Kanälen in einer Rundreise (16.6)
+  const recipients = await trx
+    .selectFrom('members as m')
+    .select((eb) => [
+      'm.id',
+      eb
+        .exists(
+          eb.selectFrom('push_subscriptions as p').select('p.member_id').whereRef('p.member_id', '=', 'm.id'),
+        )
+        .as('push'),
+      eb
+        .exists(
+          eb.selectFrom('telegram_links as t').select('t.member_id').whereRef('t.member_id', '=', 'm.id'),
+        )
+        .as('telegram'),
+    ])
+    .where('m.id', 'in', memberIds)
+    .where('m.active', '=', true)
+    .where('m.is_system', '=', false)
+    .execute();
+  const hasPush = new Set(recipients.filter((r) => r.push).map((r) => r.id));
+  const hasTelegram = new Set(recipients.filter((r) => r.telegram).map((r) => r.id));
+  // ohne eingeschalteten Kanal gibt es nichts zu verschicken – auch keine Prüfung auf Doppelte
+  const reachable = new Set([...hasPush, ...hasTelegram]);
+  const wanted = messages.filter((m) => reachable.has(m.member_id));
+  if (wanted.length === 0) return 0;
   // je Anlass nur einmal: wer später einen weiteren Kanal einschaltet, bekommt nichts nachgeliefert
-  const allKeys = messages.flatMap((m) => NOTIFICATION_CHANNELS.map((c) => `${m.dedupe_key}:${c}`));
+  const allKeys = wanted.flatMap((m) => NOTIFICATION_CHANNELS.map((c) => `${m.dedupe_key}:${c}`));
   const known = new Set<string>();
   for (const part of chunks(allKeys)) {
     const rows = await trx
@@ -92,8 +104,8 @@ export async function enqueue(
     for (const r of rows) known.add(r.dedupe_key.slice(0, r.dedupe_key.lastIndexOf(':')));
   }
   const rows = [];
-  for (const m of messages) {
-    if (!isActive.has(m.member_id) || known.has(m.dedupe_key)) continue;
+  for (const m of wanted) {
+    if (known.has(m.dedupe_key)) continue;
     known.add(m.dedupe_key);
     const channels: NotificationChannel[] = [];
     if (hasPush.has(m.member_id)) channels.push('push');

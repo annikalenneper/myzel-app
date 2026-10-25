@@ -2,6 +2,7 @@
 // (src/data/mock/server.ts), gegen die Datenbank. Die Zeile der Aufgabe wird für die Dauer der Transaktion
 // gesperrt (FOR UPDATE), Listen werden eintragsweise geändert, die Historie steht in derselben Transaktion.
 // Benachrichtigungen kommen mit Phase 2.
+import { sql } from 'kysely';
 import { AppError } from '../../src/shared/errors';
 import { TASK_STATUS_LABEL } from '../../src/shared/labels';
 import { wouldCreateBlockerCycle } from '../../src/shared/rules/blockers';
@@ -57,6 +58,42 @@ async function editableTask(ctx: Ctx, id: string): Promise<TaskRow> {
   if (task.archived_at)
     throw rule('Archivierte Aufgaben lassen sich nicht ändern. Stell sie erst wieder her.');
   return task;
+}
+
+/**
+ * Aufgabe sperren und in derselben Rundreise mitlesen, wer bearbeitet und folgt und ob sie Abhängigkeiten hat –
+ * jede Abfrage kostet zwischen Function und Datenbank rund 87 ms (16.6).
+ */
+async function editableTaskWithPeople(
+  ctx: Ctx,
+  id: string,
+): Promise<{ task: TaskRow; assignees: string[]; followers: string[]; hasBlockers: boolean }> {
+  const row = await ctx.trx
+    .selectFrom('tasks')
+    .selectAll('tasks')
+    .select([
+      sql<
+        string[]
+      >`coalesce((select array_agg(a.member_id::text) from task_assignees a where a.task_id = tasks.id), '{}')`.as(
+        'people_assignees',
+      ),
+      sql<
+        string[]
+      >`coalesce((select array_agg(f.member_id::text) from task_followers f where f.task_id = tasks.id), '{}')`.as(
+        'people_followers',
+      ),
+      sql<boolean>`exists (select 1 from task_blockers b where b.task_id = tasks.id)`.as(
+        'people_has_blockers',
+      ),
+    ])
+    .where('id', '=', id)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!row) throw notFound('Diese Aufgabe');
+  const { people_assignees, people_followers, people_has_blockers, ...task } = row;
+  if (task.archived_at)
+    throw rule('Archivierte Aufgaben lassen sich nicht ändern. Stell sie erst wieder her.');
+  return { task, assignees: people_assignees, followers: people_followers, hasBlockers: people_has_blockers };
 }
 
 async function usableTopic(ctx: Ctx, id: string): Promise<void> {
@@ -311,7 +348,7 @@ export async function setTaskStatus(
   { selfAssign = true }: { selfAssign?: boolean } = {},
 ): Promise<Undoable & { self_assigned: boolean }> {
   const input = parse(taskStatusChangeSchema, raw);
-  const task = await editableTask(ctx, id);
+  const { task, assignees, followers, hasBlockers: blocked } = await editableTaskWithPeople(ctx, id);
   await checkVersion(ctx, 'task', task, input.version);
   const from = task.status;
   const to = input.status;
@@ -321,13 +358,7 @@ export async function setTaskStatus(
         ? `Die Aufgabe ist schon „${TASK_STATUS_LABEL[to]}“.`
         : `Von „${TASK_STATUS_LABEL[from]}“ nach „${TASK_STATUS_LABEL[to]}“ geht es nicht.`,
     );
-  const hasBlockers =
-    (input.blocker_ids?.length ?? 0) > 0 ||
-    !!(await ctx.trx
-      .selectFrom('task_blockers')
-      .select('task_id')
-      .where('task_id', '=', id)
-      .executeTakeFirst());
+  const hasBlockers = (input.blocker_ids?.length ?? 0) > 0 || blocked;
   if (blockReasonMissing(to, input.block_reason, hasBlockers))
     throw new AppError('validation', BLOCK_REASON_MISSING, { field: 'block_reason' });
 
@@ -359,12 +390,7 @@ export async function setTaskStatus(
     for (const blockerId of input.blocker_ids ?? []) await insertBlocker(ctx, task, blockerId);
 
   let self_assigned = false;
-  const isAssignee = await ctx.trx
-    .selectFrom('task_assignees')
-    .select('member_id')
-    .where('task_id', '=', id)
-    .where('member_id', '=', ctx.actor.id)
-    .executeTakeFirst();
+  const isAssignee = assignees.includes(ctx.actor.id);
   if (to === 'in_arbeit' && !isAssignee && selfAssign) {
     // wer loslegt und nicht eingetragen ist, wird automatisch Bearbeitende*r (4.1)
     await ctx.trx
@@ -374,12 +400,13 @@ export async function setTaskStatus(
     ctx.inverse.push({ kind: 'assignee_remove', task_id: id, member_id: ctx.actor.id });
     changes.assignee = { old: null, new: ctx.actor.id };
     self_assigned = true;
+    assignees.push(ctx.actor.id);
   }
   await dropMark(ctx, id);
   await follow(ctx, id, ctx.actor.id);
+  if (!followers.includes(ctx.actor.id)) followers.push(ctx.actor.id);
   await writeHistory(ctx, 'task', id, 'status', changes);
   // [P2] Bearbeitende und Folgende erfahren es (6.2)
-  const [assignees, followers] = await Promise.all([assigneeIds(ctx, id), followerIds(ctx, id)]);
   await notify(ctx, statusMessages(task, to, ctx.actor.id, assignees, followers, iso(ctx)));
   if (to === 'erledigt') {
     // die wartenden Aufgaben ändern ihren Status nicht automatisch – ihre Bearbeitenden erfahren es (4.1)

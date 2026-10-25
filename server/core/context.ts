@@ -189,9 +189,10 @@ export async function registerUndo(
   // eine zusammengesetzte Aktion (z. B. im Plenum) legt am Ende genau einen Eintrag für alles an
   if (ctx.inverse.length === 0 || ctx.deferUndo) return { undo_token: '' };
   const cutoff = new Date(ctx.now.getTime() - UNDO_WINDOW_MS).toISOString();
-  await ctx.trx.deleteFrom('undo_actions').where('created_at', '<', cutoff).execute();
   const token = crypto.randomUUID();
+  // Abgelaufenes aufräumen und neu eintragen in einer Rundreise (16.6)
   await ctx.trx
+    .with('expired', (db) => db.deleteFrom('undo_actions').where('created_at', '<', cutoff))
     .insertInto('undo_actions')
     .values({
       token,
