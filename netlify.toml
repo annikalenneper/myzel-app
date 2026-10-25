@@ -2,6 +2,10 @@
   command = "npm run build"
   publish = "dist"
 
+# öffentliche Werte, die im Code und im Browser-Bundle stehen dürfen – der Secrets-Scan soll sie nicht melden
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "VITE_MYZEL_BACKEND,VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_VAPID_PUBLIC_KEY,VITE_MEINVEREIN_URL,VAPID_SUBJECT,APP_URL,TELEGRAM_BOT_USERNAME"
+
 # Server-Funktionen (Schritt C): netlify/functions ruft den Code in server/ auf
 [functions]
   directory = "netlify/functions"

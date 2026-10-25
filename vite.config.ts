@@ -3,6 +3,16 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const dbTests = [
+  'server/api/handle.test.ts',
+  'server/db/firstAdmin.test.ts',
+  'server/db/importMembers.test.ts',
+  'server/db/migrations.test.ts',
+  'server/integrity/checks.test.ts',
+  'server/p2/notify.test.ts',
+  'server/p5/drive.test.ts',
+];
+
 export default defineConfig({
   plugins: [
     react(),
@@ -44,7 +54,12 @@ export default defineConfig({
     // unter voller Last (alle Projekte parallel) braucht das Anlegen der Datenbank-Vorlage länger
     testTimeout: 60_000,
     projects: [
-      { extends: true, test: { name: 'app', include: ['src/**/*.test.ts', 'server/**/*.test.ts'] } },
+      {
+        extends: true,
+        test: { name: 'app', include: ['src/**/*.test.ts', 'server/**/*.test.ts'], exclude: dbTests },
+      },
+      // Datenbank-Tests (PGlite): vorerst nicht in `npm run check`, nur mit `npm run test:db` (25.10.2026)
+      { extends: true, test: { name: 'db', include: dbTests } },
       // dieselben Phase-1-Tests gegen die Server-Funktionen (Schritt C)
       {
         extends: true,

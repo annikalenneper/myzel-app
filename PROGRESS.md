@@ -49,10 +49,11 @@ Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
        (25.10.2026: Migration 20261023000003 eingespielt, fehlende Variablen gesetzt – geheime nur im Kontext
        „production“; VAPID_SUBJECT in Netlify = App-Adresse, weil „mailto:“ in der .env ohne Adresse ist;
        10 Mitglieder angelegt, 1 aktualisiert). Live seit 25.10.2026 (Deploy 6adddfd1, lokal gebaut mit
-       `netlify deploy --build --prod`): der Build von Netlify nach dem Push brach mit Exit-Code 2 ab, lokal und in der
-       CI (Lint, Typecheck) läuft er durch – Ursache offen, das Build-Log steht nur in der Netlify-Oberfläche. Die CI
-       bricht seit dem 19.10.2026 in den langen Datenbank-Tests am Zeitlimit ab (Exit 143)
-4. [ ] Nach dem Deploy: Telegram-Webhook, cron-job.org (Nutzerin), Test-Checkliste; Abweichung von 10.7 (keine Vorschau
+       `netlify deploy --build --prod`): der Build von Netlify nach dem Push brach ab, weil der Secrets-Scan öffentliche
+       Werte (VITE_MYZEL_BACKEND, VITE_SUPABASE_URL, VAPID_SUBJECT) im Repo fand – jetzt in netlify.toml unter
+       SECRETS_SCAN_OMIT_KEYS. Datenbank-Tests (PGlite) und Smoke-Tests vorerst nicht in `npm run check` und der CI
+       (Nutzerin, 25.10.2026: die CI brach seit dem 19.10. am Zeitlimit ab), getrennt mit `npm run test:db`
+4. [ ] Nach dem Deploy: Telegram-Webhook (gesetzt 25.10.2026), cron-job.org (Nutzerin), Test-Checkliste; Abweichung von 10.7 (keine Vorschau
        mit Beispieldaten, es gibt nur ein Supabase-Projekt) von der Nutzerin freigegeben. Auf die Test-Checkliste
        gehört WF-ALL-04 (Push- bzw. Telegram-Link auf dem Handy antippen → Zielansicht öffnet sich direkt): seit dem
        Wegfall der Nachrichtenliste in der Demo prüft das kein E2E-Test mehr (24.10.2026)

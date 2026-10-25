@@ -19,7 +19,8 @@ supabase/migrations.
 | `npm run dev`                     | Vorschau mit Testdaten (http://localhost:5173)                                      |
 | `npm run check`                   | **vor jedem Commit**: Lint, Typecheck, Unit-Tests, E2E. Rot heißt: nicht committen. |
 | `npm run lint` / `npm run format` | ESLint + Prettier prüfen / Prettier anwenden                                        |
-| `npm test`                        | Unit-Tests (Vitest)                                                                 |
+| `npm test`                        | Unit-Tests (Vitest) ohne Datenbank                                                  |
+| `npm run test:db`                 | Datenbank-Tests (PGlite) und Smoke-Tests – vorerst nicht in `check` (langsam)       |
 | `npm run test:e2e`                | Playwright; baut die App und startet die Vorschau selbst                            |
 | `npm run build`                   | Produktions-Build nach dist/                                                        |
 
