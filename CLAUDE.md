@@ -1,6 +1,6 @@
 # Myzel – Arbeitsanleitung für den Agenten
 
-Quelle der Anforderungen ist **docs/ANFORDERUNGEN.md**. Der Agent ändert sie nur auf Anweisung der der Nutzerin, darf aber Vorschläge machen. Stand, offene Fragen, Entscheidungen und Abnahmen stehen in **PROGRESS.md** – der Agent hält sie aktuell. 
+Quelle der Anforderungen ist **docs/ANFORDERUNGEN.md**. Der Agent ändert sie nur auf Anweisung der der Nutzerin, darf aber Vorschläge machen. Stand, offene Fragen, Entscheidungen und Abnahmen stehen in **PROGRESS.md** – der Agent hält sie aktuell.
 
 ## Stack
 
@@ -51,7 +51,7 @@ supabase/migrations.
 
 OffeneFragen (Abschnitt 11) halten die Arbeit nicht auf: nach plausibler Annahme bauen, in PROGRESS.md festhalten,in der nächsten Durchsicht vorlegen.
 
-## Integritätsregeln in Kürze 
+## Integritätsregeln in Kürze
 
 - Die Datenbank sichert nur Struktur (NOT NULL, Unique, FK RESTRICT, RLS: Lesen für aktive Mitglieder,
   direktes Schreiben gesperrt). Alle fachlichen Regeln stehen im Server-Code; App und Telegram schreiben nur

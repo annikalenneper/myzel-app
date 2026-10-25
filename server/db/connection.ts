@@ -3,6 +3,7 @@
 // diese Einstellung überschreiben).
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
+import { countQuery } from '../api/timing';
 import { SUPABASE_ROOT_CA } from './supabaseCa';
 import type { Database } from './types';
 
@@ -25,6 +26,8 @@ export function database(): Kysely<Database> {
         ssl: { ca: SUPABASE_ROOT_CA, rejectUnauthorized: true },
       }),
     }),
+    // Messung je Anfrage (server/api/timing.ts)
+    log: (event) => countQuery(event.queryDurationMillis),
   });
   return instance;
 }
