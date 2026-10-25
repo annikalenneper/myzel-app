@@ -64,6 +64,31 @@ Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
        gehört WF-ALL-04 (Push- bzw. Telegram-Link auf dem Handy antippen → Zielansicht öffnet sich direkt): seit dem
        Wegfall der Nachrichtenliste in der Demo prüft das kein E2E-Test mehr (24.10.2026)
 
+### Plan für später: Fragen, Ergebnisse, Duplizieren (Nutzerin, 25.10.2026)
+
+Anlass: Die Frage „KDK 2027 …“ führt zu mehreren Entscheidungen und Fakten, wurde aber beim Klären sofort mit einem
+einzigen Fakt abgeschlossen. Sofortmaßnahme (25.10.2026, direkt in der Datenbank, weil es noch keine Funktion dafür
+gibt): Status zurück auf „offen“, Antwort und Ergebnis-Verweis entfernt, die bisherige Antwort als Absatz an die
+Beschreibung angehängt, Historie „reopened“ (zeigt bis zur Umsetzung „hat die Frage geändert“), wieder fürs Plenum
+markiert. Der Fakt selbst war schon aufgehoben und bleibt so. Jeder Punkt braucht eine Änderung an
+ANFORDERUNGEN.md (3.x Fragen, 5.8 Workflows, 7.2 Regeln) – vor dem Bau der Nutzerin vorlegen.
+
+1. [ ] **Frage wieder öffnen** (neuer Workflow, z. B. WF-FRA-04): „Wieder öffnen“ an geklärten und verworfenen Fragen,
+       im Frage-Detail und im Plenum. Status → offen, Antwort bleibt in der Historie; Ergebnisse bleiben bestehen (nicht
+       automatisch aufheben – Hinweis mit Link darauf); optional gleich fürs Plenum markieren; mit Rückgängig. Satz im
+       Verlauf: „hat die Frage wieder geöffnet“. Testdaten-Schicht, Server, Oberfläche, Unit- und E2E-Tests.
+2. [ ] **Eine Frage, mehrere Ergebnisse**: Ergebnisse (Entscheidung oder Fakt) einzeln an eine offene Frage hängen,
+       ohne sie zu schließen („Ergebnis festhalten“, beliebig oft, auch im Plenum als eigene Aktion); „Klären“ schließt
+       erst, wenn alles besprochen ist, die Antwort fasst zusammen. Datenmodell: statt `questions.resulting_decision_id`
+       (eins zu eins) ein Verweis `decisions.source_question_id` (viele zu eins) – Migration überträgt den Bestand.
+       Frage-Detail zeigt die Liste der Ergebnisse, Entscheidung/Fakt zeigt „aus der Frage …“. Offen: Darf „Klären“
+       ganz ohne Ergebnis bleiben (nur Antwort)? Bisher ja.
+3. [ ] **Duplizieren**: „Duplizieren“ im Menü „⋯“ von Aufgabe, Frage, Entscheidung/Fakt, Veranstaltung und Termin.
+       Kopiert die Inhaltsfelder (Titel mit „(Kopie)“, Thema, Beschreibung, Priorität, Verknüpfungen zu Veranstaltung
+       bzw. Termin), nicht Historie, Kommentare, Status, Markierung, Zu- und Absagen; öffnet die Kopie zum Bearbeiten.
+       Historie der Kopie: „hat … als Kopie von „…“ angelegt“. Offen: Personen (Bearbeitende, Leads) und
+       Dokument-Verknüpfungen mitkopieren? Bei Veranstaltungen auch Booking, Partner und Details?
+
 ### 10.0 Vorbereitung
 
 - [x] Stack (2.1) bestätigt (11.10.2026); übrige Fragen aus 11.1 unten gesammelt
