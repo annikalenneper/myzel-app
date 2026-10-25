@@ -121,6 +121,24 @@ describe('Zugriff über Supabase (RLS)', () => {
     expect((await local.db.selectFrom('topics').select('id').execute()).length).toBe(6);
   });
 
+  it('weitere Login-Adressen: lesen wie die Hauptadresse, die Adressen selbst sieht niemand', async () => {
+    await local.pg.query(
+      `insert into member_emails (member_id, email, auth_user_id, created_by) values ($1, 'lea@example.net', $2, $1)`,
+      ['a0000000-0000-4000-8000-000000000001', AUTH_FREMD],
+    );
+    const count = () => local.pg.query<{ n: number }>(`select count(*)::int as n from public.topics`);
+    expect((await asUser(local.pg, AUTH_FREMD, count)).rows[0]!.n).toBe(6);
+    expect(await asUser(local.pg, AUTH_LEA, () => fails(`select * from public.member_emails`))).toMatch(
+      /permission denied/,
+    );
+    expect(
+      await fails(
+        `insert into member_emails (member_id, email, created_by) values ($1, 'LEA@example.net', $1)`,
+        ['a0000000-0000-4000-8000-000000000001'],
+      ),
+    ).toMatch(/member_emails_email_unique/);
+  });
+
   it('Rückgängig-Einträge sieht niemand über Supabase', async () => {
     const lea = 'a0000000-0000-4000-8000-000000000001';
     await local.pg.query(

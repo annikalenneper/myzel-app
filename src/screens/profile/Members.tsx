@@ -271,6 +271,7 @@ function MemberForm({
         </div>
         <FieldError>{fieldError('short') || fieldError('email')}</FieldError>
         <span className="label-mono">Kürzel und Mail müssen eindeutig sein</span>
+        {member && <MemberEmails member={member} />}
         {member?.id === me.id && email.trim().toLowerCase() !== (member.email ?? '') && (
           <span className="text-[13px] leading-[1.4] text-bernstein">
             Das ist deine eigene Adresse: Nach dem Speichern meldest du dich mit der neuen an.
@@ -312,6 +313,87 @@ function MemberForm({
         )}
       </form>
     </Sheet>
+  );
+}
+
+/** WF-ADM-09: weitere Login-Adressen, eintragsweise – gespeichert wird sofort, unabhängig vom Formular */
+function MemberEmails({ member }: { member: Member }) {
+  const { run } = useFeedback();
+  const { data: emails } = useData(`member-emails:${member.id}`, () => api.listMemberEmails(member.id));
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const add = async () => {
+    if (!email.trim() || saving) return;
+    setSaving(true);
+    setError(null);
+    const ok = await run(() => api.addMemberEmail(member.id, email).then(() => true), {
+      success: 'Adresse hinzugefügt – damit klappt die Anmeldung jetzt auch.',
+      onInvalid: (e) => setError(e.message),
+    });
+    setSaving(false);
+    if (ok) setEmail('');
+  };
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-linie bg-grund px-3.5 py-3">
+      <span className="label-mono">Weitere Adressen zum Anmelden</span>
+      {emails?.map((e) => (
+        <div key={e.id} className="flex min-h-11 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-[15px]">{e.email}</span>
+          <button
+            type="button"
+            data-wf="WF-ADM-09"
+            aria-label={`${e.email} entfernen`}
+            onClick={() => void run(() => api.removeMemberEmail(e.id), { success: `${e.email} entfernt` })}
+            className="hit h-9 rounded-[18px] border border-rand-stark px-3 text-[13px] text-weich"
+          >
+            Entfernen
+          </button>
+        </div>
+      ))}
+      {emails?.length === 0 && (
+        <span className="text-[13px] leading-[1.4] text-leise">
+          Keine – angemeldet wird nur mit der Mail oben.
+        </span>
+      )}
+      <div className="flex gap-2">
+        <label htmlFor={`extra-${member.id}`} className="sr-only">
+          Weitere Adresse
+        </label>
+        <input
+          id={`extra-${member.id}`}
+          type="email"
+          data-wf="WF-ADM-09"
+          value={email}
+          autoComplete="off"
+          placeholder="weitere@mail.de"
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setError(null);
+          }}
+          onKeyDown={(e) => {
+            // nicht das Formular darüber abschicken
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void add();
+            }
+          }}
+          className="h-11 min-w-0 flex-1 rounded-xl border border-rand bg-flaeche px-3 text-[15px] text-text"
+        />
+        <button
+          type="button"
+          data-wf="WF-ADM-09"
+          disabled={!email.trim() || saving}
+          onClick={() => void add()}
+          className="hit h-11 flex-none rounded-[22px] border border-rand-stark px-3.5 text-[14px] text-text disabled:text-leise"
+        >
+          Hinzufügen
+        </button>
+      </div>
+      <FieldError>{error}</FieldError>
+    </div>
   );
 }
 

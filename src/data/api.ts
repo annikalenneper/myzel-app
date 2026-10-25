@@ -50,6 +50,7 @@ import type {
   HistoryEntry,
   JobRun,
   Member,
+  MemberEmail,
   NotificationChannel,
   OutboxEntry,
   MemberCreateInput,
@@ -461,6 +462,10 @@ export interface MyzelApi {
   getDeactivationImpact(memberId: string): Promise<DeactivationImpact>;
   deactivateMember(memberId: string): Promise<DeactivationImpact>;
   reactivateMember(memberId: string): Promise<void>;
+  /** Weitere Login-Adressen (WF-ADM-09, nur Admins); eintragsweise hinzufügen und entfernen */
+  listMemberEmails(memberId: string): Promise<MemberEmail[]>;
+  addMemberEmail(memberId: string, email: string): Promise<void>;
+  removeMemberEmail(id: string): Promise<void>;
   createTopic(input: TopicCreateInput): Promise<{ id: string }>;
   updateTopic(id: string, input: TopicUpdateInput): Promise<void>;
   archiveTopic(id: string, version: number): Promise<void>;

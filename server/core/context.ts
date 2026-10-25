@@ -240,6 +240,30 @@ export async function inTransaction<T>(
   }
 }
 
+/** Mitglied zu einem Login: über die Hauptadresse oder eine weitere Adresse (member_emails) verknüpft */
+export async function memberForLogin(
+  trx: Trx | Kysely<Database>,
+  authUserId: string,
+  lock = false,
+): Promise<MemberRow | undefined> {
+  return trx
+    .selectFrom('members')
+    .selectAll()
+    .where((eb) =>
+      eb.or([
+        eb('auth_user_id', '=', authUserId),
+        eb(
+          'id',
+          'in',
+          eb.selectFrom('member_emails').select('member_id').where('auth_user_id', '=', authUserId),
+        ),
+      ]),
+    )
+    .where('is_system', '=', false)
+    .$if(lock, (q) => q.forShare())
+    .executeTakeFirst();
+}
+
 export async function resolveActor(
   trx: Trx | Kysely<Database>,
   authUserId: string | null,
@@ -247,14 +271,8 @@ export async function resolveActor(
 ): Promise<MemberRow> {
   if (!authUserId)
     throw new AppError('unauthenticated', 'Du bist nicht mehr angemeldet. Bitte melde dich neu an.');
-  const actor = await trx
-    .selectFrom('members')
-    .selectAll()
-    .where('auth_user_id', '=', authUserId)
-    .where('is_system', '=', false)
-    // beim Schreiben: eine gleichzeitige Deaktivierung wartet, bis diese Aktion fertig ist (und räumt danach auf)
-    .$if(lock, (q) => q.forShare())
-    .executeTakeFirst();
+  // beim Schreiben: eine gleichzeitige Deaktivierung wartet, bis diese Aktion fertig ist (und räumt danach auf)
+  const actor = await memberForLogin(trx, authUserId, lock);
   if (!actor || !actor.active)
     throw new AppError('unauthenticated', 'Du bist nicht mehr angemeldet. Bitte melde dich neu an.');
   return actor;

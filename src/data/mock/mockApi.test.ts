@@ -679,6 +679,52 @@ describe('Mitglieder (WF-ADM-01 bis -04)', () => {
   });
 });
 
+describe('Weitere Login-Adressen (WF-ADM-09)', () => {
+  it('meldet mit jeder eingetragenen Adresse an – auch per Mail-Link –, bis sie entfernt ist', async () => {
+    const jule = (await ids()).member('Jule');
+    await api.addMemberEmail(jule.id, ' Jule.Privat@Example.net ');
+    const emails = await api.listMemberEmails(jule.id);
+    expect(emails.map((e) => e.email)).toEqual(['jule.privat@example.net']);
+    // noch einmal dieselbe oder die Hauptadresse: nichts passiert
+    await api.addMemberEmail(jule.id, 'jule.privat@example.net');
+    await api.addMemberEmail(jule.id, mail('jule'));
+    expect(await api.listMemberEmails(jule.id)).toHaveLength(1);
+
+    const viaExtra = await api.demo!.signInAs('jule.privat@example.net');
+    expect(viaExtra.state === 'member' && viaExtra.member.id).toBe(jule.id);
+    // als Jule handeln: Aufgabe anlegen, Jule steht als Anlegende drin
+    const task = await newTask();
+    expect(task.created_by).toBe(jule.id);
+    await api.signOut();
+    await api.requestMagicLink('jule.privat@example.net');
+    expect((await api.demo!.openMagicLink()).state).toBe('member');
+
+    await login('mo');
+    await api.removeMemberEmail(emails[0]!.id);
+    expect(await api.listMemberEmails(jule.id)).toEqual([]);
+    await api.signOut();
+    await api.requestMagicLink('jule.privat@example.net');
+    expect((await api.demo!.openMagicLink()).state).toBe('no_access');
+    expect((await login('jule')).state).toBe('member');
+  });
+
+  it('hält Adressen über alle Mitglieder eindeutig und erlaubt das nur Admins', async () => {
+    const { member } = await ids();
+    await expectError(api.addMemberEmail(member('Jule').id, mail('sam')), 'validation', 'email');
+    await api.addMemberEmail(member('Jule').id, 'jule.privat@example.net');
+    await expectError(api.addMemberEmail(member('Sam').id, 'Jule.Privat@example.net'), 'validation', 'email');
+    await expectError(
+      api.createMember({ display_name: 'Zora', short: 'ZO', email: 'jule.privat@example.net' }),
+      'validation',
+      'email',
+    );
+    await expectError(api.addMemberEmail(member('Sam').id, 'keine-mail'), 'validation');
+    await login('jule');
+    await expectError(api.listMemberEmails(member('Jule').id), 'forbidden');
+    await expectError(api.addMemberEmail(member('Jule').id, 'noch@example.net'), 'forbidden');
+  });
+});
+
 describe('Themen (WF-ADM-05)', () => {
   it('legt an, benennt um und hält zwei Ebenen ein', async () => {
     const { topic } = await ids();

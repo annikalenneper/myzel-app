@@ -41,6 +41,16 @@ export interface MembersTable {
   reminder_lead_days: Generated<number>;
 }
 
+/** Weitere Login-Adressen (3.1); jede mit eigener Verknüpfung zum Supabase-Login */
+export interface MemberEmailsTable {
+  id: Generated<string>;
+  member_id: string;
+  email: string;
+  auth_user_id: string | null;
+  created_at: CreatedAt;
+  created_by: string;
+}
+
 export interface TopicsTable {
   id: Generated<string>;
   name: string;
@@ -451,6 +461,7 @@ export interface DriveSyncStateTable {
 
 export interface Database {
   members: MembersTable;
+  member_emails: MemberEmailsTable;
   topics: TopicsTable;
   events: EventsTable;
   tasks: TasksTable;

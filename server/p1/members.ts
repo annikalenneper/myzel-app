@@ -4,12 +4,14 @@ import type { DeactivationImpact } from '../../src/data/api';
 import { AppError } from '../../src/shared/errors';
 import { isActiveTaskStatus, statusAfterLastAssigneeLeft } from '../../src/shared/rules/taskStatus';
 import {
+  emailInputSchema,
   memberCreateSchema,
   memberUpdateSchema,
   profileNameSchema,
   topicCreateSchema,
   topicUpdateSchema,
   type HistoryChanges,
+  type MemberEmail,
 } from '../../src/shared/schema';
 import {
   checkVersion,
@@ -62,8 +64,22 @@ async function assertUniqueMember(
     .execute();
   if (others.some((m) => m.short.toUpperCase() === input.short))
     throw new AppError('validation', `Das Kürzel ${input.short} ist schon vergeben.`, { field: 'short' });
-  if (others.some((m) => m.email?.toLowerCase() === input.email))
+  if (
+    others.some((m) => m.email?.toLowerCase() === input.email) ||
+    (await emailTaken(ctx, input.email, exceptId))
+  )
     throw new AppError('validation', 'Diese Mail-Adresse ist schon eingetragen.', { field: 'email' });
+}
+
+/** Eine weitere Adresse eines anderen Mitglieds (oder irgendeines, ohne exceptMemberId) */
+async function emailTaken(ctx: Ctx, email: string, exceptMemberId?: string): Promise<boolean> {
+  const row = await ctx.trx
+    .selectFrom('member_emails')
+    .select('id')
+    .where((eb) => eb(eb.fn('lower', ['email']), '=', email))
+    .$if(!!exceptMemberId, (q) => q.where('member_id', '<>', exceptMemberId!))
+    .executeTakeFirst();
+  return !!row;
 }
 
 async function activeAdminCount(ctx: Ctx): Promise<number> {
@@ -406,4 +422,54 @@ export async function deleteTopic(ctx: Ctx, id: string): Promise<void> {
     throw rule('Das Thema hat Unterkategorien und lässt sich deshalb nicht löschen.');
   await writeHistory(ctx, 'topic', id, 'deleted', { name: { old: topic.name, new: null } });
   await ctx.trx.deleteFrom('topics').where('id', '=', id).execute();
+}
+
+// ── Weitere Login-Adressen (WF-ADM-09, nur Admins) ──────────────────────────
+// Eigene Zeilen wie Kommentare: das Mitglied selbst (version) bleibt unverändert, die Historie hält es fest.
+
+export async function listMemberEmails(ctx: Ctx, memberId: string): Promise<MemberEmail[]> {
+  requireAdmin(ctx);
+  await findMember(ctx, memberId);
+  return ctx.trx
+    .selectFrom('member_emails')
+    .select(['id', 'member_id', 'email', 'created_at', 'created_by'])
+    .where('member_id', '=', memberId)
+    .orderBy('created_at')
+    .execute();
+}
+
+export async function addMemberEmail(ctx: Ctx, memberId: string, raw: unknown): Promise<void> {
+  requireAdmin(ctx);
+  const email = parse(emailInputSchema, raw);
+  const member = await findMember(ctx, memberId);
+  if (member.is_system) throw rule('Der Systemeintrag lässt sich nicht bearbeiten.');
+  if (member.email?.toLowerCase() === email) return;
+  const own = await ctx.trx
+    .selectFrom('member_emails')
+    .select('id')
+    .where('member_id', '=', memberId)
+    .where((eb) => eb(eb.fn('lower', ['email']), '=', email))
+    .executeTakeFirst();
+  if (own) return;
+  const primary = await ctx.trx
+    .selectFrom('members')
+    .select('id')
+    .where((eb) => eb(eb.fn('lower', ['email']), '=', email))
+    .executeTakeFirst();
+  if (primary || (await emailTaken(ctx, email)))
+    throw new AppError('validation', 'Diese Mail-Adresse ist schon eingetragen.', { field: 'email' });
+  await ctx.trx
+    .insertInto('member_emails')
+    .values({ member_id: memberId, email, created_at: iso(ctx), created_by: ctx.actor.id })
+    .execute();
+  await writeHistory(ctx, 'member', memberId, 'email_added', { email: { old: null, new: email } });
+}
+
+export async function removeMemberEmail(ctx: Ctx, id: string): Promise<void> {
+  requireAdmin(ctx);
+  const row = await ctx.trx.selectFrom('member_emails').selectAll().where('id', '=', id).executeTakeFirst();
+  if (!row) return;
+  const member = await findMember(ctx, row.member_id);
+  await ctx.trx.deleteFrom('member_emails').where('id', '=', id).execute();
+  await writeHistory(ctx, 'member', member.id, 'email_removed', { email: { old: row.email, new: null } });
 }

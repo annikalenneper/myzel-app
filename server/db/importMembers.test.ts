@@ -29,9 +29,9 @@ afterEach(async () => {
 describe('Mitgliederliste einspielen', () => {
   it('versteht Tabs, Leerzeichen und „(admin)“', () => {
     expect(parseMemberList(LIST)).toEqual([
-      { name: 'Kira', email: 'kira@example.org', admin: true },
-      { name: 'Kai', email: 'kai@example.org', admin: false },
-      { name: 'Lea', email: 'lea@example.org', admin: true },
+      { name: 'Kira', email: 'kira@example.org', extra: [], admin: true },
+      { name: 'Kai', email: 'kai@example.org', extra: [], admin: false },
+      { name: 'Lea', email: 'lea@example.org', extra: [], admin: true },
     ]);
     expect(() => parseMemberList('nur ein Name')).toThrow(/verstehe ich nicht/);
   });
@@ -61,6 +61,27 @@ describe('Mitgliederliste einspielen', () => {
       'schon da: Kai',
       'schon da: Lea',
     ]);
+  });
+
+  it('versteht weitere Adressen und ergänzt sie, ohne doppelt einzutragen', async () => {
+    const list = parseMemberList(`Kira	kira@example.org  (admin) kira@example.net
+Kai		kai@example.org / Kai@Example.net
+`);
+    expect(list).toEqual([
+      { name: 'Kira', email: 'kira@example.org', extra: ['kira@example.net'], admin: true },
+      { name: 'Kai', email: 'kai@example.org', extra: ['kai@example.net'], admin: false },
+    ]);
+    expect(() => parseMemberList('Kai kai@example.org und noch was')).toThrow(/verstehe ich nicht/);
+    expect(await importMembers(local.db, list, 'lea@example.org', now)).toEqual([
+      'angelegt: Kira (KI), Admin, weitere Adresse: 1',
+      'angelegt: Kai (KA), weitere Adresse: 1',
+    ]);
+    expect(await importMembers(local.db, list, 'lea@example.org', now)).toEqual([
+      'schon da: Kira',
+      'schon da: Kai',
+    ]);
+    const extra = await local.db.selectFrom('member_emails').select('email').orderBy('email').execute();
+    expect(extra.map((e) => e.email)).toEqual(['kai@example.net', 'kira@example.net']);
   });
 
   it('braucht eine angemeldete Admin-Person', async () => {

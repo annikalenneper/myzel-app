@@ -54,6 +54,16 @@ export const memberSchema = z.object({
 });
 export type Member = z.infer<typeof memberSchema>;
 
+/** Weitere Login-Adresse eines Mitglieds (3.1); die Hauptadresse steht in members.email */
+export const memberEmailSchema = z.object({
+  id: idSchema,
+  member_id: idSchema,
+  email: z.email(),
+  created_at: timestampSchema,
+  created_by: idSchema,
+});
+export type MemberEmail = z.infer<typeof memberEmailSchema>;
+
 export const topicSchema = z.object({
   id: idSchema,
   name: z.string().min(1),

@@ -59,6 +59,10 @@ Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
          „Mit Google anmelden“ und „Demo beenden – echt anmelden“ (Nutzerin, 25.10.2026)
      - [x] Hinweisband genauer („Änderungen bleiben nur in diesem Browser, nichts geht an den Server“) und mit
            „Zurücksetzen“ auf den Ausgangsstand der Testdaten (Nutzerin, 25.10.2026)
+     - [x] Weitere Login-Adressen je Mitglied (Nutzerin, 25.10.2026; ANFORDERUNGEN 3.1, WF-ADM-09): Migration
+           20261025000001 (member_emails mit eigener Login-Verknüpfung je Adresse, keine Lese-Policy), Anmeldung und
+           handelnde Person über Haupt- oder weitere Adresse, eintragsweise im Formular „Mitglied bearbeiten“ mit
+           Historie, eindeutig über alle Adressen; Import versteht mehrere Adressen je Zeile und ergänzt fehlende
 4. [ ] Nach dem Deploy: Telegram-Webhook (gesetzt 25.10.2026), cron-job.org (Nutzerin), Test-Checkliste; Abweichung von 10.7 (keine Vorschau
        mit Beispieldaten, es gibt nur ein Supabase-Projekt) von der Nutzerin freigegeben. Auf die Test-Checkliste
        gehört WF-ALL-04 (Push- bzw. Telegram-Link auf dem Handy antippen → Zielansicht öffnet sich direkt): seit dem

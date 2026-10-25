@@ -33,7 +33,7 @@ export interface MockOptions {
   latency?: number;
 }
 
-const DB_KEY = 'myzel:mock:db:v11';
+const DB_KEY = 'myzel:mock:db:v12';
 const DEVICE_KEY = 'myzel:mock:geraet';
 const OUTAGE_KEY = 'myzel:mock:ausfall';
 const SESSION_KEY = 'myzel:mock:session';
@@ -107,8 +107,10 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     else storage?.removeItem(SESSION_KEY);
   };
 
-  const memberByEmail = (email: string): Member | undefined =>
-    db.members.find((m) => m.email?.toLowerCase() === email.toLowerCase() && m.active && !m.is_system);
+  const memberByEmail = (email: string): Member | undefined => {
+    const member = server.memberForEmail(db, email);
+    return member?.active && !member.is_system ? member : undefined;
+  };
 
   const session = (): Session => {
     sync();
@@ -280,6 +282,10 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
         return { ...impact, future_rsvp_count, lead_count, partner_contact_count };
       }),
     reactivateMember: (memberId) => write((ctx) => server.reactivateMember(ctx, memberId)),
+    listMemberEmails: (memberId) =>
+      read((d, n) => server.listMemberEmails({ db: d, actor: actor(), now: n, inverse: [] }, memberId)),
+    addMemberEmail: (memberId, email) => write((ctx) => server.addMemberEmail(ctx, memberId, email)),
+    removeMemberEmail: (id) => write((ctx) => server.removeMemberEmail(ctx, id)),
     createTopic: (input) => write((ctx) => server.createTopic(ctx, input)),
     updateTopic: (id, input) => write((ctx) => server.updateTopic(ctx, id, input)),
     archiveTopic: (id, version) => write((ctx) => server.archiveTopic(ctx, id, version)),

@@ -27,6 +27,7 @@ import {
   commentBodySchema,
   eventCreateSchema,
   eventUpdateSchema,
+  emailInputSchema,
   memberCreateSchema,
   memberUpdateSchema,
   profileNameSchema,
@@ -71,6 +72,7 @@ import {
   type TelegramLink,
   type TelegramLinkCode,
   type Member,
+  type MemberEmail,
   type PlenumMark,
   type Task,
   type TaskAssignee,
@@ -170,6 +172,8 @@ export interface DriveRemote {
 
 export interface Db {
   members: Member[];
+  /** Weitere Login-Adressen (3.1) */
+  member_emails: MemberEmail[];
   topics: Topic[];
   tasks: Task[];
   task_assignees: TaskAssignee[];
@@ -256,6 +260,7 @@ export function emptyDb(): Db {
     notification_preferences: [],
     telegram_links: [],
     telegram_link_codes: [],
+    member_emails: [],
     notification_outbox: [],
     job_runs: [],
     undo: [],
@@ -1321,8 +1326,19 @@ function assertUniqueMember(ctx: Ctx, input: { short: string; email: string }, e
   const others = ctx.db.members.filter((m) => m.id !== exceptId);
   if (others.some((m) => m.short.toUpperCase() === input.short))
     throw new AppError('validation', `Das Kürzel ${input.short} ist schon vergeben.`, { field: 'short' });
-  if (others.some((m) => m.email?.toLowerCase() === input.email))
+  if (others.some((m) => m.email?.toLowerCase() === input.email) || emailTaken(ctx.db, input.email, exceptId))
     throw new AppError('validation', 'Diese Mail-Adresse ist schon eingetragen.', { field: 'email' });
+}
+
+/** Eine weitere Adresse eines anderen Mitglieds (oder irgendeines, ohne exceptId) */
+const emailTaken = (db: Db, email: string, exceptMemberId?: string) =>
+  db.member_emails.some((e) => e.email.toLowerCase() === email && e.member_id !== exceptMemberId);
+
+/** Mitglied zu einer Adresse – Hauptadresse oder weitere (Anmeldung) */
+export function memberForEmail(db: Db, email: string): Member | undefined {
+  const key = email.toLowerCase();
+  const extra = db.member_emails.find((e) => e.email.toLowerCase() === key);
+  return db.members.find((m) => (extra ? m.id === extra.member_id : m.email?.toLowerCase() === key));
 }
 
 const activeAdmins = (db: Db) => db.members.filter((m) => m.active && m.is_admin && !m.is_system);
@@ -1440,6 +1456,48 @@ export function reactivateMember(ctx: Ctx, memberId: string): void {
   member.active = true;
   touch(ctx, member);
   writeHistory(ctx, 'member', memberId, 'reactivated', { active: { old: false, new: true } });
+}
+
+// ── Weitere Login-Adressen (WF-ADM-09, nur Admins) ──────────────────────────
+// Eigene Zeilen wie Kommentare: das Mitglied selbst (version) bleibt unverändert, die Historie hält es fest.
+
+export function listMemberEmails(ctx: Ctx, memberId: string): MemberEmail[] {
+  requireAdmin(ctx);
+  findMember(ctx.db, memberId);
+  return ctx.db.member_emails
+    .filter((e) => e.member_id === memberId)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
+export function addMemberEmail(ctx: Ctx, memberId: string, raw: unknown): void {
+  requireAdmin(ctx);
+  const email = parse(emailInputSchema, raw);
+  const member = findMember(ctx.db, memberId);
+  if (member.is_system) throw rule('Der Systemeintrag lässt sich nicht bearbeiten.');
+  if (
+    member.email?.toLowerCase() === email ||
+    ctx.db.member_emails.some((e) => e.member_id === memberId && e.email === email)
+  )
+    return;
+  if (ctx.db.members.some((m) => m.email?.toLowerCase() === email) || emailTaken(ctx.db, email))
+    throw new AppError('validation', 'Diese Mail-Adresse ist schon eingetragen.', { field: 'email' });
+  ctx.db.member_emails.push({
+    id: uuid(),
+    member_id: memberId,
+    email,
+    created_at: iso(ctx),
+    created_by: ctx.actor.id,
+  });
+  writeHistory(ctx, 'member', memberId, 'email_added', { email: { old: null, new: email } });
+}
+
+export function removeMemberEmail(ctx: Ctx, id: string): void {
+  requireAdmin(ctx);
+  const row = ctx.db.member_emails.find((e) => e.id === id);
+  if (!row) return;
+  const member = findMember(ctx.db, row.member_id);
+  ctx.db.member_emails = ctx.db.member_emails.filter((e) => e.id !== id);
+  writeHistory(ctx, 'member', member.id, 'email_removed', { email: { old: row.email, new: null } });
 }
 
 // ── Themen (nur Admins) ─────────────────────────────────────────────────────

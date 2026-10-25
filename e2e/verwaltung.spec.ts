@@ -177,3 +177,43 @@ test('WF-ALL-01: Mitglied in zwei Tabs bearbeitet – Konflikt, danach frischer 
   await sheet.getByRole('button', { name: 'Speichern' }).click();
   await expect(page.getByRole('button', { name: /Sammy/ })).toContainText('sam.neu@example.org');
 });
+
+test('WF-ADM-09: weitere Adresse eintragen, damit anmelden, wieder entfernen', async ({ page }) => {
+  await login(page);
+  await page.goto('/profil/mitglieder');
+  await page.getByRole('button', { name: /Jule/ }).click();
+  const sheet = page.getByRole('dialog', { name: 'Jule bearbeiten' });
+  await expect(sheet).toContainText('Keine – angemeldet wird nur mit der Mail oben.');
+  await sheet.getByLabel('Weitere Adresse').fill('sam@example.org');
+  await sheet.getByRole('button', { name: 'Hinzufügen' }).click();
+  await expect(sheet.getByRole('alert')).toHaveText('Diese Mail-Adresse ist schon eingetragen.');
+  await sheet.getByLabel('Weitere Adresse').fill('jule.privat@example.net');
+  await sheet.getByLabel('Weitere Adresse').press('Enter');
+  await expect(page.getByText('Adresse hinzugefügt – damit klappt die Anmeldung jetzt auch.')).toBeVisible();
+  await expect(sheet.getByText('jule.privat@example.net')).toBeVisible();
+  // das Formular darüber bleibt offen und unverändert
+  await expect(sheet.getByLabel('Name *')).toHaveValue('Jule');
+  await sheet.getByRole('button', { name: 'Schließen' }).click();
+
+  await page.goto('/profil');
+  await page.getByTestId('WF-LOG-03').click();
+  await page.getByLabel('E-Mail-Adresse').fill('jule.privat@example.net');
+  await page.getByTestId('WF-LOG-02').click();
+  await page.locator('[data-demo="magic-link"]').click();
+  await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
+  await page.goto('/profil');
+  await expect(page.getByRole('heading', { name: 'Jule' })).toBeVisible();
+  await page.getByTestId('WF-LOG-03').click();
+  await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
+
+  await login(page);
+  await page.goto('/profil/mitglieder');
+  await page.getByRole('button', { name: /Jule/ }).click();
+  await page.getByRole('button', { name: 'jule.privat@example.net entfernen' }).click();
+  await expect(page.getByText('jule.privat@example.net entfernt')).toBeVisible();
+  await expect(
+    page
+      .getByRole('dialog', { name: 'Jule bearbeiten' })
+      .getByText('Keine – angemeldet wird nur mit der Mail oben.'),
+  ).toBeVisible();
+});

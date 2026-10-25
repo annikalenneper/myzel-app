@@ -1,28 +1,44 @@
 // Mitgliederliste einspielen (Einrichtung, Frage 4): `npm run db:import-members` liest mitgliederliste.md (nur lokal,
-// nie im Repo) – je Zeile „Name  mail@example.org  (admin)“. Legt Fehlende über dieselbe Server-Funktion an wie der
-// Admin-Bereich (mit Historie, handelnde Person: die Admin-Person aus MYZEL_FIRST_ADMIN_EMAIL); Vorhandene bekommen
-// Name und Admin-Rechte aus der Liste. Mehrfach ausführbar.
+// nie im Repo) – je Zeile „Name  mail@example.org  (admin)“, weitere Login-Adressen dahinter, mit oder ohne „/“.
+// Legt Fehlende über dieselbe Server-Funktion an wie der Admin-Bereich (mit Historie, handelnde Person: die
+// Admin-Person aus MYZEL_FIRST_ADMIN_EMAIL); Vorhandene bekommen Name und Admin-Rechte aus der Liste, fehlende
+// weitere Adressen werden ergänzt (nie entfernt). Mehrfach ausführbar.
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import type { Kysely } from 'kysely';
 import { inTransaction } from '../core/context';
-import { createMember, updateMember } from '../p1/members';
+import { addMemberEmail, createMember, updateMember } from '../p1/members';
 import type { Database } from './types';
 
 export interface ListedMember {
   name: string;
+  /** Hauptadresse: die erste der Zeile */
   email: string;
+  /** weitere Login-Adressen */
+  extra: string[];
   admin: boolean;
 }
+
+const EMAIL = /[^\s/()]+@[^\s/()]+/g;
 
 export function parseMemberList(text: string): ListedMember[] {
   const out: ListedMember[] = [];
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith('#')) continue;
-    const m = /^(.+?)\s+(\S+@\S+?)\s*(\(admin\))?$/i.exec(line);
-    if (!m) throw new Error(`Diese Zeile verstehe ich nicht: „${line}“`);
-    out.push({ name: m[1]!.trim(), email: m[2]!.toLowerCase(), admin: !!m[3] });
+    const at = line.search(/\S+@/);
+    const name = at > 0 ? line.slice(0, at).trim() : '';
+    const rest = at > 0 ? line.slice(at) : '';
+    const emails = (rest.match(EMAIL) ?? []).map((e) => e.toLowerCase());
+    // außer Adressen nur „(admin)“ und Trenner
+    const leftover = rest
+      .replace(EMAIL, '')
+      .replace(/\(admin\)/gi, '')
+      .replace(/[\s/]/g, '');
+    if (!name || emails.length === 0 || leftover)
+      throw new Error(`Diese Zeile verstehe ich nicht: „${line}“`);
+    const [email, ...extra] = emails;
+    out.push({ name, email: email!, extra, admin: /\(admin\)/i.test(rest) });
   }
   return out;
 }
@@ -59,16 +75,18 @@ export async function importMembers(
     const report: string[] = [];
     for (const person of list) {
       const found = existing.find((m) => m.email?.toLowerCase() === person.email);
+      let id = found?.id;
+      let line: string;
       if (!found) {
         const short = shortFor(person.name, taken);
         taken.add(short);
-        await createMember(ctx, {
+        ({ id } = await createMember(ctx, {
           display_name: person.name,
           email: person.email,
           short,
           is_admin: person.admin,
-        });
-        report.push(`angelegt: ${person.name} (${short})${person.admin ? ', Admin' : ''}`);
+        }));
+        line = `angelegt: ${person.name} (${short})${person.admin ? ', Admin' : ''}`;
       } else if (found.display_name !== person.name || found.is_admin !== person.admin) {
         await updateMember(ctx, found.id, {
           display_name: person.name,
@@ -77,8 +95,18 @@ export async function importMembers(
           is_admin: person.admin,
           version: found.version,
         });
-        report.push(`aktualisiert: ${person.name}${person.admin ? ', Admin' : ''}`);
-      } else report.push(`schon da: ${person.name}`);
+        line = `aktualisiert: ${person.name}${person.admin ? ', Admin' : ''}`;
+      } else line = `schon da: ${person.name}`;
+      const known = new Set(
+        (
+          await ctx.trx.selectFrom('member_emails').select('email').where('member_id', '=', id!).execute()
+        ).map((e) => e.email.toLowerCase()),
+      );
+      const added = person.extra.filter((e) => !known.has(e));
+      for (const email of added) await addMemberEmail(ctx, id!, email);
+      report.push(
+        added.length ? `${line}, weitere Adresse${added.length > 1 ? 'n' : ''}: ${added.length}` : line,
+      );
     }
     return report;
   });
