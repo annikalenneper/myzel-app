@@ -89,7 +89,7 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | U4  | 25.10.2026 | Plenum ohne Ende: Zeitraum Beginn + 3 Stunden, längstens bis zum Abschließen.                                                                                           | Annahme |
 | U5  | 25.10.2026 | Rückfrage „Gehört das zum Plenum?“ nur bei Schreibaktionen an Artefakten (nicht Profil, Benachrichtigungen, Zusagen).                                                   | Annahme |
 | U6  | 25.10.2026 | Entscheidungen: Titel/Text-Korrektur im Detail erlaubt, Inhaltliches weiter über „Ersetzen“.                                                                            | Annahme |
-| U7  | 25.10.2026 | Function-Region EU (Frankfurt): in Netlify (Free) keine Einstellung gefunden. Klären: geht es im Free-Tarif, sonst Pro? Bis dahin us-east-2.                            | offen   |
+| U7  | 25.10.2026 | Function-Region EU (Frankfurt): im Free-Tarif nicht möglich (Nutzerin, 25.10.2026); bleibt us-east-2.                                                                   | geklärt |
 | U8  | 25.10.2026 | Login wird außer bei getSession lokal am Token geprüft: ein abgemeldetes Token gilt bis zu seinem Ablauf (1 h); Deaktivierte scheitern weiter an der Mitgliederprüfung. | Annahme |
 
 ## Entscheidungsprotokoll
