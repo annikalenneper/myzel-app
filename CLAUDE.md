@@ -1,9 +1,6 @@
 # Myzel – Arbeitsanleitung für den Agenten
 
-Quelle der Anforderungen ist **docs/ANFORDERUNGEN.md**. Der Agent ändert sie nicht selbst; Änderungswünsche
-schlägt er der Nutzerin vor. Stand, offene Fragen, Entscheidungen und Abnahmen stehen in **PROGRESS.md** –
-der Agent hält sie aktuell. Design-Referenz ist der Prototyp in docs/prototype/ (Quelltext einer
-Design-Umgebung, nicht lauffähig); bei Widerspruch gilt das Dokument.
+Quelle der Anforderungen ist **docs/ANFORDERUNGEN.md**. Der Agent ändert sie nur auf Anweisung der der Nutzerin, darf aber Vorschläge machen. Stand, offene Fragen, Entscheidungen und Abnahmen stehen in **PROGRESS.md** – der Agent hält sie aktuell. 
 
 ## Stack
 
@@ -37,7 +34,7 @@ supabase/migrations.
 
 ## Konventionen
 
-- UI-Sprache Deutsch; Fehlermeldungen als deutsche Sätze, nie Stacktraces.
+- UI-Sprache Deutsch; Fehlermeldungen als deutsche Sätze
 - Jedes Bedienelement trägt die ID seines Workflows als `data-wf` (5.8); Playwright nutzt sie als Test-ID.
 - Gebaut wird nur, was die aktuelle oder eine frühere Phase trägt (`data-phase` im Prototyp).
 - Farben und Schriften nur über die Tokens in src/index.css (8.1). Markenverlauf nur für „+“, Primäraktion,
@@ -52,27 +49,18 @@ supabase/migrations.
 
 ## Vorgehen
 
-Schritt **A** (Oberfläche mit Testdaten) und **B** (Durchsicht) sind für alle Phasen erledigt. **C** Daten und
-Server läuft Phase für Phase (autonom, mit Agent-Review) → **D** Abschluss (10.7). Die Regel „erst das ganze
-Frontend, dann Server, Deploy erst am Ende“ hat die Nutzerin am 22.10.2026 aufgehoben: Deploy und Abschluss
-einzelner Phasen dürfen vor dem Ende kommen – nach Absprache, denn Deployen ist nach außen wirksam. Offene
-Fragen (Abschnitt 11) halten die Arbeit nicht auf: nach plausibler Annahme bauen, in PROGRESS.md festhalten,
-in der nächsten Durchsicht vorlegen.
+OffeneFragen (Abschnitt 11) halten die Arbeit nicht auf: nach plausibler Annahme bauen, in PROGRESS.md festhalten,in der nächsten Durchsicht vorlegen.
 
-## Integritätsregeln in Kürze (Abschnitte 0, 3, 7)
+## Integritätsregeln in Kürze 
 
 - Die Datenbank sichert nur Struktur (NOT NULL, Unique, FK RESTRICT, RLS: Lesen für aktive Mitglieder,
   direktes Schreiben gesperrt). Alle fachlichen Regeln stehen im Server-Code; App und Telegram schreiben nur
   über die Server-Funktionen.
-- Handelnde Person ist immer die der Sitzung, nie eine mitgeschickte ID; automatische Vorgänge laufen als
-  „Myzel (automatisch)“.
-- Jede Änderung an Kernobjekten: `version` erhöhen, Historie in derselben Transaktion (wer, wann, was,
-  alt → neu). Historie ist nicht änder- oder löschbar.
-- Optimistic Locking: kein stilles Überschreiben. Listen (Bearbeitende, Folgende, Verknüpfungen) eintragsweise
-  hinzufügen und entfernen, nie als Ganzes ersetzen.
+- Handelnde Person ist immer die der Sitzung, nie eine mitgeschickte ID; automatische Vorgänge laufen als „Myzel (automatisch)“.
+- Jede Änderung an Kernobjekten: `version` erhöhen, Historie in derselben Transaktion (wer, wann, was, alt → neu). Historie ist nicht änder- oder löschbar.
+- Optimistic Locking: kein stilles Überschreiben. Listen (Bearbeitende, Folgende, Verknüpfungen) eintragsweise hinzufügen und entfernen, nie als Ganzes ersetzen.
 - Löschen ist Archivieren (`archived_at`), wiederherstellbar. Mitglieder haben nur `active`.
 - Pflichtregeln: blockiert ⇒ Grund; kein Übergang zurück zu „neu“; keine Zyklen bei Abhängigkeiten;
   Ende nach Beginn; mindestens ein aktiver Admin; Kommentare nur von der Person selbst bearbeitbar;
-  Statusänderungen entfernen die Markierung „Fürs Plenum“.
 - Mehrschrittige Aktionen (z. B. Mitglied deaktivieren) sind eine Transaktion.
 - Schemaänderungen nur über versionierte Migrationen, nie im Dashboard.
