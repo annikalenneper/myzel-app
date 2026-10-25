@@ -52,7 +52,11 @@ Phase 6.** Reihenfolge seit 22.10.2026: erst Deploy, dann Phase 6.
        `netlify deploy --build --prod`): der Build von Netlify nach dem Push brach ab, weil der Secrets-Scan öffentliche
        Werte (VITE_MYZEL_BACKEND, VITE_SUPABASE_URL, VAPID_SUBJECT) im Repo fand – jetzt in netlify.toml unter
        SECRETS_SCAN_OMIT_KEYS. Datenbank-Tests (PGlite) und Smoke-Tests vorerst nicht in `npm run check` und der CI
-       (Nutzerin, 25.10.2026: die CI brach seit dem 19.10. am Zeitlimit ab), getrennt mit `npm run test:db`
+       (Nutzerin, 25.10.2026: die CI brach seit dem 19.10. am Zeitlimit ab), getrennt mit `npm run test:db`. Geheime
+       Werte über die Netlify-API gesetzt, nicht über die CLI: `netlify env:set` mit `--` speicherte sie falsch
+       (Anmeldung scheiterte mit „Myzel ist gerade nicht erreichbar“, Joblauf mit 401)
+   - [x] Demo gilt nur für den Tab (sessionStorage); auf der Anmeldeseite in der Demo „Testkonto wählen“ statt
+         „Mit Google anmelden“ und „Demo beenden – echt anmelden“ (Nutzerin, 25.10.2026)
 4. [ ] Nach dem Deploy: Telegram-Webhook (gesetzt 25.10.2026), cron-job.org (Nutzerin), Test-Checkliste; Abweichung von 10.7 (keine Vorschau
        mit Beispieldaten, es gibt nur ein Supabase-Projekt) von der Nutzerin freigegeben. Auf die Test-Checkliste
        gehört WF-ALL-04 (Push- bzw. Telegram-Link auf dem Handy antippen → Zielansicht öffnet sich direkt): seit dem

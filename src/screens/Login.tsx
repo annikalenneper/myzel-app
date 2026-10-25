@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useFeedback } from '../app/feedback';
 import { Splash, useSession } from '../app/session';
-import { api, demoAvailable, setDemo } from '../data';
+import { api, demoAvailable, demoInProduction, setDemo } from '../data';
 import { emailInputSchema } from '../shared/schema';
 import { FieldError, GhostButton } from '../ui/bits';
 import { IconGoogle } from '../ui/icons';
@@ -74,7 +74,7 @@ export function Login() {
                 className="flex h-[54px] items-center justify-center gap-2.5 rounded-[27px] bg-text text-[16px] font-semibold text-grund"
               >
                 <IconGoogle />
-                Mit Google anmelden
+                {demoInProduction ? 'Testkonto wählen' : 'Mit Google anmelden'}
               </button>
               <div className="flex items-center gap-3 font-mono text-[11px] text-leise">
                 <span className="h-px flex-1 bg-linie" />
@@ -113,6 +113,16 @@ export function Login() {
                   className="h-11 text-[14px] text-weich underline underline-offset-4"
                 >
                   Demo ansehen – mit Testdaten, ohne Konto
+                </button>
+              )}
+              {demoInProduction && (
+                <button
+                  type="button"
+                  data-demo="end-login"
+                  onClick={() => setDemo(false)}
+                  className="h-11 text-[14px] text-bernstein underline underline-offset-4"
+                >
+                  Demo beenden – echt anmelden
                 </button>
               )}
             </form>

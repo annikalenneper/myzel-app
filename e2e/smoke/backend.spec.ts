@@ -254,12 +254,19 @@ test('Demo neben dem echten Backend: Testdaten nur im Browser, mit Hinweisband, 
   await page.goto('/anmelden');
   await page.locator('[data-demo="start"]').click();
   await expect(page.getByRole('status').filter({ hasText: 'Demo mit Testdaten' })).toBeVisible();
+  await expect(page.locator('[data-demo="end-login"]')).toBeVisible();
   await page.getByTestId('WF-LOG-01').click();
   await page.getByRole('button', { name: /^Mo / }).click();
   await expect(page.getByRole('heading', { name: 'Aufgaben' })).toBeVisible();
   await expect(
     page.getByRole('article').filter({ hasText: 'Location für Winterrave bestätigen' }).first(),
   ).toBeVisible();
+  // ein neuer Tab beginnt mit der echten Anmeldung
+  const fresh = await page.context().newPage();
+  await fresh.goto('/anmelden');
+  await expect(fresh.getByTestId('WF-LOG-01')).toHaveText('Mit Google anmelden');
+  await expect(fresh.getByRole('status').filter({ hasText: 'Demo mit Testdaten' })).toHaveCount(0);
+  await fresh.close();
   await page.locator('[data-demo="end"]').click();
   await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Demo mit Testdaten' })).toHaveCount(0);

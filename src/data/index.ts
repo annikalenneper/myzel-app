@@ -1,7 +1,8 @@
 // Welche Datenschicht die Oberfläche nutzt: ohne Weiteres die Testdaten-Schicht (Schritt A, Vorschau, E2E-Tests);
 // mit VITE_MYZEL_BACKEND=supabase (Netlify) oder lokal `npx netlify dev` (Modus „backend“) das echte Backend
 // (Supabase-Login und Netlify Functions, Schritt C). Auch dort bleibt die Demo mit Testdaten erreichbar: „Demo
-// ansehen“ auf der Anmeldeseite merkt sich das im Browser und lädt die Testdaten-Schicht – echte Daten nie.
+// ansehen“ auf der Anmeldeseite merkt sich das nur für diesen Tab und lädt die Testdaten-Schicht – echte Daten nie.
+// Ein neuer Besuch beginnt so immer mit der echten Anmeldung.
 // Die Oberfläche kennt nur die Schnittstelle MyzelApi – sonst ändert sich nichts.
 import type { DemoTools, MyzelApi } from './api';
 import { createMockApi } from './mock/mockApi';
@@ -13,7 +14,9 @@ const DEMO_KEY = 'myzel:demo';
 
 function readDemoFlag(): boolean {
   try {
-    return window.localStorage.getItem(DEMO_KEY) === '1';
+    // frühere Versionen merkten sich die Demo dauerhaft – das endet hier
+    window.localStorage.removeItem(DEMO_KEY);
+    return window.sessionStorage.getItem(DEMO_KEY) === '1';
   } catch {
     return false;
   }
@@ -27,8 +30,10 @@ export const demoAvailable = backend && !demoInProduction;
 /** Demo starten oder beenden: neu laden, damit die passende Datenschicht entsteht */
 export function setDemo(on: boolean): void {
   try {
-    if (on) window.localStorage.setItem(DEMO_KEY, '1');
-    else window.localStorage.removeItem(DEMO_KEY);
+    if (on) window.sessionStorage.setItem(DEMO_KEY, '1');
+    else window.sessionStorage.removeItem(DEMO_KEY);
+    // frühere Versionen merkten sich die Demo dauerhaft
+    window.localStorage.removeItem(DEMO_KEY);
   } catch {
     // ohne Speicher im Browser gibt es keine Demo – die Anmeldeseite bleibt
   }
