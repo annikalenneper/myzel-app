@@ -98,8 +98,8 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
   };
 
   async function read(name: string, args: unknown[]): Promise<unknown> {
-    await resolveActor(db, authUserId);
-    return structuredClone(await READ_ACTIONS[name]!(db, args, now()));
+    const actor = await resolveActor(db, authUserId);
+    return structuredClone(await READ_ACTIONS[name]!(db, args, now(), actor));
   }
 
   async function write(name: string, args: unknown[]): Promise<unknown> {

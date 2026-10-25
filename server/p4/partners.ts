@@ -13,12 +13,12 @@ import {
   updatedOne,
   writeHistory,
   type Ctx,
-  type Trx,
+  type Db,
 } from '../core/context';
 import type { PartnerRow } from '../db/types';
 import { findEvent } from '../p1/events';
 
-export async function findPartner(trx: Trx, id: string, lock = true): Promise<PartnerRow> {
+export async function findPartner(trx: Db, id: string, lock = true): Promise<PartnerRow> {
   const partner = await trx
     .selectFrom('partners')
     .selectAll()
@@ -29,7 +29,7 @@ export async function findPartner(trx: Trx, id: string, lock = true): Promise<Pa
   return partner;
 }
 
-async function listItems(trx: Trx, rows: PartnerRow[]): Promise<PartnerListItem[]> {
+async function listItems(trx: Db, rows: PartnerRow[]): Promise<PartnerListItem[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((p) => p.id);
   const [links, marks] = await Promise.all([
@@ -43,14 +43,14 @@ async function listItems(trx: Trx, rows: PartnerRow[]): Promise<PartnerListItem[
   }));
 }
 
-export async function listPartners(trx: Trx): Promise<PartnerListItem[]> {
+export async function listPartners(trx: Db): Promise<PartnerListItem[]> {
   const rows = await trx.selectFrom('partners').selectAll().where('archived_at', 'is', null).execute();
   rows.sort((a, b) => a.name.localeCompare(b.name, 'de'));
   return listItems(trx, rows);
 }
 
 /** WF-VER-13: Detail zeigt, bei welchen Veranstaltungen der Partner schon beteiligt war */
-export async function getPartner(trx: Trx, id: string): Promise<PartnerDetail> {
+export async function getPartner(trx: Db, id: string): Promise<PartnerDetail> {
   const partner = await findPartner(trx, id, false);
   const [[item], events] = await Promise.all([
     listItems(trx, [partner]),
@@ -211,7 +211,7 @@ export async function dropPartnerContacts(ctx: Ctx, memberId: string): Promise<n
   return partners.length;
 }
 
-export async function partnerContactCount(trx: Trx, memberId: string): Promise<number> {
+export async function partnerContactCount(trx: Db, memberId: string): Promise<number> {
   return (
     await trx.selectFrom('partners').select('id').where('internal_contact_member_id', '=', memberId).execute()
   ).length;

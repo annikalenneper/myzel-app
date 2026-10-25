@@ -10,6 +10,15 @@ import type { Selectable } from 'kysely';
 import type { Database, EventBookingsTable, HistoryTable, MemberRow, PlenumMarksTable } from '../db/types';
 
 export type Trx = Transaction<Database>;
+/** Datenbank oder Transaktion – für Lesen, das auch außerhalb einer Transaktion läuft (16.6) */
+export type Db = Kysely<Database>;
+
+/** Lesen ohne Transaktion: Abfragen laufen parallel über mehrere Verbindungen (16.6) */
+export interface ReadCtx {
+  trx: Db;
+  actor: MemberRow;
+  now: Date;
+}
 export type HistoryEntity = HistoryTable['entity_type'];
 
 /** Gegenschritte einer Aktion für „Rückgängig“ – P1: Aufgaben und Veranstaltungen */

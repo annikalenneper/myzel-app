@@ -37,7 +37,8 @@ import {
   updatedOne,
   writeHistory,
   type Ctx,
-  type Trx,
+  type Db,
+  type ReadCtx,
 } from '../core/context';
 import { addMark, dropMark, isMarked } from '../core/marks';
 import type { AppointmentRow, AppointmentTypeRow } from '../db/types';
@@ -46,7 +47,7 @@ import { notify } from '../p2/notify';
 /** Serien kommen mit P6 */
 const seriesLater = { series_id: null, series_date: null, series: null } as const;
 
-export async function activeIds(trx: Trx): Promise<string[]> {
+export async function activeIds(trx: Db): Promise<string[]> {
   const rows = await trx
     .selectFrom('members')
     .select('id')
@@ -60,7 +61,7 @@ export async function activeIds(trx: Trx): Promise<string[]> {
 
 // ── Terminarten (nur Admins, WF-ADM-06) ─────────────────────────────────────
 
-async function findType(trx: Trx, id: string, lock = false): Promise<AppointmentTypeRow> {
+async function findType(trx: Db, id: string, lock = false): Promise<AppointmentTypeRow> {
   const type = await trx
     .selectFrom('appointment_types')
     .selectAll()
@@ -71,7 +72,7 @@ async function findType(trx: Trx, id: string, lock = false): Promise<Appointment
   return type;
 }
 
-export async function listAppointmentTypes(ctx: Ctx): Promise<AppointmentTypeWithUsage[]> {
+export async function listAppointmentTypes(ctx: ReadCtx): Promise<AppointmentTypeWithUsage[]> {
   const [types, counts] = await Promise.all([
     ctx.trx.selectFrom('appointment_types').selectAll().orderBy('sort_order').orderBy('id').execute(),
     ctx.trx
@@ -204,7 +205,7 @@ export async function deleteAppointmentType(ctx: Ctx, id: string): Promise<void>
 
 // ── Termine ─────────────────────────────────────────────────────────────────
 
-export async function findAppointment(trx: Trx, id: string, lock = true): Promise<AppointmentRow> {
+export async function findAppointment(trx: Db, id: string, lock = true): Promise<AppointmentRow> {
   const appointment = await trx
     .selectFrom('appointments')
     .selectAll()
@@ -215,7 +216,7 @@ export async function findAppointment(trx: Trx, id: string, lock = true): Promis
   return appointment;
 }
 
-export async function isPlenum(trx: Trx, appointment: Pick<AppointmentRow, 'type_id'>): Promise<boolean> {
+export async function isPlenum(trx: Db, appointment: Pick<AppointmentRow, 'type_id'>): Promise<boolean> {
   const type = await trx
     .selectFrom('appointment_types')
     .select('has_plenum_features')
@@ -224,7 +225,7 @@ export async function isPlenum(trx: Trx, appointment: Pick<AppointmentRow, 'type
   return !!type?.has_plenum_features;
 }
 
-async function listItems(trx: Trx, rows: AppointmentRow[], meId: string): Promise<AppointmentListItem[]> {
+async function listItems(trx: Db, rows: AppointmentRow[], meId: string): Promise<AppointmentListItem[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((a) => a.id);
   const [types, rsvps, marks, tasks] = await Promise.all([
@@ -255,7 +256,7 @@ async function listItems(trx: Trx, rows: AppointmentRow[], meId: string): Promis
   });
 }
 
-export async function listAppointments(ctx: Ctx): Promise<AppointmentListItem[]> {
+export async function listAppointments(ctx: ReadCtx): Promise<AppointmentListItem[]> {
   const rows = await ctx.trx
     .selectFrom('appointments')
     .selectAll()
@@ -266,7 +267,7 @@ export async function listAppointments(ctx: Ctx): Promise<AppointmentListItem[]>
   return listItems(ctx.trx, rows, ctx.actor.id);
 }
 
-export async function getAppointment(trx: Trx, id: string, meId: string): Promise<AppointmentDetail> {
+export async function getAppointment(trx: Db, id: string, meId: string): Promise<AppointmentDetail> {
   const a = await findAppointment(trx, id, false);
   const [[item], rsvps, attendees, tasks, people] = await Promise.all([
     listItems(trx, [a], meId),
@@ -595,7 +596,7 @@ export async function setAppointmentMark(ctx: Ctx, id: string, marked: boolean):
 }
 
 /** Beim Deaktivieren: Zusagen für künftige Termine (F-LOG-03, ab P3) */
-async function futureRsvps(trx: Trx, memberId: string, now: Date) {
+async function futureRsvps(trx: Db, memberId: string, now: Date) {
   return trx
     .selectFrom('appointment_rsvps as r')
     .innerJoin('appointments as a', 'a.id', 'r.appointment_id')
@@ -606,7 +607,7 @@ async function futureRsvps(trx: Trx, memberId: string, now: Date) {
     .execute();
 }
 
-export async function futureRsvpCount(trx: Trx, memberId: string, now: Date): Promise<number> {
+export async function futureRsvpCount(trx: Db, memberId: string, now: Date): Promise<number> {
   return (await futureRsvps(trx, memberId, now)).length;
 }
 

@@ -29,7 +29,8 @@ import {
   writeHistory,
   type Ctx,
   type HistoryEntity,
-  type Trx,
+  type Db,
+  type ReadCtx,
 } from '../core/context';
 import { dropMark, isMarked, markColumn, markTarget } from '../core/marks';
 import type { AppointmentRow, TaskRow } from '../db/types';
@@ -48,7 +49,7 @@ const dueText = (isoDate: string) => {
 const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'] as const;
 const OPEN = ['neu', 'geplant', 'in_arbeit', 'blockiert'] as const;
 
-async function findPlenum(trx: Trx, id: string, lock = true): Promise<AppointmentRow> {
+async function findPlenum(trx: Db, id: string, lock = true): Promise<AppointmentRow> {
   const plenum = await appts.findAppointment(trx, id, lock);
   if (!(await appts.isPlenum(trx, plenum))) throw rule('Das geht nur bei einem Plenum.');
   return plenum;
@@ -66,7 +67,7 @@ const plenumLabel = (plenum: AppointmentRow) => `${plenum.title} vom ${day(plenu
 
 // ── Agenda: eine gemeinsame Liste aller markierten Objekte (F-PLE-03) ───────
 
-export async function agenda(trx: Trx, now: Date): Promise<AgendaItem[]> {
+export async function agenda(trx: Db, now: Date): Promise<AgendaItem[]> {
   const marks = await trx
     .selectFrom('plenum_marks')
     .selectAll()
@@ -259,10 +260,7 @@ interface Line {
   text: string;
 }
 
-export async function results(
-  trx: Trx,
-  plenumId: string,
-): Promise<{ group: ResultGroup; lines: string[] }[]> {
+export async function results(trx: Db, plenumId: string): Promise<{ group: ResultGroup; lines: string[] }[]> {
   // zurückgenommene Aktionen zählen nicht; passend zu den Indizes history_plenum und history_undone
   const rows = await sql<{ line: Line }>`
     select h.changes -> 'plenum_line' -> 'new' as line
@@ -289,7 +287,7 @@ export const RESULT_TITLE: Record<ResultGroup, string> = {
   besprochen: 'Besprochen',
 };
 
-export async function getPlenum(ctx: Ctx, id: string): Promise<PlenumDetail> {
+export async function getPlenum(ctx: ReadCtx, id: string): Promise<PlenumDetail> {
   const plenum = await findPlenum(ctx.trx, id, false);
   const [detail, agendaItems, resultGroups, doc, summary] = await Promise.all([
     appts.getAppointment(ctx.trx, id, ctx.actor.id),
@@ -337,7 +335,7 @@ async function logLine(
 
 // ── Aktionen in der Agenda (F-PLE-05) ───────────────────────────────────────
 
-async function assigneeNames(trx: Trx, taskId: string): Promise<string[]> {
+async function assigneeNames(trx: Db, taskId: string): Promise<string[]> {
   const rows = await trx
     .selectFrom('task_assignees as a')
     .innerJoin('members as m', 'm.id', 'a.member_id')
@@ -349,7 +347,7 @@ async function assigneeNames(trx: Trx, taskId: string): Promise<string[]> {
 }
 
 /** „· Jule, Mo · bis 30.10.“ – mit allen Bearbeitenden, wie es in die Zusammenfassung gehört (F-PLE-04) */
-async function whoWhen(trx: Trx, taskId: string): Promise<string> {
+async function whoWhen(trx: Db, taskId: string): Promise<string> {
   const task = await trx
     .selectFrom('tasks')
     .select('due_date')
@@ -836,7 +834,7 @@ export async function updateProtocol(ctx: Ctx, plenumId: string, raw: unknown): 
 }
 
 /** Zusammenfassung an alle aktiven Mitglieder (F-PLE-04): kurz, mit Link */
-export async function summaryText(trx: Trx, plenum: AppointmentRow): Promise<string> {
+export async function summaryText(trx: Db, plenum: AppointmentRow): Promise<string> {
   const groups = await results(trx, plenum.id);
   if (groups.length === 0)
     return `${plenum.title} ist abgeschlossen – es wurde nichts beschlossen oder besprochen.`;

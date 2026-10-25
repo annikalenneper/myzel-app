@@ -10,12 +10,12 @@ import {
   templateItemUpdateSchema,
   type TemplateSeedFile,
 } from '../../src/shared/schema';
-import { iso, notFound, parse, registerUndo, rule, writeHistory, type Ctx, type Trx } from '../core/context';
+import { iso, notFound, parse, registerUndo, rule, writeHistory, type Ctx, type Db } from '../core/context';
 import type { TemplateItemRow } from '../db/types';
 import { findEvent } from '../p1/events';
 import { createTask } from '../p1/tasks';
 
-async function itemsOf(trx: Trx, templateId: string): Promise<TemplateItemRow[]> {
+async function itemsOf(trx: Db, templateId: string): Promise<TemplateItemRow[]> {
   return trx
     .selectFrom('event_template_items')
     .selectAll()
@@ -52,7 +52,7 @@ const withoutArchive = (item: TemplateItemRow) => {
 };
 
 /** S-23: Vorlagenaufgaben der Veranstaltungsart, gruppiert nach Baustein, mit Frist und „schon angelegt“ */
-export async function getTemplateDialog(trx: Trx, eventId: string, now: Date): Promise<TemplateDialog> {
+export async function getTemplateDialog(trx: Db, eventId: string, now: Date): Promise<TemplateDialog> {
   const event = await trx.selectFrom('events').selectAll().where('id', '=', eventId).executeTakeFirst();
   if (!event) throw notFound('Diese Veranstaltung');
   const template = await trx
@@ -148,7 +148,7 @@ export async function applyTemplate(
 
 // ── Vorlagen bearbeiten (S-55, WF-ADM-08) ───────────────────────────────────
 
-export async function listTemplates(trx: Trx): Promise<TemplateWithItems[]> {
+export async function listTemplates(trx: Db): Promise<TemplateWithItems[]> {
   const templates = await trx.selectFrom('event_templates').selectAll().orderBy('event_type').execute();
   const out: TemplateWithItems[] = [];
   for (const t of templates)
@@ -156,7 +156,7 @@ export async function listTemplates(trx: Trx): Promise<TemplateWithItems[]> {
   return out;
 }
 
-async function findItem(trx: Trx, id: string): Promise<TemplateItemRow> {
+async function findItem(trx: Db, id: string): Promise<TemplateItemRow> {
   const item = await trx
     .selectFrom('event_template_items')
     .selectAll()
@@ -168,7 +168,7 @@ async function findItem(trx: Trx, id: string): Promise<TemplateItemRow> {
   return item;
 }
 
-async function usableTopic(trx: Trx, topicId: string): Promise<void> {
+async function usableTopic(trx: Db, topicId: string): Promise<void> {
   const topic = await trx
     .selectFrom('topics')
     .select('archived_at')
@@ -267,7 +267,7 @@ export async function removeTemplateItem(ctx: Ctx, id: string): Promise<void> {
 }
 
 /** Startinhalt (src/shared/seed/event-templates.yaml) in eine leere Datenbank – einmalig, `npm run db:seed-templates` */
-export async function seedTemplates(trx: Trx, seed: TemplateSeedFile, now: Date): Promise<number> {
+export async function seedTemplates(trx: Db, seed: TemplateSeedFile, now: Date): Promise<number> {
   const existing = await trx.selectFrom('event_templates').select('id').executeTakeFirst();
   if (existing) return 0;
   const topics = await trx

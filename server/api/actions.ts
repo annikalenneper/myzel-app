@@ -11,7 +11,7 @@ import {
 } from '../../src/shared/schema';
 import { notFound } from '../core/context';
 import type { Ctx } from '../core/context';
-import type { Database } from '../db/types';
+import type { Database, MemberRow } from '../db/types';
 import * as events from '../p1/events';
 import * as members from '../p1/members';
 import * as reads from '../p1/reads';
@@ -45,22 +45,41 @@ const n = (v: unknown) => v as number;
 /** Name des Telegram-Bots (ohne @) für den Verknüpfungs-Link; leer = Telegram noch nicht eingerichtet */
 const botUsername = () => process.env.TELEGRAM_BOT_USERNAME?.trim().replace(/^@/, '') || null;
 
-export const READ_ACTIONS: Record<string, (db: Kysely<Database>, args: Args, now: Date) => Promise<unknown>> =
-  {
-    listMembers: (db) => reads.listMembers(db),
-    listTopics: (db) => reads.listTopics(db),
-    listTasks: (db) => reads.listTasks(db),
-    getTask: (db, [id]) => reads.getTask(db, s(id)),
-    listEvents: (db, _, now) => reads.listEvents(db, now),
-    getEvent: (db, [id], now) => reads.getEvent(db, s(id), now),
-    // [P5] Drive-Verzeichnis – sofort aus dem Cache (Drive-IDs prüft drive.ts selbst)
-    getDriveFolder: (db, [folderId]) => drive.getDriveFolder(db, folderId ?? null),
-    searchDrive: (db, [query]) => drive.searchDrive(db, query),
-    recentDrive: (db) => drive.recentDrive(db),
-    // Abgleich und Neu einlesen: eigene kurze Transaktionen, Google dazwischen – nie in einer offenen Transaktion
-    syncDrive: (db, _, now) => drive.syncDrive(db, now),
-    rebuildDrive: (db, _, now) => drive.rebuildDrive(db, now),
-  };
+export const READ_ACTIONS: Record<
+  string,
+  (db: Kysely<Database>, args: Args, now: Date, actor: MemberRow) => Promise<unknown>
+> = {
+  listMembers: (db) => reads.listMembers(db),
+  listTopics: (db) => reads.listTopics(db),
+  listTasks: (db) => reads.listTasks(db),
+  getTask: (db, [id]) => reads.getTask(db, s(id)),
+  listEvents: (db, _, now) => reads.listEvents(db, now),
+  getEvent: (db, [id], now) => reads.getEvent(db, s(id), now),
+  // [P5] Drive-Verzeichnis – sofort aus dem Cache (Drive-IDs prüft drive.ts selbst)
+  getDriveFolder: (db, [folderId]) => drive.getDriveFolder(db, folderId ?? null),
+  searchDrive: (db, [query]) => drive.searchDrive(db, query),
+  recentDrive: (db) => drive.recentDrive(db),
+  // Abgleich und Neu einlesen: eigene kurze Transaktionen, Google dazwischen – nie in einer offenen Transaktion
+  syncDrive: (db, _, now) => drive.syncDrive(db, now),
+  rebuildDrive: (db, _, now) => drive.rebuildDrive(db, now),
+  // ohne Transaktion: die Abfragen laufen parallel (16.6)
+  listAppointmentTypes: (db, _, now, actor) => appts.listAppointmentTypes({ trx: db, actor, now }),
+  listAppointments: (db, _, now, actor) => appts.listAppointments({ trx: db, actor, now }),
+  getAppointment: (db, [id], _, actor) => appts.getAppointment(db, s(id), actor.id),
+  listDecisions: (db) => know.listDecisions(db),
+  getDecision: (db, [id]) => know.getDecision(db, s(id)),
+  listQuestions: (db) => know.listQuestions(db),
+  getQuestion: (db, [id]) => know.getQuestion(db, s(id)),
+  listDocuments: (db) => know.listDocuments(db),
+  listLinkedDocuments: (db, [target, id]) => know.linkedDocuments(db, linkTarget(target), s(id)),
+  search: (db, [query], now) => know.search(db, query, now),
+  getEventDetail: (db, [id], now) => p4events.getEventDetail(db, s(id), now),
+  listPartners: (db) => partners.listPartners(db),
+  getPartner: (db, [id]) => partners.getPartner(db, s(id)),
+  getTemplateDialog: (db, [eventId], now) => templates.getTemplateDialog(db, s(eventId), now),
+  listTemplates: (db) => templates.listTemplates(db),
+  getPlenum: (db, [id], now, actor) => plenum.getPlenum({ trx: db, actor, now }, s(id)),
+};
 
 export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unknown>> = {
   createTask: (ctx, [input]) => tasks.createTask(ctx, input),
@@ -111,14 +130,11 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   getSystemStatus: (ctx) => notify.systemStatus(ctx),
 
   // [P3] Termine, Terminarten (Lesen über die handelnde Person: eigene Zusage)
-  listAppointmentTypes: (ctx) => appts.listAppointmentTypes(ctx),
   createAppointmentType: (ctx, [input]) => appts.createAppointmentType(ctx, input),
   updateAppointmentType: (ctx, [id, input]) => appts.updateAppointmentType(ctx, s(id), input),
   archiveAppointmentType: (ctx, [id, version]) => appts.archiveAppointmentType(ctx, s(id), n(version), true),
   restoreAppointmentType: (ctx, [id, version]) => appts.archiveAppointmentType(ctx, s(id), n(version), false),
   deleteAppointmentType: (ctx, [id]) => appts.deleteAppointmentType(ctx, s(id)),
-  listAppointments: (ctx) => appts.listAppointments(ctx),
-  getAppointment: (ctx, [id]) => appts.getAppointment(ctx.trx, s(id), ctx.actor.id),
   createAppointment: (ctx, [input]) => appts.createAppointment(ctx, input),
   updateAppointment: (ctx, [id, input]) => appts.updateAppointment(ctx, s(id), input),
   setRsvp: (ctx, [id, answer]) => appts.setRsvp(ctx, s(id), (answer ?? null) as RsvpAnswer | null),
@@ -129,28 +145,20 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   setAppointmentMark: (ctx, [id, marked]) => appts.setAppointmentMark(ctx, s(id), marked === true),
 
   // [P3] Wissen
-  listDecisions: (ctx) => know.listDecisions(ctx.trx),
-  getDecision: (ctx, [id]) => know.getDecision(ctx.trx, s(id)),
   createDecision: (ctx, [input]) => know.createDecision(ctx, input),
   replaceDecision: (ctx, [id, input]) => know.replaceDecision(ctx, s(id), input),
   revokeDecision: (ctx, [id, note, version]) => know.revokeDecision(ctx, s(id), note, n(version)),
-  listQuestions: (ctx) => know.listQuestions(ctx.trx),
-  getQuestion: (ctx, [id]) => know.getQuestion(ctx.trx, s(id)),
   createQuestion: (ctx, [input]) => know.createQuestion(ctx, input),
   clarifyQuestion: (ctx, [id, input]) => know.clarifyQuestion(ctx, s(id), input),
   discardQuestion: (ctx, [id, version]) => know.discardQuestion(ctx, s(id), n(version)),
-  listDocuments: (ctx) => know.listDocuments(ctx.trx),
-  listLinkedDocuments: (ctx, [target, id]) => know.linkedDocuments(ctx.trx, linkTarget(target), s(id)),
   createDocument: (ctx, [input]) => know.createDocument(ctx, input),
   linkDocument: (ctx, [documentId, target, targetId]) =>
     know.linkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
   unlinkDocument: (ctx, [documentId, target, targetId]) =>
     know.unlinkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
   setMark: (ctx, [target, id, marked]) => know.setMark(ctx, target, s(id), marked === true),
-  search: (ctx, [query]) => know.search(ctx.trx, query, ctx.now),
 
   // [P4] Veranstaltungen ausgebaut, Partner, Vorlagen
-  getEventDetail: (ctx, [id]) => p4events.getEventDetail(ctx.trx, s(id), ctx.now),
   updateEventDetail: (ctx, [id, input]) => p4events.updateEventDetail(ctx, s(id), input),
   addBooking: (ctx, [eventId, input]) => p4events.addBooking(ctx, s(eventId), input),
   updateBooking: (ctx, [id, input]) => p4events.updateBooking(ctx, s(id), input),
@@ -159,15 +167,11 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   removeEventLead: (ctx, [eventId, memberId]) => p4events.removeLead(ctx, s(eventId), s(memberId)),
   setShiftPlan: (ctx, [eventId, documentId, version]) =>
     p4events.setShiftPlan(ctx, s(eventId), documentId === null ? null : s(documentId), n(version)),
-  listPartners: (ctx) => partners.listPartners(ctx.trx),
-  getPartner: (ctx, [id]) => partners.getPartner(ctx.trx, s(id)),
   createPartner: (ctx, [input]) => partners.createPartner(ctx, input),
   updatePartner: (ctx, [id, input]) => partners.updatePartner(ctx, s(id), input),
   linkPartner: (ctx, [eventId, partnerId, note]) => partners.linkPartner(ctx, s(eventId), s(partnerId), note),
   unlinkPartner: (ctx, [eventId, partnerId]) => partners.unlinkPartner(ctx, s(eventId), s(partnerId)),
-  getTemplateDialog: (ctx, [eventId]) => templates.getTemplateDialog(ctx.trx, s(eventId), ctx.now),
   applyTemplate: (ctx, [eventId, itemIds]) => templates.applyTemplate(ctx, s(eventId), itemIds),
-  listTemplates: (ctx) => templates.listTemplates(ctx.trx),
   createTemplateItem: (ctx, [templateId, input]) => templates.createTemplateItem(ctx, s(templateId), input),
   updateTemplateItem: (ctx, [id, input]) => templates.updateTemplateItem(ctx, s(id), input),
   removeTemplateItem: (ctx, [id]) => templates.removeTemplateItem(ctx, s(id)),
@@ -178,7 +182,6 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
     drive.setEventDriveFolder(ctx, s(eventId), folderId ?? null, n(version)),
 
   // [P3] Plenum
-  getPlenum: (ctx, [id]) => plenum.getPlenum(ctx, s(id)),
   plenumAction: (ctx, [id, input]) => plenum.plenumAction(ctx, s(id), input),
   moveAgendaItem: (ctx, [markId, toIndex]) => plenum.moveMark(ctx, markId, toIndex),
   plenumAdd: (ctx, [id, input]) => plenum.plenumAdd(ctx, s(id), input),

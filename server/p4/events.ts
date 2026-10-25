@@ -27,7 +27,7 @@ import {
   updatedOne,
   writeHistory,
   type Ctx,
-  type Trx,
+  type Db,
 } from '../core/context';
 import type { BookingRow, EventRow } from '../db/types';
 import { findEvent } from '../p1/events';
@@ -46,7 +46,7 @@ export async function touchEvent(ctx: Ctx, event: EventRow, set: Partial<EventRo
 }
 
 /** Gespeicherte Detailbereiche, auf jeder Ebene mit den leeren Werten aufgefüllt (z. B. neue Rahmen-Punkte) */
-async function detailsOf(trx: Trx, eventId: string): Promise<EventDetails> {
+async function detailsOf(trx: Db, eventId: string): Promise<EventDetails> {
   const row = await trx
     .selectFrom('event_details')
     .select('data')
@@ -66,7 +66,7 @@ async function detailsOf(trx: Trx, eventId: string): Promise<EventDetails> {
   return merged as EventDetails;
 }
 
-export async function getEventDetail(trx: Trx, id: string, now: Date): Promise<EventDetail> {
+export async function getEventDetail(trx: Db, id: string, now: Date): Promise<EventDetail> {
   const event = await getEvent(trx, id, now);
   const [details, bookings, leads, partners, doc] = await Promise.all([
     detailsOf(trx, id),
@@ -177,7 +177,7 @@ export async function updateEventDetail(ctx: Ctx, eventId: string, raw: unknown)
 
 // ── Booking (mehrere Acts) ──────────────────────────────────────────────────
 
-async function findBooking(trx: Trx, id: string): Promise<BookingRow> {
+async function findBooking(trx: Db, id: string): Promise<BookingRow> {
   const booking = await trx
     .selectFrom('event_bookings')
     .selectAll()
@@ -315,7 +315,7 @@ export async function dropLeads(ctx: Ctx, memberId: string): Promise<number> {
   return rows.length;
 }
 
-export async function leadCount(trx: Trx, memberId: string): Promise<number> {
+export async function leadCount(trx: Db, memberId: string): Promise<number> {
   return (await trx.selectFrom('event_leads').select('event_id').where('member_id', '=', memberId).execute())
     .length;
 }

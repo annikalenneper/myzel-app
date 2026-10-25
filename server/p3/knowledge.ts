@@ -46,7 +46,7 @@ import {
   writeHistory,
   type Ctx,
   type HistoryEntity,
-  type Trx,
+  type Db,
 } from '../core/context';
 import { addMark, dropMark, isMarked } from '../core/marks';
 import type { DecisionRow, DocumentRow, QuestionRow } from '../db/types';
@@ -78,7 +78,7 @@ export async function touch<T extends { id: string; version: number }>(
 
 // ── Entscheidungen und Fakten ───────────────────────────────────────────────
 
-async function findDecision(trx: Trx, id: string, lock = true): Promise<DecisionRow> {
+async function findDecision(trx: Db, id: string, lock = true): Promise<DecisionRow> {
   const decision = await trx
     .selectFrom('decisions')
     .selectAll()
@@ -89,7 +89,7 @@ async function findDecision(trx: Trx, id: string, lock = true): Promise<Decision
   return decision;
 }
 
-async function decisionItems(trx: Trx, rows: DecisionRow[]): Promise<DecisionListItem[]> {
+async function decisionItems(trx: Db, rows: DecisionRow[]): Promise<DecisionListItem[]> {
   if (rows.length === 0) return [];
   const plenumIds = rows.flatMap((d) => (d.source_plenum_id ? [d.source_plenum_id] : []));
   const docIds = rows.flatMap((d) => (d.source_document_id ? [d.source_document_id] : []));
@@ -131,7 +131,7 @@ async function decisionItems(trx: Trx, rows: DecisionRow[]): Promise<DecisionLis
   });
 }
 
-export async function listDecisions(trx: Trx): Promise<DecisionListItem[]> {
+export async function listDecisions(trx: Db): Promise<DecisionListItem[]> {
   const rows = await trx
     .selectFrom('decisions')
     .selectAll()
@@ -142,7 +142,7 @@ export async function listDecisions(trx: Trx): Promise<DecisionListItem[]> {
   return decisionItems(trx, rows);
 }
 
-export async function getDecision(trx: Trx, id: string): Promise<DecisionDetail> {
+export async function getDecision(trx: Db, id: string): Promise<DecisionDetail> {
   const d = await findDecision(trx, id, false);
   const [[item], plenum, doc, replaces, documents, history] = await Promise.all([
     decisionItems(trx, [d]),
@@ -333,7 +333,7 @@ export async function revokeDecision(
 
 // ── Offene Fragen ───────────────────────────────────────────────────────────
 
-async function findQuestion(trx: Trx, id: string, lock = true): Promise<QuestionRow> {
+async function findQuestion(trx: Db, id: string, lock = true): Promise<QuestionRow> {
   const question = await trx
     .selectFrom('questions')
     .selectAll()
@@ -344,7 +344,7 @@ async function findQuestion(trx: Trx, id: string, lock = true): Promise<Question
   return question;
 }
 
-async function questionItems(trx: Trx, rows: QuestionRow[]): Promise<QuestionListItem[]> {
+async function questionItems(trx: Db, rows: QuestionRow[]): Promise<QuestionListItem[]> {
   if (rows.length === 0) return [];
   const decisionIds = rows.flatMap((q) => (q.resulting_decision_id ? [q.resulting_decision_id] : []));
   const [marks, decisions] = await Promise.all([
@@ -368,12 +368,12 @@ async function questionItems(trx: Trx, rows: QuestionRow[]): Promise<QuestionLis
   }));
 }
 
-export async function listQuestions(trx: Trx): Promise<QuestionListItem[]> {
+export async function listQuestions(trx: Db): Promise<QuestionListItem[]> {
   const rows = await trx.selectFrom('questions').selectAll().where('archived_at', 'is', null).execute();
   return questionItems(trx, sortQuestions(rows));
 }
 
-export async function getQuestion(trx: Trx, id: string): Promise<QuestionDetail> {
+export async function getQuestion(trx: Db, id: string): Promise<QuestionDetail> {
   const q = await findQuestion(trx, id, false);
   const [[item], history] = await Promise.all([questionItems(trx, [q]), historyOf(trx, 'question', id)]);
   return { ...item!, history };
@@ -510,7 +510,7 @@ export async function discardQuestion(
 
 // ── Dokumente ───────────────────────────────────────────────────────────────
 
-async function findDocument(trx: Trx, id: string): Promise<DocumentRow> {
+async function findDocument(trx: Db, id: string): Promise<DocumentRow> {
   const document = await trx.selectFrom('documents').selectAll().where('id', '=', id).executeTakeFirst();
   if (!document) throw notFound('Dieses Dokument');
   return document;
@@ -525,7 +525,7 @@ const TARGET_NOUN: Record<DocumentLinkTarget, [one: string, many: string]> = {
 
 /** driveIndex: schon geladener Drive-Cache (aus dem Verzeichnis) – sonst lädt ihn der Hinweis „nicht mehr vorhanden“ */
 export async function documentItems(
-  trx: Trx,
+  trx: Db,
   rows: DocumentRow[],
   driveIndex?: DriveIndex,
 ): Promise<DocumentListItem[]> {
@@ -568,14 +568,14 @@ export async function documentItems(
   });
 }
 
-export async function listDocuments(trx: Trx): Promise<DocumentListItem[]> {
+export async function listDocuments(trx: Db): Promise<DocumentListItem[]> {
   const rows = await trx.selectFrom('documents').selectAll().where('archived_at', 'is', null).execute();
   rows.sort((a, b) => a.title.localeCompare(b.title, 'de'));
   return documentItems(trx, rows);
 }
 
 export async function linkedDocuments(
-  trx: Trx,
+  trx: Db,
   target: DocumentLinkTarget,
   id: string,
 ): Promise<DocumentListItem[]> {
@@ -598,7 +598,7 @@ const TARGET_TABLE = {
   decision: 'decisions',
 } as const;
 
-async function targetExists(trx: Trx, type: DocumentLinkTarget, id: string): Promise<boolean> {
+async function targetExists(trx: Db, type: DocumentLinkTarget, id: string): Promise<boolean> {
   const table = TARGET_TABLE[type];
   if (!table) return false;
   return !!(await trx
@@ -723,7 +723,7 @@ export async function setMark(ctx: Ctx, target: unknown, id: string, marked: boo
 
 // ── Globale Suche (F-WIS-06): nur App-Daten, gruppiert nach Art ─────────────
 
-export async function search(trx: Trx, query: unknown, now: Date): Promise<SearchGroup[]> {
+export async function search(trx: Db, query: unknown, now: Date): Promise<SearchGroup[]> {
   const q = typeof query === 'string' ? query.trim().toLowerCase().slice(0, 100) : '';
   if (q.length < 2) return [];
   const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;

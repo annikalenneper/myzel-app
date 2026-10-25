@@ -24,8 +24,8 @@ export async function handleAction(
   // nur eigene Einträge – kein Treffer über die Prototyp-Kette (z. B. „toString“)
   const read = Object.hasOwn(READ_ACTIONS, action) ? READ_ACTIONS[action] : undefined;
   if (read) {
-    await resolveActor(db, login?.authUserId ?? null);
-    return read(db, args, now);
+    const actor = await resolveActor(db, login?.authUserId ?? null);
+    return read(db, args, now, actor);
   }
   const write = Object.hasOwn(WRITE_ACTIONS, action) ? WRITE_ACTIONS[action] : undefined;
   if (write) return inTransaction(db, login?.authUserId ?? null, now, (ctx) => write(ctx, args));
