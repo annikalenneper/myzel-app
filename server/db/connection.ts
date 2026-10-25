@@ -19,10 +19,12 @@ export function database(): Kysely<Database> {
   if (!connectionString) throw new Error('DATABASE_URL fehlt.');
   instance = new Kysely<Database>({
     dialect: new PostgresDialect({
-      // eine Verbindung je Function-Instanz; der Pooler verteilt
+      // bis zu vier Verbindungen je Function-Instanz: die Lese-Abfragen einer Aktion (Promise.all) laufen so
+      // gleichzeitig statt nacheinander – bei rund 87 ms je Abfrage zwischen Function und Datenbank (16.6).
+      // Eine Transaktion bleibt auf ihrer einen Verbindung; der Pooler (Transaction-Modus) verteilt.
       pool: new pg.Pool({
         connectionString,
-        max: 1,
+        max: 4,
         ssl: { ca: SUPABASE_ROOT_CA, rejectUnauthorized: true },
       }),
     }),
