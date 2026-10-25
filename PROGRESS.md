@@ -70,8 +70,8 @@ Anlass: Die Frage „KDK 2027 …“ führt zu mehreren Entscheidungen und Fakte
 einzigen Fakt abgeschlossen. Sofortmaßnahme (25.10.2026, direkt in der Datenbank, weil es noch keine Funktion dafür
 gibt): Status zurück auf „offen“, Antwort und Ergebnis-Verweis entfernt, die bisherige Antwort als Absatz an die
 Beschreibung angehängt, Historie „reopened“ (zeigt bis zur Umsetzung „hat die Frage geändert“), wieder fürs Plenum
-markiert. Der Fakt selbst war schon aufgehoben und bleibt so. Jeder Punkt braucht eine Änderung an
-ANFORDERUNGEN.md (3.x Fragen, 5.8 Workflows, 7.2 Regeln) – vor dem Bau der Nutzerin vorlegen.
+markiert. Der Fakt selbst war schon aufgehoben und bleibt so. In ANFORDERUNGEN.md festgehalten (Nutzerin, 25.10.2026): 3.7, 3.8,
+4.4, 5.5 (F-FRA-03, F-FRA-04, F-ALL-01), 5.8 (WF-FRA-04, WF-FRA-05, WF-ALL-06), 10.8 und Änderungsprotokoll.
 
 1. [ ] **Frage wieder öffnen** (neuer Workflow, z. B. WF-FRA-04): „Wieder öffnen“ an geklärten und verworfenen Fragen,
        im Frage-Detail und im Plenum. Status → offen, Antwort bleibt in der Historie; Ergebnisse bleiben bestehen (nicht
