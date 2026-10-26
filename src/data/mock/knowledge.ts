@@ -354,7 +354,7 @@ export function revokeDecision(ctx: Ctx, id: string, note: string | null, versio
 // ── Entscheidungen im Konsens (16.4) ─────────────────────────────────────────
 
 /** Gültig, wenn alle aktiven Mitglieder bestätigt haben oder die Frist ohne Widerspruch abgelaufen ist */
-function settle(ctx: Ctx, d: Decision): boolean {
+export function settle(ctx: Ctx, d: Decision): boolean {
   const count = countVotes(votesOf(ctx.db, d.id), activeMemberIds(ctx.db));
   if (!consensusReached(d, count, toIsoDate(ctx.now))) return false;
   ctx.inverse.push(decisionState(d));
@@ -376,6 +376,14 @@ export function voteDecision(ctx: Ctx, id: string, raw: unknown): Undoable & { v
     throw rule('Über diese Entscheidung wird nicht mehr abgestimmt.');
   const before = ctx.db.decision_votes.find((v) => v.decision_id === id && v.member_id === ctx.actor.id);
   if (before?.vote === vote) return { undo_token: '', valid: false };
+  // nach der Frist ohne Widerspruch gilt sie – ein später Widerspruch ändert das nicht mehr (16.4)
+  if (
+    vote === 'widerspruch' &&
+    d.consensus_until &&
+    toIsoDate(ctx.now) > d.consensus_until &&
+    countVotes(votesOf(ctx.db, id), activeMemberIds(ctx.db)).objected === 0
+  )
+    throw rule('Die Frist ist ohne Widerspruch abgelaufen – die Entscheidung gilt.');
   ctx.db.decision_votes = ctx.db.decision_votes.filter((v) => v !== before);
   ctx.db.decision_votes.push({ decision_id: id, member_id: ctx.actor.id, vote, voted_at: iso(ctx) });
   ctx.inverse.push({ kind: 'vote_restore', decision_id: id, member_id: ctx.actor.id, row: before ?? null });

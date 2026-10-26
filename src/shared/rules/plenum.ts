@@ -95,7 +95,7 @@ const RESULT_ORDER: readonly ResultGroup[] = ['beschluesse', 'aufgaben', 'fragen
 export type ResultSubject =
   | {
       type: 'decision';
-      row: Pick<Decision, 'id' | 'title' | 'kind' | 'status'>;
+      row: Pick<Decision, 'id' | 'title' | 'kind' | 'status' | 'consensus_until'>;
       created: boolean;
       question_title: string | null;
       successor_title: string | null;
@@ -128,14 +128,19 @@ function line(s: ResultSubject): { group: ResultGroup; item: ResultItem } {
     case 'decision': {
       const noun = s.row.kind === 'fakt' ? 'Fakt' : 'Entscheidung';
       const from = s.question_title ? ` (aus der Frage „${s.question_title}“)` : '';
+      // 16.4: eine offene Entscheidung gilt erst nach Bestätigung
+      const pending =
+        s.row.status === 'offen' && s.row.consensus_until
+          ? ` – gilt erst nach Bestätigung, bis ${dueText(s.row.consensus_until)}`
+          : '';
       const text =
         s.row.status === 'aufgehoben'
           ? `${noun} aufgehoben: ${s.row.title}`
           : s.row.status === 'ersetzt'
             ? `${noun} ersetzt: ${s.row.title}${s.successor_title ? ` → ${s.successor_title}` : ''}`
             : s.created
-              ? `${s.row.kind === 'fakt' ? 'Neuer Fakt' : 'Neue Entscheidung'}: ${s.row.title}${from}`
-              : `${noun}: ${s.row.title}${from}`;
+              ? `${s.row.kind === 'fakt' ? 'Neuer Fakt' : 'Neue Entscheidung'}: ${s.row.title}${from}${pending}`
+              : `${noun}: ${s.row.title}${from}${pending}`;
       return { group: 'beschluesse', item: { text, link: `/agenda/eintrag/${s.row.id}` } };
     }
     case 'task': {

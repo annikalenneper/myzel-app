@@ -92,6 +92,11 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Termin- und Plenum-Detail: „In Google Kalender eintragen ↗“ und „.ics herunterladen“ (WF-TER-11); Titel, Zeit in
         UTC, Ort bzw. Call-Link, Beschreibung mit Link zurück in Myzel; die .ics-UID ist je Termin fest, ein erneuter
         Import ersetzt den alten Eintrag. Nicht bei abgesagten Terminen und abgeschlossenen Plena
+  - [x] Review Phase 6 (Subagent): kein hoher Befund; M1 (Rückgängig beim Ersetzen, wenn schon über die neue Fassung
+        abgestimmt wurde), M2 (Rückgängig einer Stimme, nachdem andere sie gültig gemacht haben – jetzt Konflikt; nach
+        dem Rückgängig gilt die Regel neu), M3 (offene Entscheidung als Nachfolgerin wählbar), M4 (Plenum-Ergebnis und
+        Zusammenfassung: „gilt erst nach Bestätigung, bis …“), N1 (kein Widerspruch mehr nach abgelaufener Frist), N2
+        (weniger Abfragen im Joblauf), N3 (Rückgängig einer Stimme mit alt → neu), N4 (Tests) behoben
 - [ ] **Phase 8 – App-Report und Versions-Info:** Bug/Feature-Wunsch melden, Admin-Liste; Version, Changelog,
       Hinweis auf neue Version
 

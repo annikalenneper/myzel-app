@@ -39,7 +39,7 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
 };
 
 /**
- * Darf `oldId` durch `successorId` ersetzt werden? Das Ziel muss gültig sein, und es darf kein
+ * Darf `oldId` durch `successorId` ersetzt werden? Das Ziel muss gültig oder offen sein (16.4), und es darf kein
  * Kreis entstehen (4.5). Liefert den Grund als Satz oder null.
  */
 export function canSupersede(
@@ -51,7 +51,7 @@ export function canSupersede(
   const byId = new Map(decisions.map((d) => [d.id, d]));
   const successor = byId.get(successorId);
   if (!successor) return 'Diesen Eintrag gibt es nicht mehr.';
-  if (successor.status !== 'gueltig') return 'Die Nachfolgerin muss gültig sein.';
+  if (!decisionActive(successor.status)) return 'Die Nachfolgerin muss gültig oder offen sein.';
   // folgt die Kette der Nachfolgerin irgendwann wieder auf den alten Eintrag, wäre es ein Kreis
   const seen = new Set<string>();
   let current = successor.superseded_by_id;

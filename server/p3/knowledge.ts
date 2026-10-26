@@ -460,9 +460,8 @@ export async function revokeDecision(
  * Gültig, wenn alle aktiven Mitglieder bestätigt haben oder die Frist ohne Widerspruch abgelaufen ist. Die Zeile ist
  * gesperrt (findDecision); gleichzeitige Stimmen warten aufeinander.
  */
-async function settle(ctx: Ctx, d: DecisionRow): Promise<boolean> {
-  const votes = await votesOf(ctx.trx, [d.id]);
-  const activeIds = await activeMemberIds(ctx.trx);
+export async function settle(ctx: Ctx, d: DecisionRow): Promise<boolean> {
+  const [votes, activeIds] = await Promise.all([votesOf(ctx.trx, [d.id]), activeMemberIds(ctx.trx)]);
   const count = countVotes(votes, activeIds);
   if (!consensusReached(d, count, berlinDate(ctx.now))) return false;
   ctx.inverse.push(decisionState(d));
@@ -492,6 +491,12 @@ export async function voteDecision(
     .where('member_id', '=', ctx.actor.id)
     .executeTakeFirst();
   if (before?.vote === vote) return { undo_token: '', valid: false };
+  // nach der Frist ohne Widerspruch gilt sie – ein später Widerspruch ändert das nicht mehr (16.4)
+  if (vote === 'widerspruch' && d.consensus_until && berlinDate(ctx.now) > d.consensus_until) {
+    const votes = await votesOf(ctx.trx, [id]);
+    if (countVotes(votes, await activeMemberIds(ctx.trx)).objected === 0)
+      throw rule('Die Frist ist ohne Widerspruch abgelaufen – die Entscheidung gilt.');
+  }
   await ctx.trx
     .insertInto('decision_votes')
     .values({ decision_id: id, member_id: ctx.actor.id, vote, voted_at: iso(ctx) })
@@ -512,7 +517,12 @@ export async function voteDecision(
  * Transaktion. Erst wird ohne Transaktion geprüft, damit ein Lauf ohne Arbeit nur wenige Abfragen kostet.
  */
 export async function settleOpenDecisions(db: Kysely<Database>, now: Date): Promise<number> {
-  const open = await db.selectFrom('decisions').selectAll().where('status', '=', 'offen').execute();
+  const open = await db
+    .selectFrom('decisions')
+    .selectAll()
+    .where('status', '=', 'offen')
+    .where('archived_at', 'is', null)
+    .execute();
   if (open.length === 0) return 0;
   const [votes, activeIds] = await Promise.all([
     votesOf(
@@ -532,14 +542,15 @@ export async function settleOpenDecisions(db: Kysely<Database>, now: Date): Prom
       today,
     ),
   );
+  if (due.length === 0) return 0;
+  const actor: MemberRow = await db
+    .selectFrom('members')
+    .selectAll()
+    .where('is_system', '=', true)
+    .executeTakeFirstOrThrow();
   let settled = 0;
   for (const candidate of due)
     await db.transaction().execute(async (trx) => {
-      const actor: MemberRow = await trx
-        .selectFrom('members')
-        .selectAll()
-        .where('is_system', '=', true)
-        .executeTakeFirstOrThrow();
       const ctx: Ctx = { trx, actor, now, inverse: [], historyIds: [], outbox: [], plenumId: null };
       // inzwischen geändert (Stimme, Ersetzen): settle prüft den gesperrten, aktuellen Stand
       const d = await findDecision(trx, candidate.id);

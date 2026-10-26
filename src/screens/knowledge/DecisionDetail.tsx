@@ -414,7 +414,7 @@ export function ReplaceSheet({
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // nur gültige Einträge, keine, die schon auf diesen verweisen
+  // nur gültige und offene Einträge, keine, die schon auf diesen verweisen
   const q = query.trim().toLowerCase();
   const candidates = (all ?? [])
     .filter((x) => canSupersede(all ?? [], decision.id, x.id) === null)
@@ -510,8 +510,8 @@ export function ReplaceSheet({
             <input
               type="search"
               data-wf={wf}
-              aria-label="Gültige Entscheidung suchen"
-              placeholder="Gültige Entscheidung suchen …"
+              aria-label="Entscheidung suchen"
+              placeholder="Entscheidung suchen …"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="h-11 rounded-xl border border-rand bg-grund px-3.5 text-[14px] text-text"
@@ -534,7 +534,7 @@ export function ReplaceSheet({
               </button>
             ))}
             <span className="text-[12px] leading-[1.4] text-leise">
-              Nur gültige Einträge, keine, die schon auf diese verweisen.
+              Nur gültige und offene Einträge, keine, die schon auf diese verweisen.
             </span>
           </>
         )}

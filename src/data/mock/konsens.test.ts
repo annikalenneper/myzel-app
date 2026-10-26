@@ -153,4 +153,70 @@ describe('Entscheidungen im Konsens (16.4)', () => {
     await api.revokeDecision(successor_id, null, next.version);
     expect((await api.getDecision(successor_id)).status).toBe('aufgehoben');
   });
+
+  it('eine offene Entscheidung kann Nachfolgerin sein', async () => {
+    const old = await decision('Mate am Tresen für 2,50 €');
+    const id = await create();
+    await api.replaceDecision(old.id, { successor_id: id, version: old.version });
+    expect((await api.getDecision(old.id)).superseded_by_id).toBe(id);
+  });
+
+  it('Rückgängig beim Ersetzen geht nicht mehr, sobald jemand über die neue Fassung abgestimmt hat', async () => {
+    const id = await create();
+    const d = await api.getDecision(id);
+    const { undo_token, successor_id } = await api.replaceDecision(id, {
+      title: 'Kasse zählt zu dritt',
+      source_note: 'Nachtrag',
+      version: d.version,
+    });
+    await login('lea');
+    await api.voteDecision(successor_id, 'bestaetigt');
+    await login('mo');
+    await expectError(api.undo(undo_token), 'rule');
+    expect((await api.getDecision(successor_id)).consensus?.confirmed).toBe(1);
+  });
+
+  it('eine Stimme lässt sich nicht mehr zurücknehmen, wenn andere die Entscheidung gültig gemacht haben', async () => {
+    const id = await create();
+    let first = '';
+    for (const name of ACTIVE) {
+      await login(name);
+      const r = await api.voteDecision(id, 'bestaetigt');
+      if (name === 'mo') first = r.undo_token;
+    }
+    expect((await api.getDecision(id)).status).toBe('gueltig');
+    await login('mo');
+    await expectError(api.undo(first), 'conflict');
+    expect((await api.getDecision(id)).consensus?.confirmed).toBe(ACTIVE.length);
+  });
+
+  it('nach der Frist kein neuer Widerspruch; wer seinen Widerspruch zurücknimmt, macht sie gültig', async () => {
+    const id = await create();
+    clock = new Date(2026, 9, 19, 9, 0, 0);
+    await expectError(api.voteDecision(id, 'widerspruch'), 'rule');
+    await api.demo!.runJobNow();
+    expect((await api.getDecision(id)).status).toBe('gueltig');
+
+    clock = new Date(2026, 9, 11, 12, 0, 0);
+    const other = await create();
+    await login('noa');
+    await api.voteDecision(other, 'widerspruch');
+    clock = new Date(2026, 9, 20, 12, 0, 0);
+    const changed = await api.voteDecision(other, 'bestaetigt');
+    expect(changed.valid).toBe(true);
+  });
+
+  it('Stimmen Deaktivierter zählen nicht – nach der Deaktivierung gilt sie im Joblauf', async () => {
+    const id = await create();
+    await login('noa');
+    await api.voteDecision(id, 'widerspruch');
+    await login('mo');
+    const noa = (await api.listMembers()).find((m) => m.display_name === 'Noa')!;
+    await api.deactivateMember(noa.id);
+    const d = await api.getDecision(id);
+    expect([d.consensus?.objected, d.consensus?.total]).toEqual([0, ACTIVE.length - 1]);
+    clock = new Date(2026, 9, 19, 9, 0, 0);
+    await api.demo!.runJobNow();
+    expect((await api.getDecision(id)).status).toBe('gueltig');
+  });
 });

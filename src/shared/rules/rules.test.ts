@@ -7,6 +7,7 @@ import { addDays, berlinDate, daysUntil, dueState, isPlausibleDate } from './due
 import { suggestsFollowUp } from './eventDetails';
 import { allowedEventTransitions, canTransitionEvent } from './eventStatus';
 import { suggestShort } from './members';
+import { buildResults } from './plenum';
 import { linkTarget, pushText, telegramHtml } from './telegram';
 import { sortTasks } from './taskSort';
 import { blockReasonMissing, canTransitionTask, statusAfterLastAssigneeLeft } from './taskStatus';
@@ -300,5 +301,28 @@ describe('Telegram und Push: Längen (Review Phase 3)', () => {
       'Plenum Oktober ist abgeschlossen. 3 Punkte im Ergebnis.',
     );
     expect(pushText('Du bist eingetragen.')).toBe('Du bist eingetragen.');
+  });
+});
+
+describe('Plenum-Ergebnis: offene Entscheidung (16.4)', () => {
+  it('nennt, dass sie erst nach Bestätigung gilt', () => {
+    const [group] = buildResults([
+      {
+        type: 'decision',
+        row: {
+          id: 'd1',
+          title: 'Kasse zu zweit',
+          kind: 'entscheidung',
+          status: 'offen',
+          consensus_until: '2026-11-04',
+        },
+        created: true,
+        question_title: null,
+        successor_title: null,
+      },
+    ]);
+    expect(group!.items[0]!.text).toBe(
+      'Neue Entscheidung: Kasse zu zweit – gilt erst nach Bestätigung, bis 04.11.',
+    );
   });
 });

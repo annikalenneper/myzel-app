@@ -90,6 +90,7 @@ import type {
   TopicWithUsage,
   Undoable,
 } from '../api';
+import { settle } from './knowledge';
 import { enqueue } from './notify';
 
 export type InverseOp =
@@ -987,7 +988,8 @@ export function undo(ctx: Ctx, token: string): void {
         db.decisions.some((d) => d.superseded_by_id === created.id && d.id !== record.entity_id) ||
         db.document_links.some((l) => l.target_type === 'decision' && l.target_id === created.id) ||
         db.plenum_marks.some((m) => m.decision_id === created.id) ||
-        db.comments.some((c) => c.decision_id === created.id))
+        db.comments.some((c) => c.decision_id === created.id) ||
+        db.decision_votes.some((v) => v.decision_id === created.id))
     )
       throw rule(
         'Der neue Eintrag wird inzwischen weiterverwendet – das lässt sich nicht mehr rückgängig machen.',
@@ -1024,12 +1026,16 @@ export function undo(ctx: Ctx, token: string): void {
     'question_state',
     'task_fields',
     'appointment_times',
+    // eine Stimme: ist die Entscheidung inzwischen (durch andere Stimmen) gültig geworden, bleibt es dabei
+    'vote_restore',
   ];
   const touchesRow = record.ops.some((op) => rowKinds.includes(op.kind));
   if (touchesRow) checkVersion(ctx, record.entity_type, entity, record.version_after);
 
   // was das Rückgängig zurücksetzt, steht als alt → neu in der Historie (3.10)
   const undone: HistoryChanges = {};
+  /** Entscheidungen, deren Stimme zurückgesetzt wurde – danach gilt die Konsensregel neu (16.4) */
+  const restoredVotes = new Set<string>();
   for (const op of record.ops) {
     switch (op.kind) {
       case 'task_state': {
@@ -1178,6 +1184,13 @@ export function undo(ctx: Ctx, token: string): void {
         break;
       }
       case 'vote_restore':
+        undone.vote = {
+          old:
+            db.decision_votes.find((v) => v.decision_id === op.decision_id && v.member_id === op.member_id)
+              ?.vote ?? null,
+          new: op.row?.vote ?? null,
+        };
+        restoredVotes.add(op.decision_id);
         db.decision_votes = db.decision_votes.filter(
           (v) => !(v.decision_id === op.decision_id && v.member_id === op.member_id),
         );
@@ -1226,6 +1239,11 @@ export function undo(ctx: Ctx, token: string): void {
       record.ops.some((op) => op.kind === 'task_state' && op.status === 'in_arbeit'),
     );
   if (touchesRow) touch(ctx, entity);
+  // zurückgesetzte Stimme: gilt die Entscheidung jetzt (z. B. Widerspruch zurückgenommen nach der Frist)? (16.4)
+  for (const decisionId of restoredVotes) {
+    const d = db.decisions.find((x) => x.id === decisionId);
+    if (d?.status === 'offen' && !d.archived_at) settle(ctx, d);
+  }
   // was ohne Historie geschah (Markierung, selbst folgen), wird auch still zurückgenommen
   if (record.history_ids.length === 0) return;
   writeHistory(ctx, record.entity_type, entity.id, 'undo', {

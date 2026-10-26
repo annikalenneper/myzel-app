@@ -17,6 +17,7 @@ import {
 } from '../core/context';
 import type { HistoryChanges } from '../../src/shared/schema';
 import { markable } from '../core/marks';
+import { settle } from '../p3/knowledge';
 import { topicStillActive } from './tasks';
 
 const ROW_KINDS = new Set<InverseOp['kind']>([
@@ -30,6 +31,8 @@ const ROW_KINDS = new Set<InverseOp['kind']>([
   'question_state',
   'task_fields',
   'appointment_times',
+  // eine Stimme: ist die Entscheidung inzwischen (durch andere Stimmen) gültig geworden, bleibt es dabei
+  'vote_restore',
 ]);
 
 /** Tabelle je Art, die ein Rückgängig betreffen kann */
@@ -77,6 +80,8 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
 
   // was das Rückgängig zurücksetzt, steht als alt → neu in der Historie (3.10)
   const changes: HistoryChanges = {};
+  /** Entscheidungen, deren Stimme zurückgesetzt wurde – danach gilt die Konsensregel neu (16.4) */
+  const restoredVotes = new Set<string>();
   for (const op of ops) {
     switch (op.kind) {
       case 'task_state': {
@@ -290,6 +295,14 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
         break;
       }
       case 'vote_restore': {
+        const current = await ctx.trx
+          .selectFrom('decision_votes')
+          .select('vote')
+          .where('decision_id', '=', op.decision_id)
+          .where('member_id', '=', op.member_id)
+          .executeTakeFirst();
+        changes.vote = { old: current?.vote ?? null, new: op.row?.vote ?? null };
+        restoredVotes.add(op.decision_id);
         const q = ctx.trx
           .deleteFrom('decision_votes')
           .where('decision_id', '=', op.decision_id)
@@ -432,6 +445,16 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
       .set({ version: entity.version + 1, updated_at: iso(ctx) })
       .where('id', '=', entity.id)
       .execute();
+  // zurückgesetzte Stimme: gilt die Entscheidung jetzt (z. B. Widerspruch zurückgenommen nach der Frist)? (16.4)
+  for (const decisionId of restoredVotes) {
+    const d = await ctx.trx
+      .selectFrom('decisions')
+      .selectAll()
+      .where('id', '=', decisionId)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    if (d.status === 'offen' && !d.archived_at) await settle(ctx, d);
+  }
   // was ohne Historie geschah (Markierung, selbst folgen), wird auch still zurückgenommen
   if ((record.history_ids as string[]).length === 0) return;
   await writeHistory(ctx, entityType, entity.id, 'undo', {
@@ -511,7 +534,7 @@ async function stillUndoable(
         .forUpdate()
         .executeTakeFirst();
       if (!created) continue;
-      const [successorOf, linked, marked, commented] = await Promise.all([
+      const [successorOf, linked, marked, commented, voted] = await Promise.all([
         ctx.trx
           .selectFrom('decisions')
           .select('id')
@@ -530,8 +553,13 @@ async function stillUndoable(
           .where('decision_id', '=', created.id)
           .executeTakeFirst(),
         ctx.trx.selectFrom('comments').select('id').where('decision_id', '=', created.id).executeTakeFirst(),
+        ctx.trx
+          .selectFrom('decision_votes')
+          .select('member_id')
+          .where('decision_id', '=', created.id)
+          .executeTakeFirst(),
       ]);
-      if (created.version > 1 || successorOf || linked || marked || commented)
+      if (created.version > 1 || successorOf || linked || marked || commented || voted)
         throw rule(
           'Der neue Eintrag wird inzwischen weiterverwendet – das lässt sich nicht mehr rückgängig machen.',
         );
