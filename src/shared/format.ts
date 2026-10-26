@@ -3,7 +3,6 @@ import type { TaskStatus } from './schema';
 import { daysUntil, dueState, toIsoDate } from './rules/due';
 
 const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'] as const;
-const MONTHS = ['JAN', 'FEB', 'MÄR', 'APR', 'MAI', 'JUN', 'JUL', 'AUG', 'SEP', 'OKT', 'NOV', 'DEZ'] as const;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const parseIsoDate = (iso: string) => {
@@ -64,16 +63,6 @@ export function formatAgo(iso: string, now: Date): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `vor ${hours} ${hours === 1 ? 'Stunde' : 'Stunden'}`;
   return `am ${formatDayMonth(new Date(iso))}`;
-}
-
-export function eventMonth(iso: string): string {
-  const d = new Date(iso);
-  const year = d.getFullYear() === new Date().getFullYear() ? '' : ` ${String(d.getFullYear()).slice(2)}`;
-  return `${MONTHS[d.getMonth()]!}${year}`;
-}
-
-export function eventDay(iso: string): string {
-  return pad(new Date(iso).getDate());
 }
 
 /** „SA 12.12. · 22:00–06:00“ bzw. mit zweitem Datum, wenn das Ende mehr als einen Tag später liegt */

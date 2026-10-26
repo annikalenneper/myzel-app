@@ -40,7 +40,7 @@ test('WF-TER-01: nach Monat gruppiert, Filter nach Terminart, Vergangene', async
   await expect(page.getByTestId('WF-ALL-05')).toContainText('Keine Termine dieser Art geplant.');
   await page.getByRole('button', { name: 'Alle', exact: true }).click();
 
-  await page.getByRole('button', { name: 'Vergangene' }).click();
+  await page.getByRole('tab', { name: 'VERGANGEN' }).click();
   await expect(page.getByRole('article')).toHaveCount(5);
   await expect(page.getByRole('article').first()).toContainText('Bautag September');
 });
@@ -144,7 +144,7 @@ test('WF-TER-06: vergangener Termin – Teilnahme aus den Zusagen vorbefüllt, K
   await sheet.getByLabel('Beginn *').fill(localInput(-1, '18:00'));
   await sheet.getByLabel('Ort *').fill('Lager');
   await sheet.locator('button[type=submit]').click();
-  await page.getByRole('button', { name: 'Vergangene' }).click();
+  await page.getByRole('tab', { name: 'VERGANGEN' }).click();
   await card(page, 'Lagerbegehung').getByRole('link').click();
 
   const attendance = page.getByRole('group', { name: 'Teilnahme' });

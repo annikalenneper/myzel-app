@@ -16,25 +16,10 @@ import {
 } from '../../shared/rules/appointments';
 import type { RsvpAnswer } from '../../shared/schema';
 import { Avatar, cx, ListSkeleton, LoadError, Pill } from '../../ui/bits';
+import { byMonth, DateBadge, MonthSection, TimeTabs, type TimeTab } from '../../ui/DatedList';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { AppointmentDetail } from './AppointmentDetail';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
-
-const WEEKDAYS = ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA'] as const;
-const MONTHS = [
-  'JANUAR',
-  'FEBRUAR',
-  'MÄRZ',
-  'APRIL',
-  'MAI',
-  'JUNI',
-  'JULI',
-  'AUGUST',
-  'SEPTEMBER',
-  'OKTOBER',
-  'NOVEMBER',
-  'DEZEMBER',
-] as const;
 
 /** „19:00 · ONLINE · LINK IM TERMIN“ / „10:00–16:00 · VOR ORT · LAGER“ / „18:30 · HYBRID · LAGER + CALL“ */
 export function appointmentMeta(a: AppointmentListItem): string {
@@ -95,7 +80,9 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
   const { data: appointments, error, reload } = useData('appointments', () => api.listAppointments());
   const { data: types } = useData('appointment-types', () => api.listAppointmentTypes());
   const [typeId, setTypeId] = useState<string | null>(null);
-  const [past, setPast] = useState(false);
+  // Phase 9: Kommend/Vergangen als Reiter wie bei Events
+  const [tab, setTab] = useState<TimeTab>('kommend');
+  const past = tab === 'vergangen';
   const [creating, setCreating] = useState(false);
   const [now] = useState(() => new Date());
 
@@ -112,13 +99,7 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
   const showLastPlenum = !!lastPlenum && !past && (!typeId || typeId === lastPlenum.type_id);
 
   // WF-TER-01: nach Monat gruppiert
-  const months: { name: string; items: AppointmentListItem[] }[] = [];
-  for (const a of shown) {
-    const d = new Date(a.starts_at);
-    const name = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-    if (months.at(-1)?.name === name) months.at(-1)!.items.push(a);
-    else months.push({ name, items: [a] });
-  }
+  const months = byMonth(shown, (a) => a.starts_at);
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
@@ -155,10 +136,8 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
                 {t.label}
               </Pill>
             ))}
-          <Pill data-wf="WF-TER-01" on={past} onClick={() => setPast(!past)}>
-            Vergangene
-          </Pill>
         </div>
+        <TimeTabs value={tab} onChange={setTab} wf="WF-TER-01" />
       </div>
 
       <div className="flex flex-1 flex-col gap-3 px-5 pt-3.5 pb-[180px] lg:pb-28">
@@ -187,10 +166,8 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
           </section>
         )}
         {months.map((m) => (
-          <section key={m.name} className="flex flex-col gap-3" aria-label={m.name}>
-            <h2 className="label-mono m-0 pt-1 font-normal">{m.name}</h2>
+          <MonthSection key={m.name} name={m.name}>
             {m.items.map((a) => {
-              const d = new Date(a.starts_at);
               const cancelled = a.status === 'abgesagt';
               return (
                 <article
@@ -200,12 +177,7 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
                     a.id === selectedId ? 'bg-erhoeht' : 'bg-flaeche',
                   )}
                 >
-                  <div className="flex h-[58px] w-[52px] flex-none flex-col items-center justify-center gap-0.5 rounded-xl bg-grund">
-                    <span className="font-mono text-[11px] text-leise">{WEEKDAYS[d.getDay()]}</span>
-                    <span className="text-[22px] leading-[1.2] font-bold">
-                      {String(d.getDate()).padStart(2, '0')}
-                    </span>
-                  </div>
+                  <DateBadge iso={a.starts_at} />
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5 pr-9">
                     <span className="label-mono flex items-center gap-1.5">
                       <span className="size-2 flex-none rounded-full" style={{ background: a.type_color }} />
@@ -258,7 +230,7 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
                 </article>
               );
             })}
-          </section>
+          </MonthSection>
         ))}
         {/* WF-ALL-05 Leerzustand */}
         {appointments && shown.length === 0 && (
@@ -289,7 +261,7 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
           onClose={() => setCreating(false)}
           onCreated={() => {
             setTypeId(null);
-            setPast(false);
+            setTab('kommend');
           }}
         />
       )}

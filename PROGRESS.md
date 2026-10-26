@@ -120,6 +120,20 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         sehen sie), N3 (Profil lädt die Liste nicht nur für die Anzahl), N4 (angefangener Wunsch beim Öffnen wieder da),
         N5 (Rechte-Test für die neuen Tabellen) behoben; N1, N2 → U21
 
+- [ ] **Phase 9 – Verbesserungen (Nutzerin, 26.10.2026)** (lokal, Deploy nach Freigabe):
+  - [x] Termine: Kommend/Vergangen als Reiter unter den Filtern, wie bei Events
+  - [x] Events: Karten wie bei Terminen – Monats-Überschriften, Datum ohne Monat auf der Karte
+  - [ ] Event-Detail: „Aufgaben und offene Fragen zu diesem Event“ gehört ins Event, nicht in die Aufgabe; aus der
+        Aufgabe führt ein Link zum Event
+  - [ ] Event-Detail: „+ Aufgabe“ fragt: bestehende Aufgabe verknüpfen oder neue anlegen
+  - [ ] Event-Detail: Fakten und Entscheidungen auch dort anlegen, wo Aufgabe, Frage und „Aus Vorlage …“ stehen
+  - [ ] Event- und Entscheidungs-Detail: Kommentare und Verlauf in zwei Reitern wie bei Aufgaben
+  - [ ] „In Arbeit“ trägt die Person nicht mehr automatisch ein
+  - [ ] Aufgabe anlegen: gleich mit Beschreibung und Zuordnung
+  - [ ] Zuordnung: Option „Alle“
+  - [ ] Aufgabenkarte: kein Überlauf bei vielen Zugeordneten
+  - [ ] Alle Artefakte löschen (archivieren), mit Rückfrage
+
 ## Messungen
 
 Live am 25.10.2026 (Deploy defc1e1), typische Werte je Anfrage aus dem Netlify-Log. Function läuft in us-east-2

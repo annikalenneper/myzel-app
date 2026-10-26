@@ -23,6 +23,11 @@ test('WF-VER-01: kommend und vergangen nach Datum, mit Status und Fortschritt', 
   await expect(cards.nth(0)).toContainText('Siebdruck-Workshop');
   await expect(cards.nth(0)).toContainText('Bestätigt');
   await expect(cards.nth(0)).toContainText('3/4');
+  // Phase 9: wie die Termine nach Monat gruppiert, die Karte zeigt Wochentag und Tag
+  await expect(page.getByRole('tabpanel').getByRole('heading', { level: 2 }).first()).toHaveText(
+    /^[A-ZÄ]+ \d{4}$/,
+  );
+  await expect(cards.nth(0)).toContainText(/^(MO|DI|MI|DO|FR|SA|SO)\d{2}/);
   await expect(cards.nth(1)).toContainText('Winterrave');
   await expect(cards.nth(1)).toContainText('4/9');
 
