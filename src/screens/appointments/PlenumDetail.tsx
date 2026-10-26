@@ -11,6 +11,7 @@ import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { PlenumDetail as Detail } from '../../data/api';
 import { formatEventRange } from '../../shared/format';
+import { CalendarLinks } from './CalendarLinks';
 import {
   APPOINTMENT_STATUS_COLOR,
   APPOINTMENT_STATUS_LABEL,
@@ -156,6 +157,7 @@ function Loaded({ p }: { p: Detail }) {
           <span className="font-mono text-[13px] text-weich uppercase">
             {formatEventRange(p.starts_at, p.ends_at)}
           </span>
+          {open && <CalendarLinks a={p} />}
         </div>
 
         {p.online_url && open && (

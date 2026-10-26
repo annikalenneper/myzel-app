@@ -196,3 +196,25 @@ test('WF-ADM-06: Terminarten anlegen, bearbeiten, löschen; belegte nur archivie
   await edit.getByRole('button', { name: 'Archivieren' }).click();
   await expect(page.getByRole('button', { name: /Bautag/ })).toContainText(/Archiviert/i);
 });
+
+test('WF-TER-11: Termin in Google Kalender eintragen oder als .ics herunterladen', async ({ page }) => {
+  await open(page);
+  await card(page, 'Vorbesprechung Winterrave').getByRole('link').first().click();
+  const google = page.getByRole('link', { name: 'In Google Kalender eintragen ↗' });
+  await expect(google).toHaveAttribute(
+    'href',
+    /^https:\/\/calendar\.google\.com\/calendar\/render\?action=TEMPLATE/,
+  );
+  await expect(google).toHaveAttribute('href', /text=Vorbesprechung\+Winterrave/);
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '.ics herunterladen' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^Vorbesprechung-Winterrave[A-Za-z0-9-]*\.ics$/);
+  const path = await download.path();
+  const { readFile } = await import('node:fs/promises');
+  const ics = await readFile(path, 'utf8');
+  expect(ics).toContain('BEGIN:VEVENT');
+  expect(ics).toContain('SUMMARY:Vorbesprechung Winterrave');
+  expect(ics).toMatch(/DTSTART:\d{8}T\d{6}Z/);
+});

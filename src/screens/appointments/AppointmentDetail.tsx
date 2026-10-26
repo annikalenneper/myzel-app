@@ -1,4 +1,4 @@
-// S-32 Termin – Detail · P3 (Serien kommen in P6)
+// S-32 Termin – Detail · P3 (Serien kommen in P6); in den eigenen Kalender übernehmen (WF-TER-11, 16.5)
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useNow } from '../../app/useNow';
@@ -27,6 +27,7 @@ import { HistoryList } from '../../ui/HistoryList';
 import { entityHistorySentence } from '../../shared/entityHistory';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
+import { CalendarLinks } from './CalendarLinks';
 import { rsvpButton, useRsvp } from './AppointmentsScreen';
 import { PlenumDetail } from './PlenumDetail';
 import { SeriesSheet } from './SeriesSheet';
@@ -158,6 +159,7 @@ function Loaded({ a }: { a: Detail }) {
               Zum Call ↗
             </a>
           )}
+          {!cancelled && <CalendarLinks a={a} />}
         </div>
 
         {cancelled && (

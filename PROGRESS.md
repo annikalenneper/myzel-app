@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Umbau 10/2026, Phase 7.** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Umbau 10/2026, Phase 8.** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
@@ -88,7 +88,10 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         ergänzt), M1 („+“ übernimmt auch im Termin dessen Veranstaltung, Dokumente gehen an den Termin; in der auf eine
         Veranstaltung gefilterten Agenda deren Veranstaltung), M2 (Desktop-Test für die Vorbelegung, Partner wird wirklich
         angelegt), N1 (Schein des „+“ als Token) behoben; N2 (Entscheidung und Fakt teilen WF-WIS-01) bleibt so
-- [ ] **Phase 7 – Google Kalender:** Link „In Google Kalender eintragen“ und .ics-Download je Termin
+- [x] **Phase 7 – Google Kalender** (lokal, ohne Migration):
+  - [x] Termin- und Plenum-Detail: „In Google Kalender eintragen ↗“ und „.ics herunterladen“ (WF-TER-11); Titel, Zeit in
+        UTC, Ort bzw. Call-Link, Beschreibung mit Link zurück in Myzel; die .ics-UID ist je Termin fest, ein erneuter
+        Import ersetzt den alten Eintrag. Nicht bei abgesagten Terminen und abgeschlossenen Plena
 - [ ] **Phase 8 – App-Report und Versions-Info:** Bug/Feature-Wunsch melden, Admin-Liste; Version, Changelog,
       Hinweis auf neue Version
 
@@ -157,6 +160,7 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | U18 | 28.10.2026 | Neue Workflow-ID WF-WIS-13 „Entscheidung bestätigen oder widersprechen“. Abstimmen dürfen alle aktiven Mitglieder, auch wer die Entscheidung angelegt hat (keine automatische Bestätigung). Stimmen Deaktivierter zählen nicht mehr.                  | Annahme |
 | U19 | 28.10.2026 | Offene Entscheidungen lassen sich wie gültige bearbeiten, ersetzen und aufheben; so wird ein Widerspruch nach dem Gespräch aufgelöst (oder die Person nimmt ihn zurück). Bearbeiten setzt die Stimmen nicht zurück.                                   | Annahme |
 | F3  | 28.10.2026 | Sollen alle eine Benachrichtigung bekommen, wenn eine neue Entscheidung zum Bestätigen da ist (und kurz vor Fristende)? Bisher sieht man sie nur unter Wissen; ohne Stimme gilt sie nach der Frist.                                                   | offen   |
+| U20 | 28.10.2026 | Kalender (16.5): neue Workflow-ID WF-TER-11. Termine ohne Ende stehen im Kalender mit 1 Stunde, ein Plenum mit 3 Stunden (wie U4). Die Datei wird im Browser erzeugt, ohne Abo; spätere Änderungen am Termin kommen nicht von selbst in den Kalender. | Annahme |
 | F2  | 27.10.2026 | Ergebnis: Eine Frage steht einmal („Beantwortet: …“), ihre Entscheidungen/Fakten je einmal mit „(aus der Frage …)“. Passt das, oder sollen die Ergebnisse unter der Frage stehen und die Frage-Zeile entfallen?                                       | offen   |
 
 ## Entscheidungsprotokoll
