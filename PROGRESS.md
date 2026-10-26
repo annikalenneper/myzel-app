@@ -123,7 +123,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
 - [ ] **Phase 9 – Verbesserungen (Nutzerin, 26.10.2026)** (lokal, Deploy nach Freigabe):
   - [x] Termine: Kommend/Vergangen als Reiter unter den Filtern, wie bei Events
   - [x] Events: Karten wie bei Terminen – Monats-Überschriften, Datum ohne Monat auf der Karte
-  - [ ] Event-Detail: „Aufgaben und offene Fragen zu diesem Event“ gehört ins Event, nicht in die Aufgabe; aus der
+  - [x] Event-Detail: „Aufgaben und offene Fragen zu diesem Event“ gehört ins Event, nicht in die Aufgabe; aus der
         Aufgabe führt ein Link zum Event
   - [ ] Event-Detail: „+ Aufgabe“ fragt: bestehende Aufgabe verknüpfen oder neue anlegen
   - [ ] Event-Detail: Fakten und Entscheidungen auch dort anlegen, wo Aufgabe, Frage und „Aus Vorlage …“ stehen

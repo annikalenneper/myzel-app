@@ -1,6 +1,8 @@
-// 16.3: Aufgaben und offene Fragen einer Veranstaltung – die Agenda, gefiltert auf diese Veranstaltung
-import { useNavigate } from 'react-router-dom';
+// 16.3: Aufgaben und offene Fragen einer Veranstaltung – die Agenda, gefiltert auf die Veranstaltung (Link im
+// Event-Detail). Aus Aufgabe, Frage oder Entscheidung führt ein Link zur Veranstaltung selbst (Phase 9).
+import { Link, useNavigate } from 'react-router-dom';
 import { DEFAULT_AGENDA_FILTER, useAgendaFilter } from '../../app/agendaFilter';
+import { useLookups } from '../../app/lookups';
 
 /** setzt den Filter der Agenda auf die Veranstaltung und öffnet sie */
 export function useShowEventOnAgenda() {
@@ -12,16 +14,18 @@ export function useShowEventOnAgenda() {
   };
 }
 
-export function EventAgendaLink({ eventId }: { eventId: string }) {
-  const show = useShowEventOnAgenda();
+/** „Zum Event: Winterrave ›“ – aus einem Eintrag zur Veranstaltung, zu der er gehört */
+export function EventLink({ eventId }: { eventId: string }) {
+  const { eventById } = useLookups();
+  const event = eventById.get(eventId);
+  if (!event) return null;
   return (
-    <button
-      type="button"
-      data-wf="WF-AGE-02"
-      onClick={() => show(eventId)}
-      className="hit flex min-h-11 items-center self-start text-left text-[14px] text-pink"
+    <Link
+      to={`/events/${event.id}`}
+      data-wf="WF-VER-01"
+      className="hit flex min-h-11 items-center self-start text-left text-[14px] text-pink no-underline"
     >
-      Aufgaben und offene Fragen zu diesem Event →
-    </button>
+      Zum Event: {event.title} ›
+    </Link>
   );
 }

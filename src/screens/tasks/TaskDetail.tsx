@@ -18,7 +18,7 @@ import { PRIORITIES, TASK_STATUSES, type Member, type TaskStatus } from '../../s
 import { Avatar, cx, FieldError, ListSkeleton, LoadError, PriorityBars } from '../../ui/bits';
 import { DateTile } from '../../ui/DateTile';
 import { IconBack, IconMore } from '../../ui/icons';
-import { EventAgendaLink } from '../agenda/EventAgendaLink';
+import { EventLink } from '../agenda/EventAgendaLink';
 import { LinkedDocuments } from '../knowledge/LinkedDocuments';
 import { CommentBar, CommentRow } from '../../ui/Comments';
 import { ArchiveSheet, BlockSheet, DiscardSheet, PeopleSheet, PickerSheet } from './sheets';
@@ -451,7 +451,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
               )}
             </FieldTile>
           </div>
-          {event && <EventAgendaLink eventId={event.id} />}
+          {event && <EventLink eventId={event.id} />}
 
           <Description task={task} act={act} />
 

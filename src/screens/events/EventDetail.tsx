@@ -217,7 +217,7 @@ function Loaded({ event }: { event: Detail }) {
             aria-label="Aufgaben und offene Fragen zu diesem Event"
             className="-mt-2.5 -mb-1 flex min-h-11 flex-wrap items-center justify-between gap-x-3 text-left text-[14px] text-text"
           >
-            <span className="font-semibold">Aufgaben und offene Fragen ›</span>
+            <span className="font-semibold">Aufgaben und offene Fragen zu diesem Event ›</span>
             <span className="font-mono text-[12px] text-leise">
               {event.task_total
                 ? `${event.task_done} VON ${event.task_total} ERLEDIGT`

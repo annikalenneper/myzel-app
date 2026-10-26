@@ -19,7 +19,7 @@ import {
 } from '../../shared/rules/knowledge';
 import { cx, FieldError, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
 import { Sheet } from '../../ui/Sheet';
-import { EventAgendaLink } from '../agenda/EventAgendaLink';
+import { EventLink } from '../agenda/EventAgendaLink';
 import {
   ActionBar,
   BACK_TO_AGENDA,
@@ -94,7 +94,7 @@ function Loaded({ q }: { q: Detail }) {
             {formatDayMonth(new Date(q.created_at))}
           </span>
         </div>
-        {event && <EventAgendaLink eventId={event.id} />}
+        {event && <EventLink eventId={event.id} />}
         {q.description && (
           <div className="text-[15px] leading-normal whitespace-pre-wrap text-weich">{q.description}</div>
         )}
