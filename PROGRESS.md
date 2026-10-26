@@ -127,7 +127,8 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         Aufgabe führt ein Link zum Event
   - [x] Event-Detail: „+ Aufgabe“ fragt: bestehende Aufgabe verknüpfen oder neue anlegen
   - [x] Event-Detail: Fakten und Entscheidungen auch dort anlegen, wo Aufgabe, Frage und „Aus Vorlage …“ stehen
-  - [ ] Event- und Entscheidungs-Detail: Kommentare und Verlauf in zwei Reitern wie bei Aufgaben
+  - [x] Event- und Entscheidungs-Detail: Kommentare und Verlauf in zwei Reitern wie bei Aufgaben – einheitlich auch in
+        Frage, Termin, Plenum und Partner
   - [x] „In Arbeit“ trägt die Person nicht mehr automatisch ein
   - [x] Aufgabe anlegen: gleich mit Beschreibung und Zuordnung
   - [x] Zuordnung: Option „Alle“

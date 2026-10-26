@@ -28,7 +28,7 @@ import {
   NotFound,
   StatusPill,
 } from './DetailParts';
-import { CommentsSection } from '../../ui/Comments';
+import { CommentsAndHistory } from '../../ui/Comments';
 import { DecisionSheet, QuestionEditSheet } from './KnowledgeSheets';
 
 export function QuestionDetail({ questionId }: { questionId: string }) {
@@ -134,8 +134,13 @@ function Loaded({ q }: { q: Detail }) {
             </span>
           )}
         </section>
-        <CommentsSection target="question" targetId={q.id} comments={q.comments} archived={!!q.archived_at} />
-        <KnowledgeHistory history={q.history} noun="Frage" />
+        <CommentsAndHistory
+          target="question"
+          targetId={q.id}
+          comments={q.comments}
+          archived={!!q.archived_at}
+          history={<KnowledgeHistory heading={false} history={q.history} noun="Frage" />}
+        />
       </div>
 
       {open ? (

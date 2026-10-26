@@ -7,7 +7,7 @@ import { ListDetailLayout } from '../../app/AppShell';
 import { BarOffset, useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
 import { entityHistorySentence } from '../../shared/entityHistory';
-import { CommentsSection } from '../../ui/Comments';
+import { CommentsAndHistory } from '../../ui/Comments';
 import { HistoryList } from '../../ui/HistoryList';
 import { useActions } from '../../app/useActions';
 import { useData } from '../../app/useData';
@@ -232,15 +232,23 @@ function Loaded({ p }: { p: Detail }) {
             <span className="text-[14px] text-leise">Noch bei keiner Veranstaltung dabei.</span>
           )}
         </div>
-        <CommentsSection target="partner" targetId={p.id} comments={p.comments} archived={!!p.archived_at} />
-        <HistoryList
-          entries={p.history}
-          sentence={(h) =>
-            entityHistorySentence(h, 'Partner', {
-              memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
-              topicName,
-              eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
-            })
+        <CommentsAndHistory
+          target="partner"
+          targetId={p.id}
+          comments={p.comments}
+          archived={!!p.archived_at}
+          history={
+            <HistoryList
+              heading={false}
+              entries={p.history}
+              sentence={(h) =>
+                entityHistorySentence(h, 'Partner', {
+                  memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+                  topicName,
+                  eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
+                })
+              }
+            />
           }
         />
       </div>

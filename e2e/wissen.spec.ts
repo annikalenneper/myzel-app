@@ -78,6 +78,7 @@ test('WF-WIS-02 / -03 / WF-AGE-03: Entscheidung auf die Agenda, ersetzen (mit R�
   await expect(page.getByText('→ ersetzt durch: Eintritt auf Spende, Richtwert 5–10 €')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Ersetzen', exact: true })).toHaveCount(0);
   // der Eintrag geht von der Agenda – ohne eigenen Satz in der Historie
+  await page.getByRole('tab', { name: 'VERLAUF' }).click();
   await expect(page.getByText('Mo hat die Entscheidung ersetzt.', { exact: true })).toBeVisible();
 
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
@@ -261,6 +262,7 @@ test('WF-WIS-13: offene Entscheidung bestätigen, widersprechen – Widerspruch 
   await expect(undoBar(page)).toContainText('Widersprochen · auf der Agenda');
   await expect(box).toContainText('Widerspruch – die Entscheidung bleibt offen');
   await expect(box).toContainText('Widerspruch: Mo');
+  await page.getByRole('tab', { name: 'VERLAUF' }).click();
   await expect(page.getByText('Mo hat widersprochen.')).toBeVisible();
 
   await page.goto('/agenda');

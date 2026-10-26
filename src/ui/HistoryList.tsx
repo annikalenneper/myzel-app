@@ -5,13 +5,16 @@ import type { HistoryEntry } from '../shared/schema';
 export function HistoryList({
   entries,
   sentence,
+  heading = true,
 }: {
   entries: HistoryEntry[];
   sentence: (entry: HistoryEntry) => string;
+  /** ohne Überschrift, wenn ein Reiter sie schon nennt */
+  heading?: boolean;
 }) {
   return (
     <section aria-label="Verlauf" className="flex flex-col gap-2">
-      <span className="label-mono">Verlauf</span>
+      {heading && <span className="label-mono">Verlauf</span>}
       <div className="flex flex-col">
         {entries.map((h) => (
           <div key={h.id} className="flex gap-3 border-b border-erhoeht py-2.5 last:border-b-0">

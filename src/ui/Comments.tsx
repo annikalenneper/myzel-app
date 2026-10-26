@@ -1,6 +1,6 @@
 // Kommentare an allen Artefakten (16.3): eine Zeile je Kommentar, unten das Eingabefeld. Gemeinsam für Aufgabe,
 // Frage, Entscheidung/Fakt, Veranstaltung, Termin und Partner.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { clearDraft, readDraft, writeDraft } from '../app/drafts';
 import { useLookups } from '../app/lookups';
 import { useMe } from '../app/session';
@@ -222,6 +222,7 @@ export function CommentsSection({
   comments,
   archived = false,
   wf = 'WF-ALL-07',
+  heading = true,
 }: {
   target: CommentTarget;
   targetId: string;
@@ -229,13 +230,15 @@ export function CommentsSection({
   /** archiviert: nur lesen */
   archived?: boolean;
   wf?: string;
+  /** ohne Überschrift, wenn ein Reiter sie schon nennt */
+  heading?: boolean;
 }) {
   const act = useActions();
   const me = useMe();
   const { memberById } = useLookups();
   return (
     <section aria-label="Kommentare" className="flex flex-col gap-3">
-      <span className="label-mono">Kommentare · {comments.length}</span>
+      {heading && <span className="label-mono">Kommentare · {comments.length}</span>}
       {comments.length === 0 && (
         <span className="text-[14px] text-leise">
           Noch keine Kommentare.{!archived && ' Schreib den ersten unten ins Feld.'}
@@ -253,5 +256,67 @@ export function CommentsSection({
       ))}
       {!archived && <CommentBar target={target} targetId={targetId} act={act} wf={wf} inline />}
     </section>
+  );
+}
+
+/**
+ * Phase 9: Kommentare und Verlauf in zwei Reitern wie bei Aufgaben – für alle Detailansichten. Der Verlauf kommt
+ * fertig gerendert (je Art eigene Sätze).
+ */
+export function CommentsAndHistory({
+  target,
+  targetId,
+  comments,
+  archived = false,
+  history,
+  historyWf = 'WF-ALL-07',
+}: {
+  target: CommentTarget;
+  targetId: string;
+  comments: Comment[];
+  archived?: boolean;
+  history: ReactNode;
+  historyWf?: string;
+}) {
+  const [tab, setTab] = useState<'comments' | 'history'>('comments');
+  return (
+    <div className="flex flex-col gap-3.5">
+      <div role="tablist" className="flex gap-[22px] border-b border-linie">
+        {(
+          [
+            ['comments', 'WF-ALL-07', `KOMMENTARE · ${comments.length}`],
+            ['history', historyWf, 'VERLAUF'],
+          ] as const
+        ).map(([key, wf, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            data-wf={wf}
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={cx(
+              '-mb-px min-h-11 border-b-2 py-2.5 font-mono text-[12px]',
+              tab === key ? 'border-pink text-text' : 'border-transparent text-leise',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel">
+        {tab === 'comments' ? (
+          <CommentsSection
+            target={target}
+            targetId={targetId}
+            comments={comments}
+            archived={archived}
+            heading={false}
+          />
+        ) : (
+          history
+        )}
+      </div>
+    </div>
   );
 }

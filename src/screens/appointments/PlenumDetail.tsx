@@ -25,7 +25,7 @@ import type { Member } from '../../shared/schema';
 import { Avatar, cx, FieldError, GhostButton, ListSkeleton, LoadError } from '../../ui/bits';
 import { IconMore } from '../../ui/icons';
 import { Sheet } from '../../ui/Sheet';
-import { CommentsSection } from '../../ui/Comments';
+import { CommentsAndHistory } from '../../ui/Comments';
 import { HistoryList } from '../../ui/HistoryList';
 import { entityHistorySentence } from '../../shared/entityHistory';
 import { ConfirmDialog } from '../knowledge/DetailParts';
@@ -309,20 +309,23 @@ function Loaded({ p }: { p: Detail }) {
         {tab === 'protokoll' && <Protocol p={p} />}
 
         {/* 16.3: Kommentare und Verlauf wie an jedem Termin */}
-        <CommentsSection
+        <CommentsAndHistory
           target="appointment"
           targetId={p.id}
           comments={p.comments}
           archived={!!p.archived_at}
-        />
-        <HistoryList
-          entries={p.history}
-          sentence={(h) =>
-            entityHistorySentence(h, 'Termin', {
-              memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
-              topicName,
-              eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
-            })
+          history={
+            <HistoryList
+              heading={false}
+              entries={p.history}
+              sentence={(h) =>
+                entityHistorySentence(h, 'Termin', {
+                  memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+                  topicName,
+                  eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
+                })
+              }
+            />
           }
         />
       </div>

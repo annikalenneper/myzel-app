@@ -32,7 +32,7 @@ import {
   type BackTarget,
 } from './DetailParts';
 import { LinkedDocuments } from './LinkedDocuments';
-import { CommentsSection } from '../../ui/Comments';
+import { CommentsAndHistory } from '../../ui/Comments';
 import { EventLink } from '../agenda/EventAgendaLink';
 import { ConsensusUntilField, DecisionEditSheet, Segmented, TextField } from './KnowledgeSheets';
 import { EMPTY_SOURCE, SourceFields, sourceReady, type SourceValue } from './SourceFields';
@@ -284,8 +284,13 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
         />
 
         {event && <EventLink eventId={event.id} />}
-        <CommentsSection target="decision" targetId={d.id} comments={d.comments} archived={!!d.archived_at} />
-        <KnowledgeHistory history={d.history} noun={noun} />
+        <CommentsAndHistory
+          target="decision"
+          targetId={d.id}
+          comments={d.comments}
+          archived={!!d.archived_at}
+          history={<KnowledgeHistory heading={false} history={d.history} noun={noun} />}
+        />
       </div>
 
       {active && (

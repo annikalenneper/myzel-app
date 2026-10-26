@@ -93,9 +93,12 @@ export function StatusPill({ label, tone }: { label: string; tone: 'gruen' | 'be
 export function KnowledgeHistory({
   history,
   noun,
+  heading = true,
 }: {
   history: HistoryEntry[];
   noun: 'Entscheidung' | 'Fakt' | 'Frage';
+  /** ohne Überschrift, wenn ein Reiter sie schon nennt */
+  heading?: boolean;
 }) {
   const { memberById, topicName, eventById } = useLookups();
   const { data: appointments } = useData('appointments', () => api.listAppointments());
@@ -107,7 +110,7 @@ export function KnowledgeHistory({
   };
   return (
     <div className="flex flex-col gap-2">
-      <span className="label-mono">Verlauf</span>
+      {heading && <span className="label-mono">Verlauf</span>}
       <div className="flex flex-col">
         {history.map((h) => (
           <div key={h.id} className="flex gap-3 border-b border-erhoeht py-2.5 last:border-b-0">

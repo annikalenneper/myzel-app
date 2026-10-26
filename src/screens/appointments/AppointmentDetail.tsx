@@ -22,7 +22,7 @@ import { Avatar, cx, GhostButton, ListSkeleton, LoadError } from '../../ui/bits'
 import { IconBack } from '../../ui/icons';
 import { ConfirmDialog } from '../knowledge/DetailParts';
 import { LinkedDocuments } from '../knowledge/LinkedDocuments';
-import { CommentsSection } from '../../ui/Comments';
+import { CommentsAndHistory } from '../../ui/Comments';
 import { HistoryList } from '../../ui/HistoryList';
 import { entityHistorySentence } from '../../shared/entityHistory';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
@@ -327,20 +327,23 @@ function Loaded({ a }: { a: Detail }) {
           </div>
         )}
 
-        <CommentsSection
+        <CommentsAndHistory
           target="appointment"
           targetId={a.id}
           comments={a.comments}
           archived={!!a.archived_at}
-        />
-        <HistoryList
-          entries={a.history}
-          sentence={(h) =>
-            entityHistorySentence(h, 'Termin', {
-              memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
-              topicName,
-              eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
-            })
+          history={
+            <HistoryList
+              heading={false}
+              entries={a.history}
+              sentence={(h) =>
+                entityHistorySentence(h, 'Termin', {
+                  memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+                  topicName,
+                  eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
+                })
+              }
+            />
           }
         />
       </div>

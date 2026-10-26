@@ -22,7 +22,7 @@ import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
 import { useShowEventOnAgenda } from '../agenda/EventAgendaLink';
 import { LinkedDocuments } from '../knowledge/LinkedDocuments';
 import { DecisionSheet, QuestionSheet } from '../knowledge/KnowledgeSheets';
-import { CommentsSection } from '../../ui/Comments';
+import { CommentsAndHistory } from '../../ui/Comments';
 import { HistoryList } from '../../ui/HistoryList';
 import { entityHistorySentence } from '../../shared/entityHistory';
 import { DECISION_KIND_LABEL, DECISION_STATUS_LABEL, decisionActive } from '../../shared/rules/knowledge';
@@ -421,20 +421,23 @@ function Loaded({ event }: { event: Detail }) {
           )}
         </section>
 
-        <CommentsSection
+        <CommentsAndHistory
           target="event"
           targetId={event.id}
           comments={event.comments}
           archived={!!event.archived_at}
-        />
-        <HistoryList
-          entries={event.history}
-          sentence={(h) =>
-            entityHistorySentence(h, 'Veranstaltung', {
-              memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
-              topicName,
-              eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
-            })
+          history={
+            <HistoryList
+              heading={false}
+              entries={event.history}
+              sentence={(h) =>
+                entityHistorySentence(h, 'Veranstaltung', {
+                  memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+                  topicName,
+                  eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
+                })
+              }
+            />
           }
         />
       </div>
