@@ -44,6 +44,7 @@ const SCOPES: [AgendaScope, string][] = [
   ['alle', 'Alle'],
   ['meine', 'Meine'],
   ['folge', 'Folge ich'],
+  ['fragen', 'Nur Fragen'],
 ];
 const ALL = '__alle__';
 
@@ -99,7 +100,14 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
   }, [questions, filter, me.id, topics]);
   // „Stimmt das noch?“: nur in der offenen Agenda, ohne Einschränkung auf Personen, Status oder Veranstaltung
   const toReview = useMemo(() => {
-    if (filter.done || filter.scope !== 'alle' || filter.status || filter.eventId) return [];
+    // „Nur Fragen“ zeigt sie mit – nur Aufgaben fallen weg
+    if (
+      filter.done ||
+      (filter.scope !== 'alle' && filter.scope !== 'fragen') ||
+      filter.status ||
+      filter.eventId
+    )
+      return [];
     const topicIds = filter.topicId ? topicFilterIds(filter.topicId, topics) : null;
     return (decisions ?? []).filter(
       (d) => d.marked && decisionActive(d.status) && (!topicIds || topicIds.has(d.topic_id)),
@@ -163,12 +171,19 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
       pick: (key) => setFilter({ eventId: key === ALL ? null : key }),
     },
   };
-  const pills: [Exclude<OpenMenu, null>, string, boolean][] = [
-    ['scope', SCOPES.find(([k]) => k === filter.scope)![1], filter.scope !== 'alle'],
-    ['thema', filter.topicId ? topicName(filter.topicId) : 'Thema', !!filter.topicId],
-    ['status', filter.status ? TASK_STATUS_LABEL[filter.status] : 'Status', !!filter.status],
-    ['event', (filter.eventId && eventById.get(filter.eventId)?.title) || 'Veranstaltung', !!filter.eventId],
-  ];
+  // der Status gilt nur für Aufgaben – bei „Nur Fragen“ ohne Bedeutung
+  const pills = (
+    [
+      ['scope', SCOPES.find(([k]) => k === filter.scope)![1], filter.scope !== 'alle'],
+      ['thema', filter.topicId ? topicName(filter.topicId) : 'Thema', !!filter.topicId],
+      ['status', filter.status ? TASK_STATUS_LABEL[filter.status] : 'Status', !!filter.status],
+      [
+        'event',
+        (filter.eventId && eventById.get(filter.eventId)?.title) || 'Veranstaltung',
+        !!filter.eventId,
+      ],
+    ] satisfies [Exclude<OpenMenu, null>, string, boolean][]
+  ).filter(([key]) => key !== 'status' || filter.scope !== 'fragen');
 
   const filtered = filter.scope !== 'alle' || !!filter.topicId || !!filter.status || !!filter.eventId;
   const loaded = !!tasks && !!questions;

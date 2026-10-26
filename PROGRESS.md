@@ -148,6 +148,8 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         Testdaten-Schicht), M4 (Historie für „Alle“ in einer Abfrage), N1 (Agenda-Filter auf gelöschtes Event wird
         zurückgesetzt), N2–N5 behoben; offen: Rückgängig von „Alle“ löscht weiter eintragsweise (selten)
 
+- [x] **Kleinigkeiten (Nutzerin, 26.10.2026):** kein „+“ im Profil und in der Verwaltung; Grundmenge der Agenda um
+      „Nur Fragen“ erweitert – zeigt offene Fragen und „Stimmt das noch?“, keine Aufgaben, ohne Status-Filter
 - [ ] **Phase 11 – Archiv im Profil (geplant, F4; noch nicht umsetzen)**
   - [ ] Profil › „Archiv“: alles Gelöschte an einem Ort, gruppiert nach Art (Aufgaben, Veranstaltungen, Termine,
         Entscheidungen & Fakten, Fragen, Dokumente, Partner), zuletzt Gelöschtes zuerst, mit „gelöscht von … am …“

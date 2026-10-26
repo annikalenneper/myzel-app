@@ -6,7 +6,8 @@ import { isActiveTaskStatus } from '../shared/rules/taskStatus';
 import { topicFilterIds } from '../shared/rules/topics';
 import type { TaskStatus, Topic } from '../shared/schema';
 
-export type AgendaScope = 'alle' | 'meine' | 'folge';
+/** „Nur Fragen“ (Nutzerin, 26.10.2026): Fragen ohne Aufgaben */
+export type AgendaScope = 'alle' | 'meine' | 'folge' | 'fragen';
 
 export interface AgendaFilter {
   /** Grundmenge: bei Fragen heißt „Meine“ selbst gestellt; Fragen haben keine Folgenden */
@@ -35,6 +36,7 @@ export function applyTaskFilter(
   meId: string,
   topics: readonly TopicRef[],
 ): TaskListItem[] {
+  if (filter.scope === 'fragen') return [];
   const topicIds = filter.topicId ? topicFilterIds(filter.topicId, topics) : null;
   return tasks.filter((t) => {
     if (filter.done === isActiveTaskStatus(t.status)) return false;
@@ -79,6 +81,8 @@ export function AgendaFilterProvider({ children }: { children: ReactNode }) {
       setFilter: (patch) =>
         setState((prev) => {
           const next = { ...prev, ...patch };
+          // „Nur Fragen“: ein Statusfilter für Aufgaben passt nicht dazu
+          if (next.scope === 'fragen') next.status = null;
           // Reiter wechseln: ein Statusfilter der anderen Gruppe passt nicht mehr
           if (next.status && next.done === isActiveTaskStatus(next.status)) next.status = null;
           return next;

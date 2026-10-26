@@ -545,3 +545,17 @@ test('WF-AUF-10: „Alle“ in der Aufgabe trägt alle Fehlenden ein, mit Rückg
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
   await expect(page.getByRole('button', { name: 'Bearbeitende entfernen: Paula' })).toHaveCount(0);
 });
+
+test('WF-AUF-01: Grundmenge „Nur Fragen“ zeigt Fragen und „Stimmt das noch?“, keine Aufgaben', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Alle ▾' }).click();
+  await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Nur Fragen' }).click();
+  await expect(page.getByRole('article')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /Machen wir an Silvester eine Party/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Awareness-Team mit mindestens 4 Personen/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Status ▾' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Nur Fragen ▾' }).click();
+  await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Alle' }).click();
+  await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
+});
