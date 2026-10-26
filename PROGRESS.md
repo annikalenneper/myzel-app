@@ -125,8 +125,8 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Events: Karten wie bei Terminen – Monats-Überschriften, Datum ohne Monat auf der Karte
   - [x] Event-Detail: „Aufgaben und offene Fragen zu diesem Event“ gehört ins Event, nicht in die Aufgabe; aus der
         Aufgabe führt ein Link zum Event
-  - [ ] Event-Detail: „+ Aufgabe“ fragt: bestehende Aufgabe verknüpfen oder neue anlegen
-  - [ ] Event-Detail: Fakten und Entscheidungen auch dort anlegen, wo Aufgabe, Frage und „Aus Vorlage …“ stehen
+  - [x] Event-Detail: „+ Aufgabe“ fragt: bestehende Aufgabe verknüpfen oder neue anlegen
+  - [x] Event-Detail: Fakten und Entscheidungen auch dort anlegen, wo Aufgabe, Frage und „Aus Vorlage …“ stehen
   - [ ] Event- und Entscheidungs-Detail: Kommentare und Verlauf in zwei Reitern wie bei Aufgaben
   - [x] „In Arbeit“ trägt die Person nicht mehr automatisch ein
   - [x] Aufgabe anlegen: gleich mit Beschreibung und Zuordnung

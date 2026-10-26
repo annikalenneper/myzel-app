@@ -93,7 +93,11 @@ test('WF-VER-05 / WF-AGE-02: Aufgabe aus der Veranstaltung anlegen, Fortschritt 
 }) => {
   await page.getByRole('link', { name: /Winterrave/ }).click();
   await expect(page.getByText('4 VON 9 ERLEDIGT · 1 ÜBERFÄLLIG')).toBeVisible();
-  await page.getByTestId('WF-VER-05').click();
+  await page.getByRole('button', { name: '+ Aufgabe' }).click();
+  await page
+    .getByRole('dialog', { name: 'Aufgabe zum Event' })
+    .getByRole('button', { name: '+ Neue Aufgabe anlegen' })
+    .click();
   const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
   await expect(sheet).toContainText(/Veranstaltung: Winterrave/i);
   await sheet.getByLabel('Titel *').fill('Garderobe organisieren');
@@ -144,4 +148,23 @@ test('WF-VER-04: Absagen ist endgültig; Abschließen ohne offene Aufgaben fragt
   await expect(eventStatus(page, 'Abgesagt')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('Abgesagt – der Status lässt sich nicht mehr ändern.')).toBeVisible();
   await expect(eventStatus(page, 'In Nachbereitung')).toHaveAttribute('aria-disabled', 'true');
+});
+
+test('WF-VER-05: bestehende Aufgabe mit dem Event verknüpfen; Entscheidung/Fakt aus der Leiste', async ({
+  page,
+}) => {
+  await page.getByRole('link', { name: /Winterrave/ }).click();
+  await expect(page.getByText('4 VON 9 ERLEDIGT · 1 ÜBERFÄLLIG')).toBeVisible();
+  await page.getByRole('button', { name: '+ Aufgabe' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Aufgabe zum Event' });
+  await sheet.getByLabel('Offene Aufgabe suchen').fill('Haftpflicht');
+  await sheet.getByRole('button', { name: /Vereinshaftpflicht verlängern/ }).click();
+  await expect(page.getByTestId('WF-ALL-02')).toContainText(
+    'Verknüpft mit Winterrave: Vereinshaftpflicht verlängern',
+  );
+  await expect(page.getByText(/^4 VON 10 ERLEDIGT/)).toBeVisible();
+
+  await page.getByRole('button', { name: '+ Entscheidung / Fakt' }).click();
+  const decision = page.getByRole('dialog', { name: 'Neu festhalten' });
+  await expect(decision.locator('select option:checked', { hasText: 'Winterrave' })).toHaveCount(1);
 });

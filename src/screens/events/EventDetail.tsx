@@ -16,6 +16,7 @@ import { Sheet } from '../../ui/Sheet';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { EventFormSheet } from './EventFormSheet';
 import { EventSections } from './EventSections';
+import { TaskLinkSheet } from './TaskLinkSheet';
 import { TemplateSheet } from './TemplateSheet';
 import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
 import { useShowEventOnAgenda } from '../agenda/EventAgendaLink';
@@ -77,7 +78,16 @@ function Loaded({ event }: { event: Detail }) {
   const act = useActions();
   const latest = useLatest(event.version);
   const [sheet, setSheet] = useState<
-    'edit' | 'close' | 'task' | 'question' | 'decision' | 'shiftplan' | 'lead' | 'template' | null
+    | 'edit'
+    | 'close'
+    | 'task'
+    | 'task-new'
+    | 'question'
+    | 'decision'
+    | 'shiftplan'
+    | 'lead'
+    | 'template'
+    | null
   >(null);
   const { memberById, topicName, eventById } = useLookups();
   const { data: documents } = useData(`event-documents:${event.id}`, () =>
@@ -241,7 +251,7 @@ function Loaded({ event }: { event: Detail }) {
             <div className="bg-marke-fortschritt h-1.5 rounded-[3px]" style={{ width: `${pct}%` }} />
           </div>
           <div className="mt-1 flex flex-wrap gap-2">
-            {/* WF-VER-05 Aufgabe zur Veranstaltung anlegen */}
+            {/* WF-VER-05 Aufgabe zur Veranstaltung: bestehende verknüpfen oder neu anlegen (Phase 9) */}
             <button
               type="button"
               data-wf="WF-VER-05"
@@ -258,6 +268,15 @@ function Loaded({ event }: { event: Detail }) {
               className="hit h-[34px] rounded-[17px] border border-rand-stark px-3 text-[13px] text-text"
             >
               + Frage
+            </button>
+            {/* WF-WIS-01 Entscheidung oder Fakt zur Veranstaltung – auch hier, nicht nur im Abschnitt unten (Phase 9) */}
+            <button
+              type="button"
+              data-wf="WF-WIS-01"
+              onClick={() => setSheet('decision')}
+              className="hit h-[34px] rounded-[17px] border border-rand-stark px-3 text-[13px] text-text"
+            >
+              + Entscheidung / Fakt
             </button>
             {/* WF-VER-12 Vorlagen-Dialog erneut aufrufen – ohne Duplikate */}
             {!final && (
@@ -456,6 +475,13 @@ function Loaded({ event }: { event: Detail }) {
         />
       )}
       {sheet === 'task' && (
+        <TaskLinkSheet
+          eventId={event.id}
+          onCreate={() => setSheet('task-new')}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet === 'task-new' && (
         <TaskCreateSheet eventId={event.id} wf="WF-VER-05" onClose={() => setSheet(null)} />
       )}
       {sheet === 'close' && (
