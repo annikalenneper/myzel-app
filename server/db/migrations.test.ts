@@ -170,6 +170,14 @@ describe('Rechte', () => {
     expect(
       await privilege('authenticated', `has_table_privilege($role, 'public.undo_actions', 'select')`),
     ).toBe(false);
+    // Umbau: Stimmen lesen alle aktiven Mitglieder, Rückmeldungen nur die Server-Funktionen (für Admins)
+    expect(
+      await privilege('authenticated', `has_table_privilege($role, 'public.decision_votes', 'select')`),
+    ).toBe(true);
+    for (const p of ['select', 'insert'])
+      expect(
+        await privilege('authenticated', `has_table_privilege($role, 'public.app_reports', '${p}')`),
+      ).toBe(false);
     expect(
       await privilege('authenticated', `has_sequence_privilege($role, 'public.task_number_seq', 'usage')`),
     ).toBe(false);

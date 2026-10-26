@@ -48,9 +48,6 @@ export function Profile() {
       : `OK · VOR ${formatSince(system.last_run_at!, new Date()).replace('Minuten', 'MIN').replace('Minute', 'MIN').toUpperCase()} ›`;
 
   const { data: types } = useData('appointment-types', () => api.listAppointmentTypes());
-  const { data: reports } = useData(me.is_admin ? 'app-reports' : 'app-reports:kein-admin', () =>
-    me.is_admin ? api.listAppReports() : Promise.resolve(null),
-  );
   const admin = [
     { to: '/profil/mitglieder', label: 'Mitglieder', meta: `${activeMembers.length} ›` },
     { to: '/profil/themen', label: 'Themen', meta: `${topics.filter((t) => !t.archived_at).length} ›` },
@@ -60,7 +57,7 @@ export function Profile() {
       label: 'Terminarten',
       meta: `${(types ?? []).filter((t) => !t.archived_at).length} ›`,
     },
-    { to: '/profil/rueckmeldungen', label: 'Rückmeldungen', meta: `${reports?.length ?? ''} ›`.trimStart() },
+    { to: '/profil/rueckmeldungen', label: 'Rückmeldungen', meta: '›' },
   ];
 
   return (

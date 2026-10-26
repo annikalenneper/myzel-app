@@ -27,8 +27,11 @@ const draftKey = (kind: AppReportKind) => `rueckmeldung:${kind}`;
 /** WF-PRO-05: Bug oder Feature-Wunsch – langer Text mit Senden/Abbrechen und lokalem Entwurf */
 export function ReportSheet({ onClose }: { onClose: () => void }) {
   const { run } = useFeedback();
-  const [kind, setKind] = useState<AppReportKind>('bug');
-  const [text, setText] = useState(() => readDraft(draftKey('bug')) ?? '');
+  // ein angefangener Wunsch ist beim Öffnen gleich wieder da
+  const [kind, setKind] = useState<AppReportKind>(() =>
+    !readDraft(draftKey('bug')) && readDraft(draftKey('wunsch')) ? 'wunsch' : 'bug',
+  );
+  const [text, setText] = useState(() => readDraft(draftKey(kind)) ?? '');
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const missing = !text.trim()
