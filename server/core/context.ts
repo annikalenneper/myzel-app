@@ -72,6 +72,18 @@ export type InverseOp =
       };
     }
   | { kind: 'decision_state'; decision_id: string; status: string; superseded_by_id: string | null }
+  // [Umbau Phase 6] Stimme vor der Abstimmung – null: es gab noch keine
+  | {
+      kind: 'vote_restore';
+      decision_id: string;
+      member_id: string;
+      row: {
+        decision_id: string;
+        member_id: string;
+        vote: 'bestaetigt' | 'widerspruch';
+        voted_at: string;
+      } | null;
+    }
   | {
       kind: 'question_state';
       question_id: string;

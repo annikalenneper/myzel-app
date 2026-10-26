@@ -30,6 +30,7 @@ import type {
   Comment,
   CommentTarget,
   DecisionUpdateInput,
+  DecisionVoteKind,
   QuestionUpdateInput,
   EventCreateInput,
   BookingCreateInput,
@@ -201,6 +202,14 @@ export interface DecisionListItem extends Decision {
   marked: boolean;
   /** aus welcher Frage der Eintrag entstanden ist (16.3) */
   source_question: { id: string; title: string } | null;
+  /** Stand der Abstimmung (16.4) – nur bei Entscheidungen mit Frist; Stimmen aktiver Mitglieder */
+  consensus: {
+    confirmed: number;
+    objected: number;
+    total: number;
+    /** eigene Stimme der angemeldeten Person */
+    my_vote: DecisionVoteKind | null;
+  } | null;
 }
 
 export interface DecisionDetail extends DecisionListItem {
@@ -208,6 +217,9 @@ export interface DecisionDetail extends DecisionListItem {
   source_document: { id: string; title: string; url: string } | null;
   /** Einträge, die durch diesen ersetzt wurden */
   replaces: { id: string; title: string }[];
+  /** Stimmen aktiver Mitglieder, neueste zuerst, und wer noch nicht abgestimmt hat (16.4) */
+  votes: { member_id: string; vote: DecisionVoteKind; voted_at: string }[];
+  pending_ids: string[];
   documents: DocumentListItem[];
   comments: Comment[];
   history: HistoryEntry[];
@@ -498,6 +510,8 @@ export interface MyzelApi {
   revokeDecision(id: string, note: string | null, version: number): Promise<Undoable>;
   /** WF-WIS-12 Titel, Text, Thema, Veranstaltung korrigieren (Historie alt → neu) */
   updateDecision(id: string, input: DecisionUpdateInput): Promise<void>;
+  /** WF-WIS-13 offene Entscheidung bestätigen oder widersprechen (16.4); valid: dadurch gerade gültig geworden */
+  voteDecision(id: string, vote: DecisionVoteKind): Promise<Undoable & { valid: boolean }>;
   listQuestions(): Promise<QuestionListItem[]>;
   getQuestion(id: string): Promise<QuestionDetail>;
   createQuestion(input: QuestionCreateInput): Promise<{ id: string }>;

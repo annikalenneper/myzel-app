@@ -402,7 +402,8 @@ export type AppointmentAttendee = z.infer<typeof appointmentAttendeeSchema>;
 export const DECISION_KINDS = ['entscheidung', 'fakt'] as const;
 export const decisionKindSchema = z.enum(DECISION_KINDS);
 export type DecisionKind = z.infer<typeof decisionKindSchema>;
-export const DECISION_STATUSES = ['gueltig', 'ersetzt', 'aufgehoben'] as const;
+/** offen: Entscheidung, die noch auf Bestätigung wartet (16.4) – Fakten gelten sofort */
+export const DECISION_STATUSES = ['offen', 'gueltig', 'ersetzt', 'aufgehoben'] as const;
 export const decisionStatusSchema = z.enum(DECISION_STATUSES);
 export type DecisionStatus = z.infer<typeof decisionStatusSchema>;
 
@@ -423,6 +424,8 @@ export const decisionSchema = z.object({
   source_question_id: idSchema.nullable(),
   /** optional zu einer Veranstaltung (16.3) */
   event_id: idSchema.nullable(),
+  /** letzter Tag zum Bestätigen oder Widersprechen (16.4) – nur bei Entscheidungen, die abgestimmt werden */
+  consensus_until: dateSchema.nullable(),
   archived_at: timestampSchema.nullable(),
   created_at: timestampSchema,
   updated_at: timestampSchema,
@@ -430,6 +433,19 @@ export const decisionSchema = z.object({
   version: z.number().int().min(1),
 });
 export type Decision = z.infer<typeof decisionSchema>;
+
+export const DECISION_VOTES = ['bestaetigt', 'widerspruch'] as const;
+export const decisionVoteKindSchema = z.enum(DECISION_VOTES);
+export type DecisionVoteKind = z.infer<typeof decisionVoteKindSchema>;
+
+/** Stimme eines Mitglieds zu einer offenen Entscheidung (16.4) – je Person eine, änderbar, solange sie offen ist */
+export const decisionVoteSchema = z.object({
+  decision_id: idSchema,
+  member_id: idSchema,
+  vote: decisionVoteKindSchema,
+  voted_at: timestampSchema,
+});
+export type DecisionVote = z.infer<typeof decisionVoteSchema>;
 
 export const QUESTION_STATUSES = ['offen', 'geklaert', 'verworfen'] as const;
 export const questionStatusSchema = z.enum(QUESTION_STATUSES);
@@ -770,6 +786,8 @@ export const decisionCreateSchema = z
     topic_id: z.uuid('Bitte ein Thema wählen.'),
     event_id: idSchema.nullable().default(null),
     decided_on: dateSchema.nullable().default(null),
+    /** Frist zum Bestätigen (16.4), ohne Angabe 7 Tage; bei Fakten ohne Bedeutung */
+    consensus_until: dateSchema.nullable().default(null),
     /** Ergebnis einer Frage (16.3): die Frage bleibt dabei offen */
     source_question_id: idSchema.nullable().default(null),
     ...sourceFields,
@@ -783,6 +801,8 @@ export const decisionReplaceSchema = z
     successor_id: idSchema.nullable().default(null),
     title: z.string().trim().max(200, 'Der Titel darf höchstens 200 Zeichen haben.').default(''),
     description: decisionText,
+    /** Frist der neuen Fassung, wenn sie eine Entscheidung ist (16.4) */
+    consensus_until: dateSchema.nullable().default(null),
     ...sourceFields,
     version: versionSchema,
   })

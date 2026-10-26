@@ -1,5 +1,6 @@
-// Phase 3: Wissen – Entscheidungen und Fakten, offene Fragen, Dokumente, „auf die Agenda“, Suche
-// (ANFORDERUNGEN 3.7 bis 3.9, 4.4, 4.5, 5.5, 5.6). Wie die Testdaten-Schicht (src/data/mock/knowledge.ts).
+// Phase 3: Wissen – Entscheidungen und Fakten, Konsens, offene Fragen, Dokumente, „auf die Agenda“, Suche
+// (ANFORDERUNGEN 3.7 bis 3.9, 4.4, 4.5, 5.5, 5.6, 16.4). Wie die Testdaten-Schicht (src/data/mock/knowledge.ts).
+import type { Kysely } from 'kysely';
 import type { z } from 'zod';
 import type {
   DecisionDetail,
@@ -19,9 +20,15 @@ import { driveFileIdFromUrl } from '../../src/shared/rules/drive';
 import { berlinDate } from '../../src/shared/rules/due';
 import {
   canSupersede,
+  consensusReached,
+  consensusUntilProblem,
+  countVotes,
   DECISION_KIND_LABEL,
   DECISION_STATUS_LABEL,
+  decisionActive,
+  defaultConsensusUntil,
   DOC_TYPE_LABEL,
+  initialDecisionStatus,
   QUESTION_STATUS_LABEL,
   sortQuestions,
 } from '../../src/shared/rules/knowledge';
@@ -29,6 +36,7 @@ import {
   decisionCreateSchema,
   decisionUpdateSchema,
   decisionReplaceSchema,
+  decisionVoteKindSchema,
   documentCreateSchema,
   questionClarifySchema,
   questionCreateSchema,
@@ -50,7 +58,7 @@ import {
   type Db,
 } from '../core/context';
 import { addMark, dropMark, isMarked } from '../core/marks';
-import type { DecisionRow, DocumentRow, QuestionRow } from '../db/types';
+import type { Database, DecisionRow, DocumentRow, MemberRow, QuestionRow } from '../db/types';
 import { commentsOf } from '../p1/comments';
 import { historyOf } from '../p1/reads';
 import { documentForFile, missingDriveDocuments, visibleDriveFile, type DriveIndex } from '../p5/drive';
@@ -91,13 +99,35 @@ async function findDecision(trx: Db, id: string, lock = true): Promise<DecisionR
   return decision;
 }
 
-async function decisionItems(trx: Db, rows: DecisionRow[]): Promise<DecisionListItem[]> {
+/** aktive Mitglieder, die abstimmen (16.4) – ohne „Myzel (automatisch)“ */
+const activeMemberIds = async (trx: Db) =>
+  (
+    await trx
+      .selectFrom('members')
+      .select('id')
+      .where('active', '=', true)
+      .where('is_system', '=', false)
+      .execute()
+  ).map((m) => m.id);
+
+async function votesOf(trx: Db, decisionIds: string[]) {
+  if (decisionIds.length === 0) return [];
+  return trx
+    .selectFrom('decision_votes')
+    .selectAll()
+    .where('decision_id', 'in', decisionIds)
+    .orderBy('voted_at', 'desc')
+    .execute();
+}
+
+async function decisionItems(trx: Db, rows: DecisionRow[], actorId: string): Promise<DecisionListItem[]> {
   if (rows.length === 0) return [];
+  const voted = rows.filter((d) => d.consensus_until).map((d) => d.id);
   const plenumIds = rows.flatMap((d) => (d.source_plenum_id ? [d.source_plenum_id] : []));
   const docIds = rows.flatMap((d) => (d.source_document_id ? [d.source_document_id] : []));
   const successorIds = rows.flatMap((d) => (d.superseded_by_id ? [d.superseded_by_id] : []));
   const questionIds = rows.flatMap((d) => (d.source_question_id ? [d.source_question_id] : []));
-  const [plenums, docs, successors, marks, questions] = await Promise.all([
+  const [plenums, docs, successors, marks, questions, votes, activeIds] = await Promise.all([
     plenumIds.length
       ? trx.selectFrom('appointments').select(['id', 'starts_at']).where('id', 'in', plenumIds).execute()
       : [],
@@ -119,8 +149,11 @@ async function decisionItems(trx: Db, rows: DecisionRow[]): Promise<DecisionList
     questionIds.length
       ? trx.selectFrom('questions').select(['id', 'title']).where('id', 'in', questionIds).execute()
       : [],
+    votesOf(trx, voted),
+    voted.length ? activeMemberIds(trx) : [],
   ]);
   return rows.map((d) => {
+    const own = votes.filter((v) => v.decision_id === d.id);
     // „Plenum 10.09.2026“, Titel des Dokuments oder „Notiz“
     const parts: string[] = [];
     const plenum = plenums.find((p) => p.id === d.source_plenum_id);
@@ -134,11 +167,17 @@ async function decisionItems(trx: Db, rows: DecisionRow[]): Promise<DecisionList
       superseded_by_title: successors.find((s) => s.id === d.superseded_by_id)?.title ?? null,
       marked: marks.some((m) => m.decision_id === d.id),
       source_question: questions.find((q) => q.id === d.source_question_id) ?? null,
+      consensus: d.consensus_until
+        ? {
+            ...countVotes(own, activeIds),
+            my_vote: own.find((v) => v.member_id === actorId)?.vote ?? null,
+          }
+        : null,
     };
   });
 }
 
-export async function listDecisions(trx: Db): Promise<DecisionListItem[]> {
+export async function listDecisions(trx: Db, actorId: string): Promise<DecisionListItem[]> {
   const rows = await trx
     .selectFrom('decisions')
     .selectAll()
@@ -146,13 +185,13 @@ export async function listDecisions(trx: Db): Promise<DecisionListItem[]> {
     .orderBy('decided_on', 'desc')
     .orderBy('created_at', 'desc')
     .execute();
-  return decisionItems(trx, rows);
+  return decisionItems(trx, rows, actorId);
 }
 
-export async function getDecision(trx: Db, id: string): Promise<DecisionDetail> {
+export async function getDecision(trx: Db, id: string, actorId: string): Promise<DecisionDetail> {
   const d = await findDecision(trx, id, false);
-  const [[item], plenum, doc, replaces, documents, comments, history] = await Promise.all([
-    decisionItems(trx, [d]),
+  const [[item], plenum, doc, replaces, documents, comments, history, votes, activeIds] = await Promise.all([
+    decisionItems(trx, [d], actorId),
     d.source_plenum_id
       ? trx
           .selectFrom('appointments')
@@ -171,12 +210,20 @@ export async function getDecision(trx: Db, id: string): Promise<DecisionDetail> 
     linkedDocuments(trx, 'decision', id),
     commentsOf(trx, 'decision', id),
     historyOf(trx, 'decision', id),
+    d.consensus_until ? votesOf(trx, [id]) : [],
+    d.consensus_until ? activeMemberIds(trx) : [],
   ]);
+  const active = new Set(activeIds);
   return {
     ...item!,
     source_plenum: plenum ?? null,
     source_document: doc ?? null,
     replaces,
+    votes: votes
+      .filter((v) => active.has(v.member_id))
+      .map(({ member_id, vote, voted_at }) => ({ member_id, vote, voted_at })),
+    // wer noch nicht abgestimmt hat – nur, solange abgestimmt wird
+    pending_ids: d.status === 'offen' ? activeIds.filter((m) => !votes.some((v) => v.member_id === m)) : [],
     documents,
     comments,
     history,
@@ -257,10 +304,13 @@ export async function insertDecision(
     : null;
   if (question?.archived_at)
     throw new AppError('validation', 'Diese Frage gibt es nicht mehr.', { field: 'source_question_id' });
+  const consensusUntil = consensusFor(ctx, input.kind, input.consensus_until);
   const now = iso(ctx);
   const decision = await ctx.trx
     .insertInto('decisions')
     .values({
+      status: initialDecisionStatus(input.kind),
+      consensus_until: consensusUntil,
       title: input.title,
       description: input.description,
       kind: input.kind,
@@ -284,6 +334,7 @@ export async function insertDecision(
     title: { old: null, new: decision.title },
     ...(decision.source_plenum_id ? { source_plenum_id: { old: null, new: decision.source_plenum_id } } : {}),
     ...(question ? { source_question_id: { old: null, new: question.id } } : {}),
+    ...(consensusUntil ? { consensus_until: { old: null, new: consensusUntil } } : {}),
   });
   // die Frage bleibt offen – als beantwortet markiert sie die Person selbst (16.3)
   if (question && action === 'created')
@@ -293,6 +344,16 @@ export async function insertDecision(
       kind: { old: null, new: decision.kind },
     });
   return decision;
+}
+
+/** Frist einer neuen Entscheidung (16.4): ohne Angabe 7 Tage, nicht in der Vergangenheit; Fakten haben keine */
+function consensusFor(ctx: Ctx, kind: DecisionRow['kind'], until: string | null): string | null {
+  if (kind !== 'entscheidung') return null;
+  const today = berlinDate(ctx.now);
+  if (!until) return defaultConsensusUntil(today);
+  const problem = consensusUntilProblem(until, today);
+  if (problem) throw new AppError('validation', problem, { field: 'consensus_until' });
+  return until;
 }
 
 /** WF-WIS-01 */
@@ -307,7 +368,7 @@ export async function updateDecision(ctx: Ctx, id: string, raw: unknown): Promis
   const input = parse(decisionUpdateSchema, raw);
   const d = await findDecision(ctx.trx, id);
   await checkVersion(ctx, 'decision', d, input.version);
-  if (d.status !== 'gueltig') throw rule('Nur gültige Einträge lassen sich bearbeiten.');
+  if (!decisionActive(d.status)) throw rule('Nur gültige oder offene Einträge lassen sich bearbeiten.');
   if (input.topic_id !== d.topic_id) await checkTopic(ctx, input.topic_id);
   if (input.event_id !== d.event_id) await checkEvent(ctx, input.event_id);
   const { title, description, topic_id, event_id } = input;
@@ -334,7 +395,7 @@ export async function replaceDecision(
   const input = parse(decisionReplaceSchema, raw);
   const old = await findDecision(ctx.trx, id);
   await checkVersion(ctx, 'decision', old, input.version);
-  if (old.status !== 'gueltig') throw rule('Nur gültige Einträge lassen sich ersetzen.');
+  if (!decisionActive(old.status)) throw rule('Nur gültige oder offene Einträge lassen sich ersetzen.');
   let successor: DecisionRow;
   if (input.successor_id) {
     successor = await findDecision(ctx.trx, input.successor_id);
@@ -351,6 +412,7 @@ export async function replaceDecision(
         kind: old.kind,
         topic_id: old.topic_id,
         decided_on: null,
+        consensus_until: input.consensus_until,
         source_plenum_id: input.source_plenum_id,
         source_document_id: input.source_document_id,
         source_note: input.source_note,
@@ -382,7 +444,7 @@ export async function revokeDecision(
   const text = typeof note === 'string' ? note.trim().slice(0, 2000) : '';
   const d = await findDecision(ctx.trx, id);
   await checkVersion(ctx, 'decision', d, version);
-  if (d.status !== 'gueltig') throw rule('Nur gültige Einträge lassen sich aufheben.');
+  if (!decisionActive(d.status)) throw rule('Nur gültige oder offene Einträge lassen sich aufheben.');
   ctx.inverse.push(decisionState(d));
   const changes: HistoryChanges = { status: { old: d.status, new: 'aufgehoben' } };
   if (text) changes.note = { old: null, new: text };
@@ -390,6 +452,100 @@ export async function revokeDecision(
   await touch(ctx, 'decisions', 'decision', d, { status: 'aufgehoben' });
   await writeHistory(ctx, 'decision', id, 'revoked', changes);
   return registerUndo(ctx, 'decision', d, 'Aufgehoben');
+}
+
+// ── Entscheidungen im Konsens (16.4) ─────────────────────────────────────────
+
+/**
+ * Gültig, wenn alle aktiven Mitglieder bestätigt haben oder die Frist ohne Widerspruch abgelaufen ist. Die Zeile ist
+ * gesperrt (findDecision); gleichzeitige Stimmen warten aufeinander.
+ */
+async function settle(ctx: Ctx, d: DecisionRow): Promise<boolean> {
+  const votes = await votesOf(ctx.trx, [d.id]);
+  const activeIds = await activeMemberIds(ctx.trx);
+  const count = countVotes(votes, activeIds);
+  if (!consensusReached(d, count, berlinDate(ctx.now))) return false;
+  ctx.inverse.push(decisionState(d));
+  await touch(ctx, 'decisions', 'decision', d, { status: 'gueltig' });
+  await writeHistory(ctx, 'decision', d.id, 'consensus_reached', {
+    status: { old: 'offen', new: 'gueltig' },
+    confirmed: { old: null, new: count.confirmed },
+    total: { old: null, new: count.total },
+  });
+  return true;
+}
+
+/** WF-WIS-13: bestätigen oder widersprechen – je Person eine Stimme, änderbar, solange die Entscheidung offen ist */
+export async function voteDecision(
+  ctx: Ctx,
+  id: string,
+  raw: unknown,
+): Promise<Undoable & { valid: boolean }> {
+  const vote = parse(decisionVoteKindSchema, raw);
+  const d = await findDecision(ctx.trx, id);
+  if (d.archived_at || d.status !== 'offen')
+    throw rule('Über diese Entscheidung wird nicht mehr abgestimmt.');
+  const before = await ctx.trx
+    .selectFrom('decision_votes')
+    .selectAll()
+    .where('decision_id', '=', id)
+    .where('member_id', '=', ctx.actor.id)
+    .executeTakeFirst();
+  if (before?.vote === vote) return { undo_token: '', valid: false };
+  await ctx.trx
+    .insertInto('decision_votes')
+    .values({ decision_id: id, member_id: ctx.actor.id, vote, voted_at: iso(ctx) })
+    .onConflict((oc) => oc.columns(['decision_id', 'member_id']).doUpdateSet({ vote, voted_at: iso(ctx) }))
+    .execute();
+  ctx.inverse.push({ kind: 'vote_restore', decision_id: id, member_id: ctx.actor.id, row: before ?? null });
+  await writeHistory(ctx, 'decision', id, 'voted', { vote: { old: before?.vote ?? null, new: vote } });
+  // ein Widerspruch hält sie offen und setzt sie auf die Agenda
+  if (vote === 'widerspruch' && !(await isMarked(ctx.trx, id))) await addMark(ctx, id);
+  const valid = await settle(ctx, d);
+  const label = vote === 'bestaetigt' ? 'Bestätigt' : 'Widersprochen';
+  return { ...(await registerUndo(ctx, 'decision', d, label)), valid };
+}
+
+/**
+ * Joblauf (16.4): offene Entscheidungen, deren Frist ohne Widerspruch abgelaufen ist oder die alle aktiven Mitglieder
+ * bestätigt haben (z. B. nach einer Deaktivierung), werden gültig – als „Myzel (automatisch)“, je Eintrag eine
+ * Transaktion. Erst wird ohne Transaktion geprüft, damit ein Lauf ohne Arbeit nur wenige Abfragen kostet.
+ */
+export async function settleOpenDecisions(db: Kysely<Database>, now: Date): Promise<number> {
+  const open = await db.selectFrom('decisions').selectAll().where('status', '=', 'offen').execute();
+  if (open.length === 0) return 0;
+  const [votes, activeIds] = await Promise.all([
+    votesOf(
+      db,
+      open.map((d) => d.id),
+    ),
+    activeMemberIds(db),
+  ]);
+  const today = berlinDate(now);
+  const due = open.filter((d) =>
+    consensusReached(
+      d,
+      countVotes(
+        votes.filter((v) => v.decision_id === d.id),
+        activeIds,
+      ),
+      today,
+    ),
+  );
+  let settled = 0;
+  for (const candidate of due)
+    await db.transaction().execute(async (trx) => {
+      const actor: MemberRow = await trx
+        .selectFrom('members')
+        .selectAll()
+        .where('is_system', '=', true)
+        .executeTakeFirstOrThrow();
+      const ctx: Ctx = { trx, actor, now, inverse: [], historyIds: [], outbox: [], plenumId: null };
+      // inzwischen geändert (Stimme, Ersetzen): settle prüft den gesperrten, aktuellen Stand
+      const d = await findDecision(trx, candidate.id);
+      if (d.status === 'offen' && !d.archived_at && (await settle(ctx, d))) settled += 1;
+    });
+  return settled;
 }
 
 // ── Offene Fragen ───────────────────────────────────────────────────────────
@@ -745,8 +901,8 @@ export async function setDecisionAgenda(ctx: Ctx, id: string, onAgenda: boolean)
   const d = await findDecision(ctx.trx, id);
   if ((await isMarked(ctx.trx, id)) === onAgenda) return { undo_token: '' };
   if (onAgenda) {
-    if (d.archived_at || d.status !== 'gueltig')
-      throw rule('Nur gültige Einträge lassen sich auf die Agenda setzen.');
+    if (d.archived_at || !decisionActive(d.status))
+      throw rule('Nur gültige oder offene Einträge lassen sich auf die Agenda setzen.');
     await addMark(ctx, id);
     return registerUndo(ctx, 'decision', d, 'Auf der Agenda');
   }

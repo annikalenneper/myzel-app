@@ -1,5 +1,6 @@
 // Verlauf von Entscheidungen/Fakten und Fragen in lesbaren Sätzen (E-10, F-PLE-05 „im Plenum vom …“)
 import { commentEdited, describeFieldChanges } from './entityHistory';
+import { formatDayMonth } from './format';
 import type { HistoryEntry } from './schema';
 
 export interface KnowledgeLookup {
@@ -9,6 +10,12 @@ export interface KnowledgeLookup {
   topicName?(id: string): string;
   eventTitle?(id: string): string;
 }
+
+/** „18.10.“ aus YYYY-MM-DD */
+const day = (isoDate: unknown) => {
+  const [y, m, d] = String(isoDate).split('-').map(Number) as [number, number, number];
+  return formatDayMonth(new Date(y, m - 1, d));
+};
 
 export function knowledgeHistorySentence(
   entry: HistoryEntry,
@@ -29,11 +36,21 @@ export function knowledgeHistorySentence(
     case 'created':
       return noun === 'Frage'
         ? `${who} hat die Frage${inPlenum} gestellt${c.plenum_mark?.new ? ' und fürs Plenum markiert' : ''}.`
-        : `${who} hat ${the}${inPlenum} angelegt.`;
+        : `${who} hat ${the}${inPlenum} angelegt.${c.consensus_until?.new ? ` Bestätigen bis ${day(c.consensus_until.new)}` : ''}`;
     case 'created_as_replacement':
       return `${who} hat ${the}${inPlenum} als neue Fassung angelegt.`;
     case 'created_from_question':
       return `${who} hat ${the}${inPlenum} aus einer geklärten Frage angelegt.`;
+    case 'voted':
+      return c.vote?.new === 'widerspruch'
+        ? `${who} hat widersprochen.`
+        : c.vote?.old === 'widerspruch'
+          ? `${who} hat den Widerspruch zurückgenommen und bestätigt.`
+          : `${who} hat bestätigt.`;
+    case 'consensus_reached':
+      return Number(c.confirmed?.new) >= Number(c.total?.new)
+        ? 'Alle haben bestätigt – die Entscheidung gilt.'
+        : 'Die Frist ist ohne Widerspruch abgelaufen – die Entscheidung gilt.';
     case 'replaced':
       return `${who} hat ${the}${inPlenum} ersetzt.${mark}`;
     case 'revoked':

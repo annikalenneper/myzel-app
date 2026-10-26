@@ -76,6 +76,7 @@ export default defineConfig({
             'src/data/mock/templates.test.ts',
             'src/data/mock/drive.test.ts',
             'src/data/mock/grundfunktionen.test.ts',
+            'src/data/mock/konsens.test.ts',
           ],
           env: { MYZEL_API: 'server', TZ: 'Europe/Berlin' },
         },

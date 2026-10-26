@@ -1,4 +1,5 @@
-// S-42 Entscheidung / Fakt – Detail · P3 (WF-WIS-02, WF-WIS-03); auf die Agenda (WF-AGE-03, 16.1)
+// S-42 Entscheidung / Fakt – Detail · P3 (WF-WIS-02, WF-WIS-03); auf die Agenda (WF-AGE-03, 16.1);
+// bestätigen oder widersprechen, solange die Entscheidung offen ist (WF-WIS-13, 16.4)
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
@@ -9,7 +10,14 @@ import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { DecisionDetail as Detail } from '../../data/api';
 import { formatDayMonth } from '../../shared/format';
-import { canSupersede, DECISION_KIND_LABEL, DECISION_STATUS_LABEL } from '../../shared/rules/knowledge';
+import { toIsoDate } from '../../shared/rules/due';
+import {
+  canSupersede,
+  DECISION_KIND_LABEL,
+  DECISION_STATUS_LABEL,
+  decisionActive,
+  defaultConsensusUntil,
+} from '../../shared/rules/knowledge';
 import { DECISION_TEXT_MAX } from '../../shared/schema';
 import { cx, FieldError, GhostButton, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
 import { Sheet } from '../../ui/Sheet';
@@ -26,7 +34,7 @@ import {
 import { LinkedDocuments } from './LinkedDocuments';
 import { CommentsSection } from '../../ui/Comments';
 import { EventAgendaLink } from '../agenda/EventAgendaLink';
-import { DecisionEditSheet, Segmented, TextField } from './KnowledgeSheets';
+import { ConsensusUntilField, DecisionEditSheet, Segmented, TextField } from './KnowledgeSheets';
 import { EMPTY_SOURCE, SourceFields, sourceReady, type SourceValue } from './SourceFields';
 
 const dateText = (isoDate: string) => {
@@ -60,6 +68,84 @@ export function DecisionDetail({
   return <Loaded d={data} back={back} />;
 }
 
+/** WF-WIS-13: Stand der Abstimmung, eigene Stimme, wer bestätigt, widersprochen oder noch nicht abgestimmt hat */
+function Consensus({ d }: { d: Detail }) {
+  const act = useActions();
+  const { memberById } = useLookups();
+  const c = d.consensus!;
+  const names = (ids: string[]) => ids.map((id) => memberById.get(id)?.display_name ?? 'Jemand').join(', ');
+  const confirmed = d.votes.filter((v) => v.vote === 'bestaetigt').map((v) => v.member_id);
+  const objected = d.votes.filter((v) => v.vote === 'widerspruch').map((v) => v.member_id);
+  const vote = (next: 'bestaetigt' | 'widerspruch') =>
+    void act(() => api.voteDecision(d.id, next), {
+      success: (r: { valid: boolean }) =>
+        r.valid
+          ? 'Bestätigt · die Entscheidung gilt'
+          : next === 'bestaetigt'
+            ? 'Bestätigt'
+            : 'Widersprochen · auf der Agenda',
+      undo: (r) => r.undo_token,
+    });
+  return (
+    <section
+      aria-label="Abstimmung"
+      className={cx(
+        'flex flex-col gap-2.5 rounded-[14px] border px-3.5 py-3',
+        c.objected > 0 ? 'border-pink' : 'border-bernstein',
+      )}
+    >
+      <span className="text-[15px] font-semibold">
+        {c.objected > 0
+          ? 'Widerspruch – die Entscheidung bleibt offen'
+          : `Bestätigen bis ${dateText(d.consensus_until!)}`}
+      </span>
+      <span className="label-mono">
+        {c.confirmed} von {c.total} bestätigt{c.objected > 0 && ` · ${c.objected} Widerspruch`}
+      </span>
+      <span className="text-[13px] leading-[1.45] text-weich">
+        {c.objected > 0
+          ? 'Sie steht auf der Agenda. Nach dem Gespräch: Widerspruch zurücknehmen, oder unten ersetzen oder aufheben.'
+          : 'Gilt, wenn alle bestätigt haben oder bis zum Ende der Frist niemand widerspricht.'}
+      </span>
+      <div role="group" aria-label="Deine Stimme" className="flex flex-wrap gap-2">
+        {(
+          [
+            ['bestaetigt', 'Bestätigen'],
+            ['widerspruch', 'Widersprechen'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            data-wf="WF-WIS-13"
+            aria-pressed={c.my_vote === key}
+            onClick={() => c.my_vote !== key && vote(key)}
+            className={cx(
+              'hit h-10 rounded-[20px] border px-4 text-[14px]',
+              c.my_vote === key
+                ? 'border-text bg-text font-semibold text-grund'
+                : 'border-rand-stark text-text',
+            )}
+          >
+            {c.my_vote === key ? `✓ ${key === 'bestaetigt' ? 'Bestätigt' : 'Widersprochen'}` : label}
+          </button>
+        ))}
+      </div>
+      {confirmed.length > 0 && (
+        <span className="text-[13px] leading-[1.4] text-weich">Bestätigt: {names(confirmed)}</span>
+      )}
+      {objected.length > 0 && (
+        <span className="text-[13px] leading-[1.4] text-pink">Widerspruch: {names(objected)}</span>
+      )}
+      {d.pending_ids.length > 0 && (
+        <span className="text-[13px] leading-[1.4] text-leise">
+          Noch nicht abgestimmt: {names(d.pending_ids)}
+        </span>
+      )}
+    </section>
+  );
+}
+
 function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
   const act = useActions();
   const latest = useLatest(d.version);
@@ -68,38 +154,45 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
   const [sheet, setSheet] = useState<'replace' | 'revoke' | 'document' | 'edit' | null>(null);
   const [note, setNote] = useState('');
   const valid = d.status === 'gueltig';
+  // offene Entscheidungen lassen sich wie gültige bearbeiten, ersetzen, aufheben und auf die Agenda setzen (16.4)
+  const active = decisionActive(d.status);
   const noun = DECISION_KIND_LABEL[d.kind];
   const setAgenda = (on: boolean, success = on ? 'Auf der Agenda' : 'Von der Agenda genommen') =>
     void act(() => api.setDecisionAgenda(d.id, on), { success, undo: (r) => r.undo_token });
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
-      <BarOffset px={valid ? 100 : 24} />
+      <BarOffset px={active ? 100 : 24} />
       <DetailTopBar
         label="Beschlüsse"
         back={back}
-        agenda={valid ? { on: d.marked, onToggle: () => setAgenda(!d.marked) } : undefined}
-        onEdit={valid ? () => setSheet('edit') : undefined}
+        agenda={active ? { on: d.marked, onToggle: () => setAgenda(!d.marked) } : undefined}
+        onEdit={active ? () => setSheet('edit') : undefined}
         editWf="WF-WIS-12"
       />
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
-        <div className={cx('flex flex-col gap-2', !valid && 'opacity-60')}>
+        <div className={cx('flex flex-col gap-2', !active && 'opacity-60')}>
           <span className="label-mono flex flex-wrap items-center gap-2">
             {noun} · {topicName(d.topic_id)}
-            <StatusPill label={DECISION_STATUS_LABEL[d.status]} tone={valid ? 'gruen' : 'leise'} />
+            <StatusPill
+              label={DECISION_STATUS_LABEL[d.status]}
+              tone={valid ? 'gruen' : d.status === 'offen' ? 'bernstein' : 'leise'}
+            />
           </span>
           <h1
             className={cx(
               'm-0 text-[28px] leading-[1.2] font-bold tracking-[-0.5px]',
-              !valid && 'line-through',
+              !active && 'line-through',
             )}
           >
             {d.title}
           </h1>
           <span className="label-mono">
             {d.kind === 'fakt' ? 'Festgehalten' : 'Beschlossen'} am {dateText(d.decided_on)}
+            {d.status === 'offen' && ' · gilt erst nach Bestätigung'}
           </span>
         </div>
+        {d.status === 'offen' && d.consensus && <Consensus d={d} />}
         {/* 16.1 „Stimmt das noch?“ – ausdrücklich auf die Agenda gesetzt */}
         {valid && d.marked && (
           <div className="flex flex-col gap-2.5 rounded-[14px] border border-pink px-3.5 py-3">
@@ -195,7 +288,7 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
         <KnowledgeHistory history={d.history} noun={noun} />
       </div>
 
-      {valid && (
+      {active && (
         <ActionBar>
           {/* WF-WIS-02 Ersetzen */}
           <button
@@ -288,6 +381,7 @@ interface ReplaceInput {
   source_plenum_id: string | null;
   source_document_id: string | null;
   source_note: string | null;
+  consensus_until: string | null;
 }
 
 /** lokaler Entwurf des Texts der neuen Fassung (7.3) */
@@ -315,6 +409,7 @@ export function ReplaceSheet({
   const [source, setSource] = useState<SourceValue>(
     plenumId ? { ...EMPTY_SOURCE, plenumId } : { ...EMPTY_SOURCE, note: '' },
   );
+  const [until, setUntil] = useState(() => defaultConsensusUntil(toIsoDate(new Date())));
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -355,6 +450,7 @@ export function ReplaceSheet({
                     source_plenum_id: source.plenumId,
                     source_document_id: source.documentId,
                     source_note: source.note,
+                    consensus_until: decision.kind === 'entscheidung' ? until || null : null,
                   }
                 : {
                     successor_id: picked,
@@ -363,6 +459,7 @@ export function ReplaceSheet({
                     source_plenum_id: null,
                     source_document_id: null,
                     source_note: null,
+                    consensus_until: null,
                   },
             ),
           );
@@ -404,6 +501,9 @@ export function ReplaceSheet({
             />
             <span className="label-mono">Quelle *</span>
             <SourceFields value={source} onChange={setSource} wf={wf} />
+            {decision.kind === 'entscheidung' && (
+              <ConsensusUntilField value={until} onChange={setUntil} wf={wf} />
+            )}
           </>
         ) : (
           <>

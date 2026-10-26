@@ -16,6 +16,7 @@ import {
 } from '../../shared/rules/notifications';
 import { countsForPlenum } from '../../shared/rules/plenum';
 import { canTransitionEvent } from '../../shared/rules/eventStatus';
+import { decisionActive } from '../../shared/rules/knowledge';
 import {
   BLOCK_REASON_MISSING,
   blockReasonMissing,
@@ -59,6 +60,7 @@ import {
   type AppointmentStatus,
   type AppointmentType,
   type Decision,
+  type DecisionVote,
   type DocumentLink,
   type DocumentRow,
   type DriveItem,
@@ -136,7 +138,9 @@ export type InverseOp =
       status: Question['status'];
       answer: string | null;
       answered_in_plenum_id: string | null;
-    };
+    }
+  // [Umbau Phase 6] Stimme vor der Abstimmung – null: es gab noch keine
+  | { kind: 'vote_restore'; decision_id: string; member_id: string; row: DecisionVote | null };
 
 export type UndoEntity = 'task' | 'event' | 'appointment' | 'decision' | 'question' | 'document' | 'partner';
 
@@ -199,6 +203,8 @@ export interface Db {
   appointment_rsvps: AppointmentRsvp[];
   appointment_attendees: AppointmentAttendee[];
   decisions: Decision[];
+  /** [Umbau Phase 6] Stimmen zu offenen Entscheidungen (16.4) */
+  decision_votes: DecisionVote[];
   questions: Question[];
   documents: DocumentRow[];
   document_links: DocumentLink[];
@@ -243,6 +249,7 @@ export function emptyDb(): Db {
     appointment_rsvps: [],
     appointment_attendees: [],
     decisions: [],
+    decision_votes: [],
     questions: [],
     documents: [],
     document_links: [],
@@ -1062,7 +1069,7 @@ export function undo(ctx: Ctx, token: string): void {
       case 'mark_restore': {
         // nur, wenn der Eintrag (nach den Gegenschritten davor) noch gilt – sonst bleibt er herunter
         const d = db.decisions.find((x) => x.id === op.row.decision_id);
-        if (!d || d.archived_at || d.status !== 'gueltig') break;
+        if (!d || d.archived_at || !decisionActive(d.status)) break;
         if (isMarked(db, op.row.decision_id)) break;
         // der Punkt steht wieder an alter Stelle
         // alte Stelle – ist sie inzwischen vergeben, am Ende
@@ -1170,6 +1177,12 @@ export function undo(ctx: Ctx, token: string): void {
         }
         break;
       }
+      case 'vote_restore':
+        db.decision_votes = db.decision_votes.filter(
+          (v) => !(v.decision_id === op.decision_id && v.member_id === op.member_id),
+        );
+        if (op.row) db.decision_votes.push(op.row);
+        break;
       case 'question_state': {
         const question = db.questions.find((q) => q.id === op.question_id);
         if (question) {

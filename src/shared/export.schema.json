@@ -8,7 +8,7 @@
     },
     "version": {
       "type": "number",
-      "const": 3
+      "const": 4
     },
     "exported_at": {
       "type": "string",
@@ -1954,6 +1954,7 @@
           "status": {
             "type": "string",
             "enum": [
+              "offen",
               "gueltig",
               "ersetzt",
               "aufgehoben"
@@ -2025,6 +2026,18 @@
               }
             ]
           },
+          "consensus_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "archived_at": {
             "anyOf": [
               {
@@ -2072,11 +2085,49 @@
           "source_note",
           "source_question_id",
           "event_id",
+          "consensus_until",
           "archived_at",
           "created_at",
           "updated_at",
           "created_by",
           "version"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "decision_votes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "member_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "vote": {
+            "type": "string",
+            "enum": [
+              "bestaetigt",
+              "widerspruch"
+            ]
+          },
+          "voted_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "decision_id",
+          "member_id",
+          "vote",
+          "voted_at"
         ],
         "additionalProperties": false
       }
@@ -2474,6 +2525,7 @@
     "appointment_rsvps",
     "appointment_attendees",
     "decisions",
+    "decision_votes",
     "questions",
     "documents",
     "document_links",

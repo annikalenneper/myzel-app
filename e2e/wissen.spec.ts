@@ -13,27 +13,27 @@ const open = async (page: Page) => {
 };
 const card = (page: Page, title: string) => page.getByRole('article').filter({ hasText: title });
 
-test('WF-WIS-04: Reiter Entscheidungen und Fakten – Standard nur gültige; Filter Status und Thema', async ({
+test('WF-WIS-04: Reiter Entscheidungen und Fakten – Standard offene und gültige; Filter Status und Thema', async ({
   page,
 }) => {
   await open(page);
   await expect(page.getByRole('tab', { name: 'Entscheidungen' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: 'Fragen' })).toHaveCount(0);
-  await expect(page.getByText('4 Einträge')).toBeVisible();
+  await expect(page.getByText('6 Einträge')).toBeVisible();
   await expect(card(page, 'Mate am Tresen für 2 €')).toHaveCount(0);
   await expect(card(page, 'Unser Code of Conduct gilt für alle Veranstaltungen')).toHaveCount(0);
 
   await page.getByRole('tab', { name: 'Fakten' }).click();
   await expect(page.getByText('1 Eintrag')).toBeVisible();
   await expect(card(page, 'Unser Code of Conduct gilt für alle Veranstaltungen')).toBeVisible();
-  await page.getByRole('button', { name: 'Gültig ▾' }).click();
+  await page.getByRole('button', { name: 'Offen & gültig ▾' }).click();
   await page.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'Alle' }).click();
   await expect(page.getByText('2 Einträge')).toBeVisible();
   await page.getByRole('button', { name: 'Filter zurücksetzen' }).click();
   await expect(page.getByText('1 Eintrag')).toBeVisible();
 
   await page.getByRole('tab', { name: 'Entscheidungen' }).click();
-  await page.getByRole('button', { name: 'Gültig ▾' }).click();
+  await page.getByRole('button', { name: 'Offen & gültig ▾' }).click();
   await page.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'Ersetzt' }).click();
   const old = card(page, 'Mate am Tresen für 2 €');
   await expect(old).toContainText('→ ersetzt durch: Mate am Tresen für 2,50 €');
@@ -196,7 +196,9 @@ test('WF-WIS-11: globale Suche – Treffer beim Tippen, gruppiert, Gruppe des Sc
   await overlay.getByLabel('Suche über alles').fill('Winterrave');
   await expect(overlay.getByRole('status')).toContainText(/\d+ Treffer/);
   const groups = overlay.getByRole('heading', { level: 2 });
-  await expect(groups.first()).toContainText(/Aufgaben · \d/i);
+  // im Wissen steht die Gruppe des Screens zuerst
+  await expect(groups.first()).toContainText(/Entscheidungen & Fakten · \d/i);
+  await expect(overlay.getByRole('region', { name: 'Aufgaben' })).toBeVisible();
   await expect(overlay.getByRole('region', { name: 'Veranstaltungen' })).toContainText('Winterrave');
   await expect(overlay.getByRole('region', { name: 'Termine' })).toContainText('Vorbesprechung Winterrave');
   await expect(overlay.getByRole('region', { name: 'Fragen' })).toContainText('Garderobe');
@@ -238,4 +240,49 @@ test('WF-WIS-12 / WF-ALL-07: Entscheidung bearbeiten mit Zähler, Text auf der K
 
   await page.goto('/wissen');
   await expect(card(page, 'Mate am Tresen für 2,50 €')).toContainText('Gilt für alle Sorten.');
+});
+
+test('WF-WIS-13: offene Entscheidung bestätigen, widersprechen – Widerspruch kommt auf die Agenda', async ({
+  page,
+}) => {
+  await open(page);
+  const bier = card(page, 'Bier beim Winterrave für 3 €');
+  await expect(bier).toContainText('Offen');
+  await expect(bier).toContainText('4/11 bestätigt');
+  await bier.getByRole('link').click();
+  const box = page.getByRole('region', { name: 'Abstimmung' });
+  await expect(box).toContainText('4 von 11 bestätigt');
+  await box.getByRole('button', { name: 'Bestätigen' }).click();
+  await expect(undoBar(page)).toContainText('Bestätigt');
+  await expect(box).toContainText('5 von 11 bestätigt');
+  await expect(box.getByRole('button', { name: '✓ Bestätigt' })).toHaveAttribute('aria-pressed', 'true');
+
+  await box.getByRole('button', { name: 'Widersprechen' }).click();
+  await expect(undoBar(page)).toContainText('Widersprochen · auf der Agenda');
+  await expect(box).toContainText('Widerspruch – die Entscheidung bleibt offen');
+  await expect(box).toContainText('Widerspruch: Mo');
+  await expect(page.getByText('Mo hat widersprochen.')).toBeVisible();
+
+  await page.goto('/agenda');
+  await expect(page.getByText('Zu besprechen')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Bier beim Winterrave für 3 €/ })).toContainText(
+    'Widerspruch – noch nicht gültig',
+  );
+});
+
+test('WF-WIS-01: neue Entscheidung mit Frist zum Bestätigen, Fakt ohne', async ({ page }) => {
+  await open(page);
+  await createNew(page, 'Entscheidung');
+  const sheet = page.getByRole('dialog', { name: 'Neu festhalten' });
+  await expect(sheet.getByText('Bestätigen bis')).toBeVisible();
+  await sheet.getByRole('button', { name: 'Fakt', exact: true }).click();
+  await expect(sheet.getByText('Bestätigen bis')).toHaveCount(0);
+  await sheet.getByRole('button', { name: 'Entscheidung', exact: true }).click();
+  await sheet.getByLabel('Titel *').fill('Kasse zählt immer zu zweit');
+  await sheet.getByLabel('Thema *').selectOption({ label: 'Organisatorisches' });
+  await sheet.getByRole('button', { name: 'Notiz' }).click();
+  await sheet.getByLabel('Notiz zur Quelle').fill('Plenum');
+  await sheet.locator('button[type=submit]').click();
+  await expect(undoBar(page)).toContainText('Entscheidung festgehalten · wartet auf Bestätigung');
+  await expect(card(page, 'Kasse zählt immer zu zweit')).toContainText('0/11 bestätigt');
 });

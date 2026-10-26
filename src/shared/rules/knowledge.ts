@@ -1,8 +1,10 @@
-// Wissen (ANFORDERUNGEN 3.7 bis 3.9, 4.4, 4.5): Entscheidungen und Fakten, offene Fragen, Dokumente
+// Wissen (ANFORDERUNGEN 3.7 bis 3.9, 4.4, 4.5, 16.4): Entscheidungen und Fakten, Konsens, offene Fragen, Dokumente
+import { addDays } from './due';
 import type {
   Decision,
   DecisionKind,
   DecisionStatus,
+  DecisionVoteKind,
   DocType,
   Priority,
   Question,
@@ -14,9 +16,14 @@ export const DECISION_KIND_LABEL = {
   fakt: 'Fakt',
 } as const satisfies Record<DecisionKind, string>;
 export const DECISION_STATUS_LABEL: Record<DecisionStatus, string> = {
+  offen: 'Offen',
   gueltig: 'Gültig',
   ersetzt: 'Ersetzt',
   aufgehoben: 'Aufgehoben',
+};
+export const DECISION_VOTE_LABEL: Record<DecisionVoteKind, string> = {
+  bestaetigt: 'Bestätigt',
+  widerspruch: 'Widerspruch',
 };
 export const QUESTION_STATUS_LABEL: Record<QuestionStatus, string> = {
   offen: 'Offen',
@@ -75,3 +82,62 @@ export function hasSource(s: {
 }): boolean {
   return !!(s.source_plenum_id || s.source_document_id || s.source_note?.trim());
 }
+
+// ── Entscheidungen im Konsens (16.4) ─────────────────────────────────────────
+
+/** Standardfrist zum Bestätigen in Tagen; längstens erlaubt */
+export const CONSENSUS_DEFAULT_DAYS = 7;
+export const CONSENSUS_MAX_DAYS = 90;
+
+/** Frist ohne Angabe: heute + 7 Tage (Datum in Berlin) */
+export const defaultConsensusUntil = (today: string) => addDays(today, CONSENSUS_DEFAULT_DAYS);
+
+/** Ist die gewählte Frist erlaubt? Liefert den Grund als Satz oder null. */
+export function consensusUntilProblem(until: string, today: string): string | null {
+  if (until < today) return 'Die Frist darf nicht in der Vergangenheit liegen.';
+  if (until > addDays(today, CONSENSUS_MAX_DAYS))
+    return `Die Frist darf höchstens ${CONSENSUS_MAX_DAYS} Tage in der Zukunft liegen.`;
+  return null;
+}
+
+export interface ConsensusCount {
+  confirmed: number;
+  objected: number;
+  /** aktive Mitglieder, die abstimmen können */
+  total: number;
+}
+
+/** Stimmen aktiver Mitglieder zählen – Stimmen ausgetretener Personen zählen nicht mehr */
+export function countVotes(
+  votes: readonly { member_id: string; vote: DecisionVoteKind }[],
+  activeIds: readonly string[],
+): ConsensusCount {
+  const active = new Set(activeIds);
+  const counted = votes.filter((v) => active.has(v.member_id));
+  return {
+    confirmed: counted.filter((v) => v.vote === 'bestaetigt').length,
+    objected: counted.filter((v) => v.vote === 'widerspruch').length,
+    total: active.size,
+  };
+}
+
+/**
+ * Wird die offene Entscheidung jetzt gültig? Ja, wenn alle aktiven Mitglieder bestätigt haben, oder wenn die Frist
+ * abgelaufen ist und niemand widerspricht – nicht abgegebene Stimmen verfallen. Ein Widerspruch hält sie offen.
+ */
+export function consensusReached(
+  decision: Pick<Decision, 'status' | 'consensus_until'>,
+  count: ConsensusCount,
+  today: string,
+): boolean {
+  if (decision.status !== 'offen' || !decision.consensus_until) return false;
+  if (count.objected > 0) return false;
+  return count.confirmed >= count.total || today > decision.consensus_until;
+}
+
+/** Status beim Anlegen: Entscheidungen warten auf Bestätigung, Fakten gelten sofort */
+export const initialDecisionStatus = (kind: DecisionKind): DecisionStatus =>
+  kind === 'entscheidung' ? 'offen' : 'gueltig';
+
+/** Lässt sich der Eintrag noch bearbeiten, ersetzen, aufheben oder auf die Agenda setzen? */
+export const decisionActive = (status: DecisionStatus) => status === 'gueltig' || status === 'offen';

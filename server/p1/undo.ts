@@ -289,6 +289,24 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .execute();
         break;
       }
+      case 'vote_restore': {
+        const q = ctx.trx
+          .deleteFrom('decision_votes')
+          .where('decision_id', '=', op.decision_id)
+          .where('member_id', '=', op.member_id);
+        if (op.row)
+          await ctx.trx
+            .insertInto('decision_votes')
+            .values(op.row)
+            .onConflict((oc) =>
+              oc
+                .columns(['decision_id', 'member_id'])
+                .doUpdateSet({ vote: op.row!.vote, voted_at: op.row!.voted_at }),
+            )
+            .execute();
+        else await q.execute();
+        break;
+      }
       case 'question_state': {
         const before = await ctx.trx
           .selectFrom('questions')

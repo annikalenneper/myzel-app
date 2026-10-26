@@ -1,5 +1,6 @@
 // Entscheidung oder Fakt ausdrücklich auf der Agenda (16.1): „Stimmt das noch?“. Neu Aufgesetztes kommt ans Ende;
 // Ersetzen und Aufheben nehmen den Eintrag herunter (mit Gegenschritt).
+import { decisionActive } from '../../src/shared/rules/knowledge';
 import { iso, lockFor, type Ctx, type Db } from './context';
 
 export async function isMarked(trx: Db, decisionId: string): Promise<boolean> {
@@ -48,5 +49,5 @@ export async function markable(trx: Db, decisionId: string): Promise<boolean> {
     .select(['status', 'archived_at'])
     .where('id', '=', decisionId)
     .executeTakeFirst();
-  return !!d && !d.archived_at && d.status === 'gueltig';
+  return !!d && !d.archived_at && decisionActive(d.status);
 }

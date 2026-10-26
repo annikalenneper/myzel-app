@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Umbau 10/2026, Phase 2.** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Umbau 10/2026, Phase 7.** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
@@ -73,7 +73,17 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         (Verlauf zeigt überall vorher → nachher, auch Kommentare und Aufgaben-Beschreibung), N1 (Artikel, Namen von
         Thema/Veranstaltung), N3–N6 behoben; N2 (Ersetzen bei archivierter Veranstaltung) erst relevant, wenn
         Veranstaltungen archivierbar werden; N7 → U15, N8 (Exportversion 3)
-- [ ] **Phase 6 – Entscheidungen im Konsens:** Frist (Standard 7 Tage, wählbar), Bestätigen/Widersprechen, Joblauf
+- [x] **Phase 6 – Entscheidungen im Konsens** (lokal, Migration 20261028000001 noch nicht eingespielt):
+  - [x] Neue Entscheidungen sind „offen“ mit Frist „Bestätigen bis“ (Standard 7 Tage, wählbar, höchstens 90 Tage);
+        Fakten gelten sofort; bestehende bleiben gültig (U2). Auch beim Ersetzen bekommt die neue Fassung eine Frist
+  - [x] Bestätigen/Widersprechen (WF-WIS-13) je Person eine Stimme, änderbar, mit Rückgängig; gültig, sobald alle
+        aktiven Mitglieder bestätigt haben oder die Frist ohne Widerspruch abläuft. Widerspruch hält offen und setzt
+        auf die Agenda („Zu besprechen“, „Widerspruch – noch nicht gültig“)
+  - [x] Joblauf: offene Entscheidungen werden nach der Frist gültig, als „Myzel (automatisch)“, mit Historie; erst
+        ohne Transaktion geprüft, je Eintrag eine Transaktion
+  - [x] Detail: Kasten mit Frist, Stand „x von y bestätigt“, Namen (bestätigt, Widerspruch, noch nicht abgestimmt);
+        Karten zeigen Stand und Frist; Filter Standard „Offen & gültig“; Verlauf „hat bestätigt/widersprochen“
+  - [x] Export Version 4 (decision_votes), Integritätsprüfung: Hinweis bei überfälligen offenen Entscheidungen
   - [x] Review Phase 5 (Subagent): H1 (Verlauf ersetzte jedes „s“ durch ein Leerzeichen – fehlender Backslash, Test
         ergänzt), M1 („+“ übernimmt auch im Termin dessen Veranstaltung, Dokumente gehen an den Termin; in der auf eine
         Veranstaltung gefilterten Agenda deren Veranstaltung), M2 (Desktop-Test für die Vorbelegung, Partner wird wirklich
@@ -144,6 +154,9 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | U16 | 27.10.2026 | Neue Workflow-IDs: WF-ALL-07 Kommentar an einem Artefakt, WF-FRA-05 Ergebnis festhalten, WF-FRA-06 Frage bearbeiten, WF-WIS-12 Entscheidung/Fakt bearbeiten, WF-PLE-21 „Gehört das zum Plenum?“.                                                      | Annahme |
 | U17 | 27.10.2026 | Mobil steht das „+“ nur in den Listen; in Detailansichten liegen unten eigene Leisten, dort gibt es die Knöpfe „+ Aufgabe“, „+ Frage“, „+ Festhalten“ der Ansicht. Partner sind jetzt auch direkt über „+“ anlegbar (vorher nur in der Partnerliste). | Annahme |
 | F1  | 27.10.2026 | Teilnehmende markiert der Server auch bei Änderungen im Profil/Verwaltung (z. B. Deaktivieren) automatisch fürs Plenum, Außenstehende werden dort nicht gefragt. Soll das so sein, oder zählt im Profil gar nichts zum Plenum?                        | offen   |
+| U18 | 28.10.2026 | Neue Workflow-ID WF-WIS-13 „Entscheidung bestätigen oder widersprechen“. Abstimmen dürfen alle aktiven Mitglieder, auch wer die Entscheidung angelegt hat (keine automatische Bestätigung). Stimmen Deaktivierter zählen nicht mehr.                  | Annahme |
+| U19 | 28.10.2026 | Offene Entscheidungen lassen sich wie gültige bearbeiten, ersetzen und aufheben; so wird ein Widerspruch nach dem Gespräch aufgelöst (oder die Person nimmt ihn zurück). Bearbeiten setzt die Stimmen nicht zurück.                                   | Annahme |
+| F3  | 28.10.2026 | Sollen alle eine Benachrichtigung bekommen, wenn eine neue Entscheidung zum Bestätigen da ist (und kurz vor Fristende)? Bisher sieht man sie nur unter Wissen; ohne Stimme gilt sie nach der Frist.                                                   | offen   |
 | F2  | 27.10.2026 | Ergebnis: Eine Frage steht einmal („Beantwortet: …“), ihre Entscheidungen/Fakten je einmal mit „(aus der Frage …)“. Passt das, oder sollen die Ergebnisse unter der Frage stehen und die Frage-Zeile entfallen?                                       | offen   |
 
 ## Entscheidungsprotokoll

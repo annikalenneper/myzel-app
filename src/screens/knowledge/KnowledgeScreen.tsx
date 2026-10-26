@@ -8,7 +8,8 @@ import { useLookups } from '../../app/lookups';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { DecisionListItem, DocumentListItem, DriveEntry } from '../../data/api';
-import { DECISION_STATUS_LABEL, DOC_TYPE_LABEL } from '../../shared/rules/knowledge';
+import { formatDayMonth } from '../../shared/format';
+import { DECISION_STATUS_LABEL, decisionActive, DOC_TYPE_LABEL } from '../../shared/rules/knowledge';
 import { topicFilterIds } from '../../shared/rules/topics';
 import type { DecisionKind, DecisionStatus } from '../../shared/schema';
 import { cx, ListSkeleton, Pill } from '../../ui/bits';
@@ -163,6 +164,21 @@ function KnowledgeList({
 }
 
 type DecisionMenu = 'status' | 'thema' | null;
+type StatusFilter = DecisionStatus | 'aktuell' | 'alle';
+const STATUS_FILTER_LABEL: Record<StatusFilter, string> = {
+  ...DECISION_STATUS_LABEL,
+  aktuell: 'Offen & gültig',
+  alle: 'Alle Status',
+};
+
+/** „bis 18.10. · 4/11 bestätigt“ oder „Widerspruch“ (16.4) */
+function consensusLine(d: DecisionListItem): string | null {
+  if (d.status !== 'offen' || !d.consensus || !d.consensus_until) return null;
+  const [y, m, day] = d.consensus_until.split('-').map(Number) as [number, number, number];
+  const until = formatDayMonth(new Date(y, m - 1, day));
+  const count = `${d.consensus.confirmed}/${d.consensus.total} bestätigt`;
+  return d.consensus.objected > 0 ? `Widerspruch · ${count}` : `bis ${until} · ${count}`;
+}
 
 function Decisions({
   kind,
@@ -176,19 +192,19 @@ function Decisions({
   const toggleAgenda = useAgendaToggle();
   const { topics } = useLookups();
   const { data: decisions } = useData('decisions', () => api.listDecisions());
-  // WF-WIS-04 Filter Thema und Status – kombinierbar, speichern nichts; Standard: nur gültige
-  const [status, setStatus] = useState<DecisionStatus | 'alle'>('gueltig');
+  // WF-WIS-04 Filter Thema und Status – kombinierbar, speichern nichts; Standard: gültige und offene (16.4)
+  const [status, setStatus] = useState<StatusFilter>('aktuell');
   const [topicId, setTopicId] = useState<string | null>(null);
   const [menu, setMenu] = useState<DecisionMenu>(null);
 
   const topicIds = topicId ? topicFilterIds(topicId, topics) : null;
   const shown = (decisions ?? []).filter(
     (d) =>
-      (status === 'alle' || d.status === status) &&
+      (status === 'alle' || (status === 'aktuell' ? decisionActive(d.status) : d.status === status)) &&
       d.kind === kind &&
       (!topicIds || topicIds.has(d.topic_id)),
   );
-  const filtered = status !== 'gueltig' || topicId !== null;
+  const filtered = status !== 'aktuell' || topicId !== null;
   const topLevel = topics.filter((t) => !t.parent_id && (!t.archived_at || t.id === topicId));
 
   const menus: Record<
@@ -198,14 +214,15 @@ function Decisions({
     status: {
       label: 'Status',
       options: [
-        ...(['gueltig', 'ersetzt', 'aufgehoben'] as const).map((s) => ({
+        { key: 'aktuell', label: STATUS_FILTER_LABEL.aktuell, selected: status === 'aktuell' },
+        ...(['offen', 'gueltig', 'ersetzt', 'aufgehoben'] as const).map((s) => ({
           key: s,
           label: DECISION_STATUS_LABEL[s],
           selected: status === s,
         })),
         { key: 'alle', label: 'Alle', selected: status === 'alle' },
       ],
-      pick: (k) => setStatus(k as DecisionStatus | 'alle'),
+      pick: (k) => setStatus(k as StatusFilter),
     },
     thema: {
       label: 'Thema',
@@ -217,7 +234,7 @@ function Decisions({
     },
   };
   const pills: [Exclude<DecisionMenu, null>, string, boolean][] = [
-    ['status', status === 'alle' ? 'Alle Status' : DECISION_STATUS_LABEL[status], status !== 'gueltig'],
+    ['status', STATUS_FILTER_LABEL[status], status !== 'aktuell'],
     ['thema', topicId ? (topics.find((t) => t.id === topicId)?.name ?? 'Thema') : 'Thema', topicId !== null],
   ];
 
@@ -260,7 +277,7 @@ function Decisions({
               type="button"
               data-wf="WF-WIS-04"
               onClick={() => {
-                setStatus('gueltig');
+                setStatus('aktuell');
                 setTopicId(null);
               }}
               className="hit h-8 text-[13px] text-pink"
@@ -301,19 +318,29 @@ function DecisionCard({
   onAgenda: () => void;
 }) {
   const valid = d.status === 'gueltig';
+  const active = decisionActive(d.status);
+  const consensus = consensusLine(d);
   return (
     <article
       className={cx('relative rounded-2xl border border-linie', selected ? 'bg-erhoeht' : 'bg-flaeche')}
     >
       <Link
         to={`/wissen/beschluesse/${d.id}`}
-        className={cx('flex flex-col gap-2 py-3.5 pr-14 pl-4 text-text no-underline', !valid && 'opacity-60')}
+        className={cx(
+          'flex flex-col gap-2 py-3.5 pr-14 pl-4 text-text no-underline',
+          !active && 'opacity-60',
+        )}
       >
-        <span className="label-mono flex items-center gap-2">
-          <span className={valid ? 'text-gruen' : 'text-leise'}>{DECISION_STATUS_LABEL[d.status]}</span>
+        <span className="label-mono flex flex-wrap items-center gap-x-2">
+          <span className={valid ? 'text-gruen' : active ? 'text-bernstein' : 'text-leise'}>
+            {DECISION_STATUS_LABEL[d.status]}
+          </span>
+          {consensus && (
+            <span className={d.consensus!.objected > 0 ? 'text-pink' : 'text-weich'}>{consensus}</span>
+          )}
           {d.marked && <span className="text-pink">Auf der Agenda</span>}
         </span>
-        <span className={cx('text-[17px] leading-[1.3] font-semibold', !valid && 'line-through')}>
+        <span className={cx('text-[17px] leading-[1.3] font-semibold', !active && 'line-through')}>
           {d.title}
         </span>
         {/* 16.4: der Text steht auf der Karte, nicht nur der Titel */}
@@ -329,8 +356,8 @@ function DecisionCard({
         )}
         <span className="label-mono">Quelle: {d.source_label}</span>
       </Link>
-      {/* nur gültige lassen sich auf die Agenda setzen */}
-      {valid && <AgendaButton on={d.marked} onToggle={onAgenda} title={d.title} />}
+      {/* nur gültige und offene lassen sich auf die Agenda setzen */}
+      {active && <AgendaButton on={d.marked} onToggle={onAgenda} title={d.title} />}
     </article>
   );
 }

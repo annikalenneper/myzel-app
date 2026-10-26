@@ -18,6 +18,7 @@ import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
 import { NOTIFICATION_CHANNELS, type JobRun, type NotificationChannel } from '../../src/shared/schema';
 import { parse, requireAdmin, rule, type Ctx, type ReadCtx, type Trx } from '../core/context';
 import type { Database } from '../db/types';
+import { settleOpenDecisions } from '../p3/knowledge';
 import { weeklyRebuild } from '../p5/drive';
 
 type Db = Kysely<Database>;
@@ -381,6 +382,14 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
     console.error(e);
     errors.push(`Termin-Erinnerungen: ${reason(e)}`);
   }
+  // [Umbau Phase 6] Entscheidungen, deren Frist ohne Widerspruch abgelaufen ist, werden gültig (16.4)
+  let settled = 0;
+  try {
+    settled = await settleOpenDecisions(db, now);
+  } catch (e) {
+    console.error(e);
+    errors.push(`Entscheidungen: ${reason(e)}`);
+  }
   try {
     const claimed = await claim(db, now);
     for (const [i, entry] of claimed.entries()) {
@@ -441,6 +450,7 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
   const error = errors.length > 0 ? errors.join(' · ').slice(0, 500) : null;
   const total = sent.push + sent.telegram;
   const count = `${total} ${total === 1 ? 'Nachricht' : 'Nachrichten'} verschickt`;
+  const valid = settled > 0 ? `${settled} ${settled === 1 ? 'Entscheidung' : 'Entscheidungen'} gültig` : '';
   const run = {
     started_at: started,
     finished_at: new Date(Math.max(Date.now(), now.getTime())).toISOString(),
@@ -450,10 +460,10 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
         ? `Mit Fehler, ${count}`
         : 'Lauf mit Fehler'
       : total === 0
-        ? 'Nichts zu tun'
-        : reminders > 0
-          ? `${reminders} Erinnerungen eingereiht, ${count}`
-          : count,
+        ? valid || 'Nichts zu tun'
+        : [reminders > 0 ? `${reminders} Erinnerungen eingereiht, ${count}` : count, valid]
+            .filter(Boolean)
+            .join(' · '),
     error,
     sent_push: sent.push,
     sent_telegram: sent.telegram,

@@ -1,5 +1,5 @@
-// Testdaten-Schicht, Phase 3: Wissen – Entscheidungen und Fakten, offene Fragen, Dokumente, Suche
-// (ANFORDERUNGEN 3.7 bis 3.9, 4.4, 4.5, 5.5, 5.6)
+// Testdaten-Schicht, Phase 3: Wissen – Entscheidungen und Fakten, Konsens, offene Fragen, Dokumente, Suche
+// (ANFORDERUNGEN 3.7 bis 3.9, 4.4, 4.5, 5.5, 5.6, 16.4)
 import { z } from 'zod';
 import { AppError } from '../../shared/errors';
 import { formatDayMonth } from '../../shared/format';
@@ -9,9 +9,15 @@ import { driveFileIdFromUrl } from '../../shared/rules/drive';
 import { toIsoDate } from '../../shared/rules/due';
 import {
   canSupersede,
+  consensusReached,
+  consensusUntilProblem,
+  countVotes,
   DECISION_KIND_LABEL,
   DECISION_STATUS_LABEL,
+  decisionActive,
+  defaultConsensusUntil,
   DOC_TYPE_LABEL,
+  initialDecisionStatus,
   QUESTION_STATUS_LABEL,
   sortQuestions,
 } from '../../shared/rules/knowledge';
@@ -19,6 +25,7 @@ import {
   decisionCreateSchema,
   decisionUpdateSchema,
   decisionReplaceSchema,
+  decisionVoteKindSchema,
   documentCreateSchema,
   DRIVE_FOLDER_MIME,
   questionClarifySchema,
@@ -26,6 +33,7 @@ import {
   questionUpdateSchema,
   type Decision,
   type DocumentLinkTarget,
+  type Member,
   type DocumentRow,
   type HistoryChanges,
   type Question,
@@ -84,7 +92,16 @@ function sourceLabel(db: Db, d: Decision): string {
   return parts.join(' · ');
 }
 
-function decisionItem(db: Db, d: Decision): DecisionListItem {
+/** aktive Mitglieder, die abstimmen (16.4) – ohne „Myzel (automatisch)“ */
+const activeMemberIds = (db: Db) => db.members.filter((m) => m.active && !m.is_system).map((m) => m.id);
+/** Stimmen zu einem Eintrag, neueste zuerst */
+const votesOf = (db: Db, decisionId: string) =>
+  db.decision_votes
+    .filter((v) => v.decision_id === decisionId)
+    .sort((a, b) => b.voted_at.localeCompare(a.voted_at));
+
+function decisionItem(db: Db, d: Decision, actorId: string): DecisionListItem {
+  const votes = d.consensus_until ? votesOf(db, d.id) : [];
   return {
     ...d,
     source_label: sourceLabel(db, d),
@@ -98,27 +115,40 @@ function decisionItem(db: Db, d: Decision): DecisionListItem {
           return q ? { id: q.id, title: q.title } : null;
         })()
       : null,
+    consensus: d.consensus_until
+      ? {
+          ...countVotes(votes, activeMemberIds(db)),
+          my_vote: votes.find((v) => v.member_id === actorId)?.vote ?? null,
+        }
+      : null,
   };
 }
 
-export function listDecisions(db: Db): DecisionListItem[] {
+export function listDecisions(db: Db, actorId: string): DecisionListItem[] {
   return db.decisions
     .filter((d) => !d.archived_at)
     .sort((a, b) => b.decided_on.localeCompare(a.decided_on) || b.created_at.localeCompare(a.created_at))
-    .map((d) => decisionItem(db, d));
+    .map((d) => decisionItem(db, d, actorId));
 }
 
-export function getDecision(db: Db, id: string): DecisionDetail {
+export function getDecision(db: Db, id: string, actorId: string): DecisionDetail {
   const d = findDecision(db, id);
+  const activeIds = d.consensus_until ? activeMemberIds(db) : [];
+  const votes = d.consensus_until ? votesOf(db, id) : [];
   const plenum = d.source_plenum_id ? db.appointments.find((a) => a.id === d.source_plenum_id) : undefined;
   const doc = d.source_document_id ? db.documents.find((x) => x.id === d.source_document_id) : undefined;
   return {
-    ...decisionItem(db, d),
+    ...decisionItem(db, d, actorId),
     source_plenum: plenum ? { id: plenum.id, title: plenum.title, starts_at: plenum.starts_at } : null,
     source_document: doc ? { id: doc.id, title: doc.title, url: doc.url } : null,
     replaces: db.decisions
       .filter((x) => x.superseded_by_id === id)
       .map((x) => ({ id: x.id, title: x.title })),
+    votes: votes
+      .filter((v) => activeIds.includes(v.member_id))
+      .map(({ member_id, vote, voted_at }) => ({ member_id, vote, voted_at })),
+    // wer noch nicht abgestimmt hat – nur, solange abgestimmt wird
+    pending_ids: d.status === 'offen' ? activeIds.filter((m) => !votes.some((v) => v.member_id === m)) : [],
     documents: linkedDocuments(db, 'decision', id),
     comments: commentsOf(db, 'decision', id),
     history: historyOf(db, 'decision', id),
@@ -161,6 +191,7 @@ export function insertDecision(
   const question = input.source_question_id ? findQuestion(ctx.db, input.source_question_id) : null;
   if (question?.archived_at)
     throw new AppError('validation', 'Diese Frage gibt es nicht mehr.', { field: 'source_question_id' });
+  const consensusUntil = consensusFor(ctx, input.kind, input.consensus_until);
   const now = iso(ctx);
   const decision: Decision = {
     id: uuid(),
@@ -169,7 +200,8 @@ export function insertDecision(
     kind: input.kind,
     topic_id: input.topic_id,
     decided_on: input.decided_on ?? toIsoDate(ctx.now),
-    status: 'gueltig',
+    status: initialDecisionStatus(input.kind),
+    consensus_until: consensusUntil,
     superseded_by_id: null,
     source_plenum_id: input.source_plenum_id,
     source_document_id: input.source_document_id,
@@ -188,6 +220,7 @@ export function insertDecision(
     title: { old: null, new: decision.title },
     ...(decision.source_plenum_id ? { source_plenum_id: { old: null, new: decision.source_plenum_id } } : {}),
     ...(question ? { source_question_id: { old: null, new: question.id } } : {}),
+    ...(consensusUntil ? { consensus_until: { old: null, new: consensusUntil } } : {}),
   });
   // die Frage bleibt offen – als beantwortet markiert sie die Person selbst (16.3)
   if (question && action === 'created')
@@ -197,6 +230,16 @@ export function insertDecision(
       kind: { old: null, new: decision.kind },
     });
   return decision;
+}
+
+/** Frist einer neuen Entscheidung (16.4): ohne Angabe 7 Tage, nicht in der Vergangenheit; Fakten haben keine */
+function consensusFor(ctx: Ctx, kind: Decision['kind'], until: string | null): string | null {
+  if (kind !== 'entscheidung') return null;
+  const today = toIsoDate(ctx.now);
+  if (!until) return defaultConsensusUntil(today);
+  const problem = consensusUntilProblem(until, today);
+  if (problem) throw new AppError('validation', problem, { field: 'consensus_until' });
+  return until;
 }
 
 /** WF-WIS-01 */
@@ -230,7 +273,7 @@ export function updateDecision(ctx: Ctx, id: string, raw: unknown): void {
   const input = parse(decisionUpdateSchema, raw);
   const d = findDecision(ctx.db, id);
   checkVersion(ctx, 'decision', d, input.version);
-  if (d.status !== 'gueltig') throw rule('Nur gültige Einträge lassen sich bearbeiten.');
+  if (!decisionActive(d.status)) throw rule('Nur gültige oder offene Einträge lassen sich bearbeiten.');
   if (input.topic_id !== d.topic_id) checkTopic(ctx, input.topic_id);
   if (input.event_id !== d.event_id) checkEvent(ctx, input.event_id);
   const changes: HistoryChanges = {};
@@ -253,7 +296,7 @@ export function replaceDecision(ctx: Ctx, id: string, raw: unknown): Undoable & 
   const input = parse(decisionReplaceSchema, raw);
   const old = findDecision(ctx.db, id);
   checkVersion(ctx, 'decision', old, input.version);
-  if (old.status !== 'gueltig') throw rule('Nur gültige Einträge lassen sich ersetzen.');
+  if (!decisionActive(old.status)) throw rule('Nur gültige oder offene Einträge lassen sich ersetzen.');
   let successor: Decision;
   if (input.successor_id) {
     successor = findDecision(ctx.db, input.successor_id);
@@ -269,6 +312,7 @@ export function replaceDecision(ctx: Ctx, id: string, raw: unknown): Undoable & 
         kind: old.kind,
         topic_id: old.topic_id,
         decided_on: null,
+        consensus_until: input.consensus_until,
         source_plenum_id: input.source_plenum_id,
         source_document_id: input.source_document_id,
         source_note: input.source_note,
@@ -296,7 +340,7 @@ export function replaceDecision(ctx: Ctx, id: string, raw: unknown): Undoable & 
 export function revokeDecision(ctx: Ctx, id: string, note: string | null, version: number): Undoable {
   const d = findDecision(ctx.db, id);
   checkVersion(ctx, 'decision', d, version);
-  if (d.status !== 'gueltig') throw rule('Nur gültige Einträge lassen sich aufheben.');
+  if (!decisionActive(d.status)) throw rule('Nur gültige oder offene Einträge lassen sich aufheben.');
   ctx.inverse.push(decisionState(d));
   const changes: HistoryChanges = { status: { old: d.status, new: 'aufgehoben' } };
   if (note?.trim()) changes.note = { old: null, new: note.trim() };
@@ -305,6 +349,53 @@ export function revokeDecision(ctx: Ctx, id: string, note: string | null, versio
   touch(ctx, d);
   writeHistory(ctx, 'decision', id, 'revoked', changes);
   return registerUndo(ctx, 'decision', d, 'Aufgehoben');
+}
+
+// ── Entscheidungen im Konsens (16.4) ─────────────────────────────────────────
+
+/** Gültig, wenn alle aktiven Mitglieder bestätigt haben oder die Frist ohne Widerspruch abgelaufen ist */
+function settle(ctx: Ctx, d: Decision): boolean {
+  const count = countVotes(votesOf(ctx.db, d.id), activeMemberIds(ctx.db));
+  if (!consensusReached(d, count, toIsoDate(ctx.now))) return false;
+  ctx.inverse.push(decisionState(d));
+  d.status = 'gueltig';
+  touch(ctx, d);
+  writeHistory(ctx, 'decision', d.id, 'consensus_reached', {
+    status: { old: 'offen', new: 'gueltig' },
+    confirmed: { old: null, new: count.confirmed },
+    total: { old: null, new: count.total },
+  });
+  return true;
+}
+
+/** WF-WIS-13: bestätigen oder widersprechen – je Person eine Stimme, änderbar, solange die Entscheidung offen ist */
+export function voteDecision(ctx: Ctx, id: string, raw: unknown): Undoable & { valid: boolean } {
+  const vote = parse(decisionVoteKindSchema, raw);
+  const d = findDecision(ctx.db, id);
+  if (d.archived_at || d.status !== 'offen')
+    throw rule('Über diese Entscheidung wird nicht mehr abgestimmt.');
+  const before = ctx.db.decision_votes.find((v) => v.decision_id === id && v.member_id === ctx.actor.id);
+  if (before?.vote === vote) return { undo_token: '', valid: false };
+  ctx.db.decision_votes = ctx.db.decision_votes.filter((v) => v !== before);
+  ctx.db.decision_votes.push({ decision_id: id, member_id: ctx.actor.id, vote, voted_at: iso(ctx) });
+  ctx.inverse.push({ kind: 'vote_restore', decision_id: id, member_id: ctx.actor.id, row: before ?? null });
+  writeHistory(ctx, 'decision', id, 'voted', { vote: { old: before?.vote ?? null, new: vote } });
+  // ein Widerspruch hält sie offen und setzt sie auf die Agenda
+  if (vote === 'widerspruch' && !isMarked(ctx.db, id)) addMark(ctx, id);
+  const valid = settle(ctx, d);
+  return {
+    ...registerUndo(ctx, 'decision', d, vote === 'bestaetigt' ? 'Bestätigt' : 'Widersprochen'),
+    valid,
+  };
+}
+
+/** Joblauf (16.4): offene Entscheidungen werden gültig, wenn die Frist ohne Widerspruch abgelaufen ist – automatisch */
+export function settleOpenDecisions(db: Db, system: Member, now: Date): number {
+  let settled = 0;
+  for (const d of db.decisions)
+    if (d.status === 'offen' && !d.archived_at && settle({ db, actor: system, now, inverse: [] }, d))
+      settled += 1;
+  return settled;
 }
 
 // ── Offene Fragen ───────────────────────────────────────────────────────────
@@ -579,8 +670,8 @@ export function setDecisionAgenda(ctx: Ctx, id: string, onAgenda: boolean): Undo
   const d = findDecision(ctx.db, id);
   if (isMarked(ctx.db, id) === onAgenda) return { undo_token: '' };
   if (onAgenda) {
-    if (d.archived_at || d.status !== 'gueltig')
-      throw rule('Nur gültige Einträge lassen sich auf die Agenda setzen.');
+    if (d.archived_at || !decisionActive(d.status))
+      throw rule('Nur gültige oder offene Einträge lassen sich auf die Agenda setzen.');
     addMark(ctx, id);
     return registerUndo(ctx, 'decision', d, 'Auf der Agenda');
   }

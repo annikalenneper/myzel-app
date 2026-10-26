@@ -103,7 +103,7 @@ describe('check:integrity', () => {
       '#1 Regal bauen: Lea (folgt)',
       '#2 Holz holen: Lea (folgt)',
     ]);
-    expect(found['Auf der Agenda nur gültige Entscheidungen und Fakten']).toEqual([
+    expect(found['Auf der Agenda nur gültige oder offene Entscheidungen und Fakten']).toEqual([
       'Eintrag „Alte Regel“ (aufgehoben)',
     ]);
     expect(found['Mindestens eine aktive Person mit Admin-Rechten']).toEqual(['keine aktive Admin-Person']);

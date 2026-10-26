@@ -14,6 +14,7 @@ import { PRIORITY_LABEL } from '../../shared/labels';
 import {
   DECISION_KIND_LABEL,
   DECISION_STATUS_LABEL,
+  decisionActive,
   QUESTION_STATUS_LABEL,
 } from '../../shared/rules/knowledge';
 import { cx, FieldError, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
@@ -118,7 +119,7 @@ function Loaded({ q }: { q: Detail }) {
               to={`/agenda/eintrag/${r.id}`}
               className={cx(
                 'flex flex-col gap-1 rounded-[14px] border border-linie bg-flaeche px-3.5 py-2.5 text-text no-underline',
-                r.status !== 'gueltig' && 'opacity-60',
+                !decisionActive(r.status) && 'opacity-60',
               )}
             >
               <span className="label-mono">

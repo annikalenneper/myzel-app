@@ -698,6 +698,9 @@ export function seedDb(now: Date): Db {
       source_note: source.note ?? null,
     }).id;
   const decisionVersion = (id: string) => db.decisions.find((d) => d.id === id)!.version;
+  // Entscheidungen werden gültig, wenn die Frist (7 Tage) ohne Widerspruch abläuft (16.4) – im Joblauf, automatisch
+  const system = db.members.find((m) => m.is_system)!;
+  const settleAt = (daysAgo: number) => know.settleOpenDecisions(db, system, at(daysAgo, '06:00'));
   addDecision(
     'Keine Partys mit weniger als 6 aktiven Kollektiv-Leuten',
     'entscheidung',
@@ -705,13 +708,16 @@ export function seedDb(now: Date): Db {
     486,
     { plenum: plenumOld3 },
   );
+  settleAt(478);
   const mateAlt = addDecision('Mate am Tresen für 2 €', 'entscheidung', 'Veranstaltungen', 211, {
     plenum: plenumOld2,
   });
+  settleAt(203);
   const mateNeu = addDecision('Mate am Tresen für 2,50 €', 'entscheidung', 'Veranstaltungen', 93, {
     plenum: plenumOld1,
   });
-  know.replaceDecision(as('LE', 93, '20:45'), mateAlt, {
+  settleAt(85);
+  know.replaceDecision(as('LE', 85, '20:45'), mateAlt, {
     successor_id: mateNeu,
     version: decisionVersion(mateAlt),
   });
@@ -730,8 +736,30 @@ export function seedDb(now: Date): Db {
     26,
     { plenum: plenumSept },
   );
+  settleAt(18);
   // „Stimmt das noch?“ auf der Agenda (16.1)
   know.setDecisionAgenda(as('RA', 2), awareness4, true);
+  // noch offen (16.4): eine wartet auf Bestätigung, gegen eine gibt es Widerspruch – sie steht auf der Agenda
+  const bier = addDecision(
+    'Bier beim Winterrave für 3 €',
+    'entscheidung',
+    'Veranstaltungen',
+    2,
+    { note: 'Absprache im Barteam' },
+    'Gilt für Flaschenbier; alkoholfreie Getränke bleiben bei 2 €.',
+  );
+  db.decisions.find((d) => d.id === bier)!.event_id = rave;
+  for (const by of ['LE', 'SA', 'RA', 'JU']) know.voteDecision(as(by, 1), bier, 'bestaetigt');
+  const lager = addDecision(
+    'Lager nur noch zu zweit öffnen',
+    'entscheidung',
+    'Lager & Material',
+    4,
+    { note: 'Vorschlag aus der Lager-AG' },
+    'Wer ins Lager geht, kommt mindestens zu zweit – wegen der schweren Boxen und der Treppe.',
+  );
+  know.voteDecision(as('KI', 3), lager, 'bestaetigt');
+  know.voteDecision(as('NO', 2), lager, 'widerspruch');
   addDecision('Unser Code of Conduct gilt für alle Veranstaltungen', 'fakt', 'Organisatorisches', 60, {
     document: coc,
   });

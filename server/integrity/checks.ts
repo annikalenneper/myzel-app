@@ -54,11 +54,23 @@ export const CHECKS: IntegrityCheck[] = [
   },
   // ── Phase 3: Plenum-Zyklus ──
   {
-    name: 'Auf der Agenda nur gültige Entscheidungen und Fakten',
+    name: 'Auf der Agenda nur gültige oder offene Entscheidungen und Fakten',
     level: 'fehler',
     query: sql`select 'Eintrag „' || d.title || '“ (' || d.status || ')' as label
       from plenum_marks pm join decisions d on d.id = pm.decision_id
-      where d.archived_at is not null or d.status <> 'gueltig'`,
+      where d.archived_at is not null or d.status not in ('gueltig', 'offen')`,
+  },
+  // ── Umbau Phase 6: Konsens (16.4) ──
+  {
+    name: 'Offene Entscheidungen ohne Widerspruch werden nach der Frist gültig (Joblauf)',
+    level: 'hinweis',
+    query: sql`select 'Entscheidung „' || d.title || '“ (Frist ' || d.consensus_until || ')' as label
+      from decisions d
+      where d.status = 'offen' and d.consensus_until < (now() at time zone 'Europe/Berlin')::date - 1
+        and not exists (
+          select 1 from decision_votes v join members m on m.id = v.member_id
+          where v.decision_id = d.id and v.vote = 'widerspruch' and m.active
+        )`,
   },
   {
     name: 'Beantwortete Fragen haben eine Antwort oder ein Ergebnis',

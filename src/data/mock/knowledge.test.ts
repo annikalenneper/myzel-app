@@ -54,7 +54,7 @@ describe('Entscheidungen und Fakten (3.8, 4.5)', () => {
     const { id } = await api.createDecision({ ...base, source_note: 'Absprache' });
     const created = await api.getDecision(id);
     expect([created.status, created.decided_on, created.source_label]).toEqual([
-      'gueltig',
+      'offen',
       '2026-10-11',
       'Notiz',
     ]);
@@ -320,7 +320,14 @@ describe('Globale Suche (F-WIS-06)', () => {
   it('durchsucht nur App-Daten und gruppiert nach Art', async () => {
     expect(await api.search('W')).toEqual([]);
     const groups = await api.search('winterrave');
-    expect(groups.map((g) => g.key)).toEqual(['aufgaben', 'events', 'termine', 'fragen', 'dokumente']);
+    expect(groups.map((g) => g.key)).toEqual([
+      'aufgaben',
+      'events',
+      'termine',
+      'beschluesse',
+      'fragen',
+      'dokumente',
+    ]);
     expect(groups.find((g) => g.key === 'events')!.items[0]!.link).toMatch(/^\/events\//);
     expect((await api.search('Spendenbasis')).map((g) => g.key)).toEqual(['beschluesse']);
   });

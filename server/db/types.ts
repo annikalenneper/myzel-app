@@ -6,6 +6,7 @@ import type {
   AppointmentStatus,
   DecisionKind,
   DecisionStatus,
+  DecisionVoteKind,
   DocType,
   DocumentLinkTarget,
   QuestionStatus,
@@ -275,11 +276,20 @@ export interface DecisionsTable {
   source_note: string | null;
   source_question_id: string | null;
   event_id: string | null;
+  /** YYYY-MM-DD, letzter Tag zum Bestätigen (16.4) */
+  consensus_until: string | null;
   archived_at: Timestamp | null;
   created_at: CreatedAt;
   updated_at: Timestamp;
   created_by: string;
   version: Generated<number>;
+}
+
+export interface DecisionVotesTable {
+  decision_id: string;
+  member_id: string;
+  vote: DecisionVoteKind;
+  voted_at: Timestamp;
 }
 
 export interface QuestionsTable {
@@ -485,6 +495,7 @@ export interface Database {
   documents: DocumentsTable;
   document_links: DocumentLinksTable;
   decisions: DecisionsTable;
+  decision_votes: DecisionVotesTable;
   questions: QuestionsTable;
   event_details: EventDetailsTable;
   event_bookings: EventBookingsTable;

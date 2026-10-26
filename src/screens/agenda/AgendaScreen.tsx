@@ -19,7 +19,12 @@ import { api } from '../../data';
 import type { DecisionListItem, QuestionListItem } from '../../data/api';
 import { PRIORITY_LABEL, TASK_STATUS_LABEL } from '../../shared/labels';
 import { isOverdue, toIsoDate } from '../../shared/rules/due';
-import { DECISION_KIND_LABEL, QUESTION_STATUS_LABEL, sortQuestions } from '../../shared/rules/knowledge';
+import {
+  DECISION_KIND_LABEL,
+  decisionActive,
+  QUESTION_STATUS_LABEL,
+  sortQuestions,
+} from '../../shared/rules/knowledge';
 import { sortTasks } from '../../shared/rules/taskSort';
 import { ACTIVE_TASK_STATUSES, FINAL_TASK_STATUSES, isActiveTaskStatus } from '../../shared/rules/taskStatus';
 import { topicFilterIds } from '../../shared/rules/topics';
@@ -103,7 +108,7 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
       return [];
     const topicIds = filter.topicId ? topicFilterIds(filter.topicId, topics) : null;
     return (decisions ?? []).filter(
-      (d) => d.marked && d.status === 'gueltig' && (!topicIds || topicIds.has(d.topic_id)),
+      (d) => d.marked && decisionActive(d.status) && (!topicIds || topicIds.has(d.topic_id)),
     );
   }, [decisions, filter, topics]);
 
@@ -273,7 +278,9 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
 
         {toReview.length > 0 && (
           <>
-            <span className="label-mono">Stimmt das noch?</span>
+            <span className="label-mono">
+              {toReview.some((d) => d.status === 'offen') ? 'Zu besprechen' : 'Stimmt das noch?'}
+            </span>
             {toReview.map((d) => (
               <ReviewCard key={d.id} d={d} selected={d.id === selectedId} />
             ))}
@@ -403,7 +410,7 @@ function QuestionCard({ q, selected }: { q: QuestionListItem; selected: boolean 
   );
 }
 
-/** 16.1: Entscheidung oder Fakt, ausdrücklich auf die Agenda gesetzt – „Stimmt das noch?“ */
+/** 16.1: Entscheidung oder Fakt, ausdrücklich auf die Agenda gesetzt – „Stimmt das noch?“; offene mit Widerspruch (16.4) */
 function ReviewCard({ d, selected }: { d: DecisionListItem; selected: boolean }) {
   const { topicName } = useLookups();
   return (
@@ -424,7 +431,13 @@ function ReviewCard({ d, selected }: { d: DecisionListItem; selected: boolean })
           {d.description}
         </span>
       )}
-      <span className="text-[13px] text-pink">Stimmt das noch?</span>
+      <span className="text-[13px] text-pink">
+        {d.status === 'offen'
+          ? d.consensus?.objected
+            ? 'Widerspruch – noch nicht gültig'
+            : 'Noch nicht gültig – wartet auf Bestätigung'
+          : 'Stimmt das noch?'}
+      </span>
     </Link>
   );
 }

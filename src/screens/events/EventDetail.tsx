@@ -24,7 +24,7 @@ import { DecisionSheet, QuestionSheet } from '../knowledge/KnowledgeSheets';
 import { CommentsSection } from '../../ui/Comments';
 import { HistoryList } from '../../ui/HistoryList';
 import { entityHistorySentence } from '../../shared/entityHistory';
-import { DECISION_KIND_LABEL, DECISION_STATUS_LABEL } from '../../shared/rules/knowledge';
+import { DECISION_KIND_LABEL, DECISION_STATUS_LABEL, decisionActive } from '../../shared/rules/knowledge';
 import { EventDriveFolder } from './EventDrive';
 import { readDraft, writeDraft } from '../../app/drafts';
 import { useLookups } from '../../app/lookups';
@@ -383,7 +383,7 @@ function Loaded({ event }: { event: Detail }) {
               to={`/wissen/beschluesse/${d.id}`}
               className={cx(
                 'flex flex-col gap-1 rounded-[14px] border border-linie bg-flaeche px-3.5 py-2.5 text-text no-underline',
-                d.status !== 'gueltig' && 'opacity-60',
+                !decisionActive(d.status) && 'opacity-60',
               )}
             >
               <span className="label-mono">

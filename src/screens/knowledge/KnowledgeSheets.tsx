@@ -7,7 +7,7 @@ import { belongsToPlenum, runningPlenum } from '../../app/plenum';
 import { useSession } from '../../app/session';
 import { api } from '../../data';
 import { PRIORITY_LABEL } from '../../shared/labels';
-import { DECISION_KIND_LABEL } from '../../shared/rules/knowledge';
+import { DECISION_KIND_LABEL, defaultConsensusUntil } from '../../shared/rules/knowledge';
 import { toIsoDate } from '../../shared/rules/due';
 import { useActions, useLatest } from '../../app/useActions';
 import type { DecisionDetail, QuestionDetail } from '../../data/api';
@@ -98,6 +98,26 @@ export function TopicSelect({
   );
 }
 
+/** Frist zum Bestätigen (16.4): Standard 7 Tage, wählbar */
+export function ConsensusUntilField({
+  value,
+  onChange,
+  wf,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  wf: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <DateTile label="Bestätigen bis" wf={wf} value={value} onChange={onChange} surface="bg-grund" />
+      <span className="text-[13px] leading-[1.4] text-leise">
+        Gilt, wenn alle bestätigt haben oder bis dahin niemand widerspricht.
+      </span>
+    </div>
+  );
+}
+
 /**
  * WF-WIS-01 – mindestens eine Quelle ist Pflicht. Aus einer Frage heraus (WF-FRA-05, 16.3) ist es ein Ergebnis der
  * Frage; die Frage bleibt offen. Läuft gerade ein Plenum, zu dem meine Änderungen gehören, ist es die Quelle.
@@ -134,6 +154,8 @@ export function DecisionSheet({
       question?.topic_id ?? topics.find((t) => t.name === 'Organisatorisches' && !t.archived_at)?.id ?? '',
   );
   const [decidedOn, setDecidedOn] = useState(() => toIsoDate(new Date()));
+  // Entscheidungen gelten erst nach Bestätigung (16.4), Fakten sofort
+  const [until, setUntil] = useState(() => defaultConsensusUntil(toIsoDate(new Date())));
   const [source, setSource] = useState<SourceValue>(() => {
     const plenum = runningPlenum(session, new Date());
     // nur wenn meine Änderungen sicher dazugehören (Teilnehmerliste oder „Ja“) – sonst fragt die App erst beim Speichern
@@ -166,13 +188,14 @@ export function DecisionSheet({
           topic_id: topicId,
           event_id: eventId || null,
           decided_on: decidedOn || null,
+          consensus_until: kind === 'entscheidung' ? until || null : null,
           source_plenum_id: source.plenumId,
           source_document_id: source.documentId,
           source_note: source.note,
           source_question_id: question?.id ?? null,
         }),
       {
-        success: kind === 'fakt' ? 'Fakt festgehalten' : 'Entscheidung festgehalten',
+        success: kind === 'fakt' ? 'Fakt festgehalten' : 'Entscheidung festgehalten · wartet auf Bestätigung',
         onInvalid: (e) => setError(e.message),
       },
     );
@@ -230,6 +253,7 @@ export function DecisionSheet({
           placeholder="Was genau gilt? Kurz, damit es auf die Karte passt."
         />
         <EventSelect value={eventId} onChange={setEventId} wf={WF} />
+        {kind === 'entscheidung' && <ConsensusUntilField value={until} onChange={setUntil} wf={WF} />}
         <div className="flex flex-col gap-2">
           <span className={cx('label-mono', !sourceReady(source) && 'text-bernstein')}>
             Quelle * · mindestens eine

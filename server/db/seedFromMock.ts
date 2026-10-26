@@ -154,6 +154,9 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
           .where('id', '=', d.id)
           .execute();
     }
+    // Umbau Phase 6: Stimmen zu offenen Entscheidungen (16.4)
+    if (data.decision_votes.length)
+      await trx.insertInto('decision_votes').values(data.decision_votes).execute();
     const links = data.document_links.filter((l) => l.target_type !== ('partner' as string));
     if (links.length) await trx.insertInto('document_links').values(links).execute();
     // Phase 4: Aufbau/Abbau und Schichtplan, Detailbereiche, Booking, Hauptverantwortliche, Partner, Vorlagen

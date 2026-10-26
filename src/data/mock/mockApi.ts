@@ -34,7 +34,7 @@ export interface MockOptions {
   latency?: number;
 }
 
-const DB_KEY = 'myzel:mock:db:v13';
+const DB_KEY = 'myzel:mock:db:v14';
 const DEVICE_KEY = 'myzel:mock:geraet';
 const OUTAGE_KEY = 'myzel:mock:ausfall';
 const SESSION_KEY = 'myzel:mock:session';
@@ -48,6 +48,8 @@ const OUTSIDER = 'jemand@example.org';
 function jobRun(db: Db, at: Date): void {
   const system = db.members.find((m) => m.is_system);
   if (system) series.generateSeries({ db, actor: system, now: at, inverse: [] });
+  // offene Entscheidungen, deren Frist ohne Widerspruch abgelaufen ist (16.4)
+  if (system) know.settleOpenDecisions(db, system, at);
   notify.runJob(db, at);
   drive.weeklyRebuild(db, at);
 }
@@ -321,12 +323,13 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     updateSeries: (id, input) => write((ctx) => series.updateSeries(ctx, id, input)),
     endSeries: (id, version) => write((ctx) => series.endSeries(ctx, id, version)),
 
-    listDecisions: () => read((d) => know.listDecisions(d)),
-    getDecision: (id) => read((d) => know.getDecision(d, id)),
+    listDecisions: () => read((d) => know.listDecisions(d, actor().id)),
+    getDecision: (id) => read((d) => know.getDecision(d, id, actor().id)),
     createDecision: (input) => write((ctx) => know.createDecision(ctx, input)),
     replaceDecision: (id, input) => write((ctx) => know.replaceDecision(ctx, id, input)),
     revokeDecision: (id, note, version) => write((ctx) => know.revokeDecision(ctx, id, note, version)),
     updateDecision: (id, input) => write((ctx) => know.updateDecision(ctx, id, input)),
+    voteDecision: (id, vote) => write((ctx) => know.voteDecision(ctx, id, vote)),
     listQuestions: () => read((d) => know.listQuestions(d)),
     getQuestion: (id) => read((d) => know.getQuestion(d, id)),
     createQuestion: (input) => write((ctx) => know.createQuestion(ctx, input)),
