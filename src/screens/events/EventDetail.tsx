@@ -17,6 +17,7 @@ import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { EventFormSheet } from './EventFormSheet';
 import { EventSections } from './EventSections';
 import { TaskLinkSheet } from './TaskLinkSheet';
+import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { TemplateSheet } from './TemplateSheet';
 import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
 import { useShowEventOnAgenda } from '../agenda/EventAgendaLink';
@@ -77,6 +78,7 @@ function TopBar({ children }: { children?: React.ReactNode }) {
 function Loaded({ event }: { event: Detail }) {
   const act = useActions();
   const latest = useLatest(event.version);
+  const remove = useDeleteArtifact('event', event.id, () => latest.current, '/events');
   const [sheet, setSheet] = useState<
     | 'edit'
     | 'close'
@@ -130,6 +132,11 @@ function Loaded({ event }: { event: Detail }) {
         >
           <IconEdit size={20} />
         </button>
+        <DeleteAction
+          noun="Veranstaltung"
+          consequence="Aufgaben, Termine, Entscheidungen und Fakten bleiben erhalten."
+          onConfirm={() => void remove()}
+        />
       </TopBar>
 
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-24">

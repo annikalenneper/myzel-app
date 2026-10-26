@@ -33,6 +33,7 @@ import {
 } from './DetailParts';
 import { LinkedDocuments } from './LinkedDocuments';
 import { CommentsAndHistory } from '../../ui/Comments';
+import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { EventLink } from '../agenda/EventAgendaLink';
 import { ConsensusUntilField, DecisionEditSheet, Segmented, TextField } from './KnowledgeSheets';
 import { EMPTY_SOURCE, SourceFields, sourceReady, type SourceValue } from './SourceFields';
@@ -157,6 +158,7 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
   // offene Entscheidungen lassen sich wie gültige bearbeiten, ersetzen, aufheben und auf die Agenda setzen (16.4)
   const active = decisionActive(d.status);
   const noun = DECISION_KIND_LABEL[d.kind];
+  const remove = useDeleteArtifact('decision', d.id, () => latest.current, back.to);
   const setAgenda = (on: boolean, success = on ? 'Auf der Agenda' : 'Von der Agenda genommen') =>
     void act(() => api.setDecisionAgenda(d.id, on), { success, undo: (r) => r.undo_token });
 
@@ -169,7 +171,15 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
         agenda={active ? { on: d.marked, onToggle: () => setAgenda(!d.marked) } : undefined}
         onEdit={active ? () => setSheet('edit') : undefined}
         editWf="WF-WIS-12"
-      />
+      >
+        {!d.archived_at && (
+          <DeleteAction
+            noun={noun}
+            consequence="Was aus ihm entstanden ist, bleibt erhalten."
+            onConfirm={() => void remove()}
+          />
+        )}
+      </DetailTopBar>
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className={cx('flex flex-col gap-2', !active && 'opacity-60')}>
           <span className="label-mono flex flex-wrap items-center gap-2">

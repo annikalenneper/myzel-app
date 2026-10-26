@@ -28,6 +28,7 @@ import { entityHistorySentence } from '../../shared/entityHistory';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
 import { CalendarLinks } from './CalendarLinks';
+import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { rsvpButton, useRsvp } from './AppointmentsScreen';
 import { PlenumDetail } from './PlenumDetail';
 import { SeriesSheet } from './SeriesSheet';
@@ -80,6 +81,7 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
 function Loaded({ a }: { a: Detail }) {
   const act = useActions();
   const latest = useLatest(a.version);
+  const remove = useDeleteArtifact('appointment', a.id, () => latest.current, '/termine');
   const rsvp = useRsvp();
   const { memberById, activeMembers, topicName, eventById } = useLookups();
   const [sheet, setSheet] = useState<'edit' | 'task' | 'cancel' | 'series' | null>(null);
@@ -107,7 +109,13 @@ function Loaded({ a }: { a: Detail }) {
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={cancelled ? 24 : 92} />
-      <TopBar />
+      <TopBar>
+        <DeleteAction
+          noun="Termin"
+          consequence="Aufgaben zum Termin bleiben erhalten."
+          onConfirm={() => void remove()}
+        />
+      </TopBar>
 
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className="flex flex-col gap-2">

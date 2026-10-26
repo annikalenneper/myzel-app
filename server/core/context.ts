@@ -72,6 +72,12 @@ export type InverseOp =
       };
     }
   | { kind: 'decision_state'; decision_id: string; status: string; superseded_by_id: string | null }
+  // [Phase 9] Löschen (Archivieren) zurücknehmen
+  | {
+      kind: 'archive_restore';
+      table: 'events' | 'appointments' | 'decisions' | 'questions' | 'documents' | 'partners';
+      id: string;
+    }
   // [Umbau Phase 6] Stimme vor der Abstimmung – null: es gab noch keine
   | {
       kind: 'vote_restore';

@@ -25,9 +25,12 @@ export function DetailTopBar({
   agenda,
   onEdit,
   editWf,
+  children,
 }: {
   label: string;
   back?: BackTarget;
+  /** weitere Aktionen am Ende, z. B. Löschen (Phase 9) */
+  children?: ReactNode;
   /** Entscheidung oder Fakt auf die Agenda setzen (WF-AGE-03) – nur bei gültigen Einträgen */
   agenda?: { on: boolean; onToggle: () => void };
   /** Titel, Beschreibung und Zuordnung bearbeiten (16.3) */
@@ -72,6 +75,7 @@ export function DetailTopBar({
           {agenda.on ? 'Auf der Agenda' : 'Auf die Agenda'}
         </button>
       )}
+      {children}
     </div>
   );
 }

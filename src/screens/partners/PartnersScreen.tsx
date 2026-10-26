@@ -9,7 +9,7 @@ import { useLookups } from '../../app/lookups';
 import { entityHistorySentence } from '../../shared/entityHistory';
 import { CommentsAndHistory } from '../../ui/Comments';
 import { HistoryList } from '../../ui/HistoryList';
-import { useActions } from '../../app/useActions';
+import { useActions, useLatest } from '../../app/useActions';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { PartnerDetail as Detail, PartnerListItem } from '../../data/api';
@@ -17,6 +17,7 @@ import { formatEventRange } from '../../shared/format';
 import { EVENT_STATUS_LABEL } from '../../shared/labels';
 import { Avatar, cx, FieldError, LightButton, ListSkeleton, LoadError, PrimaryButton } from '../../ui/bits';
 import { IconBack, IconEdit } from '../../ui/icons';
+import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { Sheet } from '../../ui/Sheet';
 
 const WF_LIST = 'WF-VER-13';
@@ -144,6 +145,8 @@ function DetailTop({ children }: { children?: React.ReactNode }) {
 
 function Loaded({ p }: { p: Detail }) {
   const { memberById, topicName, eventById } = useLookups();
+  const latest = useLatest(p.version);
+  const remove = useDeleteArtifact('partner', p.id, () => latest.current, '/partner');
   const [editing, setEditing] = useState(false);
   const contact = p.internal_contact_member_id ? memberById.get(p.internal_contact_member_id) : undefined;
   const rows: [string, React.ReactNode][] = [
@@ -176,6 +179,11 @@ function Loaded({ p }: { p: Detail }) {
         >
           <IconEdit size={20} />
         </button>
+        <DeleteAction
+          noun="Partner"
+          consequence="Die Verknüpfungen mit Veranstaltungen bleiben im Verlauf sichtbar."
+          onConfirm={() => void remove()}
+        />
       </DetailTop>
       <div className="flex flex-col gap-4 px-5 pt-1 pb-10">
         <div className="flex flex-col gap-2">

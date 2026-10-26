@@ -26,6 +26,7 @@ import * as p4events from '../p4/events';
 import * as partners from '../p4/partners';
 import * as templates from '../p4/templates';
 import * as drive from '../p5/drive';
+import * as archive from '../umbau/archive';
 import * as reports from '../umbau/reports';
 
 type Args = unknown[];
@@ -160,6 +161,7 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   updateDecision: (ctx, [id, input]) => know.updateDecision(ctx, s(id), input),
   voteDecision: (ctx, [id, vote]) => know.voteDecision(ctx, s(id), vote),
   createAppReport: (ctx, [input]) => reports.createAppReport(ctx, input),
+  archiveArtifact: (ctx, [type, id, version]) => archive.archiveArtifact(ctx, type, s(id), n(version)),
   createQuestion: (ctx, [input]) => know.createQuestion(ctx, input),
   updateQuestion: (ctx, [id, input]) => know.updateQuestion(ctx, s(id), input),
   clarifyQuestion: (ctx, [id, input]) => know.clarifyQuestion(ctx, s(id), input),

@@ -168,3 +168,21 @@ test('WF-VER-05: bestehende Aufgabe mit dem Event verknüpfen; Entscheidung/Fakt
   const decision = page.getByRole('dialog', { name: 'Neu festhalten' });
   await expect(decision.locator('select option:checked', { hasText: 'Winterrave' })).toHaveCount(1);
 });
+
+test('WF-ALL-09: Veranstaltung löschen nur nach Rückfrage, mit Rückgängig', async ({ page }) => {
+  await page.getByRole('link', { name: /Siebdruck-Workshop/ }).click();
+  await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  await page.getByRole('button', { name: 'Löschen …' }).click();
+  const ask = page.getByRole('alertdialog', { name: 'Veranstaltung löschen' });
+  await expect(ask).toContainText('Aufgaben, Termine, Entscheidungen und Fakten bleiben erhalten.');
+  await ask.getByRole('button', { name: 'Doch nicht' }).click();
+  await expect(ask).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  await page.getByRole('button', { name: 'Löschen …' }).click();
+  await ask.getByRole('button', { name: 'Löschen', exact: true }).click();
+  await expect(page).toHaveURL(/\/events$/);
+  await expect(page.getByRole('tabpanel').getByRole('link', { name: /Siebdruck-Workshop/ })).toHaveCount(0);
+  await page.getByTestId('WF-ALL-02').getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByRole('tabpanel').getByRole('link', { name: /Siebdruck-Workshop/ })).toBeVisible();
+});

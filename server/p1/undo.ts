@@ -33,6 +33,7 @@ const ROW_KINDS = new Set<InverseOp['kind']>([
   'appointment_times',
   // eine Stimme: ist die Entscheidung inzwischen (durch andere Stimmen) gültig geworden, bleibt es dabei
   'vote_restore',
+  'archive_restore',
 ]);
 
 /** Tabelle je Art, die ein Rückgängig betreffen kann */
@@ -291,6 +292,20 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .updateTable('decisions')
           .set({ status: op.status as never, superseded_by_id: op.superseded_by_id })
           .where('id', '=', op.decision_id)
+          .execute();
+        break;
+      }
+      case 'archive_restore': {
+        const before = await ctx.trx
+          .selectFrom(op.table)
+          .select('archived_at')
+          .where('id', '=', op.id)
+          .executeTakeFirstOrThrow();
+        if (before.archived_at) changes.archived_at = { old: before.archived_at, new: null };
+        await ctx.trx
+          .updateTable(op.table)
+          .set({ archived_at: null } as never)
+          .where('id', '=', op.id)
           .execute();
         break;
       }

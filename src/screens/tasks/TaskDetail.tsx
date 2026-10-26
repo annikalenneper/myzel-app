@@ -292,18 +292,17 @@ function Loaded({ task }: { task: TaskDetailData }) {
                   className="fixed inset-0 z-[5] cursor-default"
                 />
                 <div className="absolute top-full right-1 z-[6] flex w-[200px] flex-col gap-0.5 rounded-[14px] border border-rand bg-erhoeht p-1.5 shadow-[0_12px_28px_rgba(0,0,0,0.5)]">
-                  {/* WF-AUF-14: Bestätigung nur bei Kommentaren, sonst sofort mit Rückgängig */}
+                  {/* WF-AUF-14: Löschen ist Archivieren – immer mit Rückfrage (Phase 9), danach Rückgängig */}
                   <button
                     type="button"
                     data-wf="WF-AUF-14"
                     onClick={() => {
                       setMenu(false);
-                      if (task.comments.length > 0) setSheet('archive');
-                      else archive();
+                      setSheet('archive');
                     }}
                     className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-rot-hell"
                   >
-                    Archivieren
+                    Löschen …
                   </button>
                 </div>
               </>

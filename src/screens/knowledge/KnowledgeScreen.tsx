@@ -16,6 +16,7 @@ import { cx, ListSkeleton, Pill } from '../../ui/bits';
 import { IconBookmark } from '../../ui/icons';
 import { Menu, type MenuOption } from '../../ui/Menu';
 import { SearchButton } from '../../ui/SearchOverlay';
+import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { DecisionDetail } from './DecisionDetail';
 import { DocumentLinkScreen } from './DocumentLinkScreen';
 import { DriveBrowser, useDriveSync } from './Drive';
@@ -362,6 +363,18 @@ function DecisionCard({
   );
 }
 
+/** Dokumente haben keine Detailansicht (U15) – gelöscht wird in der Liste */
+function DocumentDelete({ doc }: { doc: DocumentListItem }) {
+  const remove = useDeleteArtifact('document', doc.id, () => doc.version, null);
+  return (
+    <DeleteAction
+      noun="Dokument"
+      consequence="Die Datei selbst bleibt im Drive bzw. an ihrer Adresse; Verknüpfungen verschwinden aus den Listen."
+      onConfirm={() => void remove()}
+    />
+  );
+}
+
 function Documents({ onCreate }: { onCreate: () => void }) {
   const { data: documents } = useData('documents', () => api.listDocuments());
   if (!documents) return <ListSkeleton />;
@@ -393,6 +406,8 @@ function Documents({ onCreate }: { onCreate: () => void }) {
                 <span className="label-mono">{meta(d)}</span>
                 <DriveMissing doc={d} />
               </a>
+              {/* WF-ALL-09 Löschen (Phase 9) – die Datei selbst bleibt im Drive bzw. an ihrer Adresse */}
+              <DocumentDelete doc={d} />
             </div>
           ))}
         </div>

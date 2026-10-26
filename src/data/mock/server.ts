@@ -143,7 +143,13 @@ export type InverseOp =
       answered_in_plenum_id: string | null;
     }
   // [Umbau Phase 6] Stimme vor der Abstimmung – null: es gab noch keine
-  | { kind: 'vote_restore'; decision_id: string; member_id: string; row: DecisionVote | null };
+  | { kind: 'vote_restore'; decision_id: string; member_id: string; row: DecisionVote | null }
+  // [Phase 9] Löschen (Archivieren) zurücknehmen
+  | {
+      kind: 'archive_restore';
+      collection: 'events' | 'appointments' | 'decisions' | 'questions' | 'documents' | 'partners';
+      id: string;
+    };
 
 export type UndoEntity = 'task' | 'event' | 'appointment' | 'decision' | 'question' | 'document' | 'partner';
 
@@ -1040,6 +1046,7 @@ export function undo(ctx: Ctx, token: string): void {
     'appointment_times',
     // eine Stimme: ist die Entscheidung inzwischen (durch andere Stimmen) gültig geworden, bleibt es dabei
     'vote_restore',
+    'archive_restore',
   ];
   const touchesRow = record.ops.some((op) => rowKinds.includes(op.kind));
   if (touchesRow) checkVersion(ctx, record.entity_type, entity, record.version_after);
@@ -1192,6 +1199,16 @@ export function undo(ctx: Ctx, token: string): void {
         if (decision) {
           decision.status = op.status;
           decision.superseded_by_id = op.superseded_by_id;
+        }
+        break;
+      }
+      case 'archive_restore': {
+        const row = (db[op.collection] as { id: string; archived_at: string | null }[]).find(
+          (x) => x.id === op.id,
+        );
+        if (row?.archived_at) {
+          undone.archived_at = { old: row.archived_at, new: null };
+          row.archived_at = null;
         }
         break;
       }

@@ -12,6 +12,7 @@ import { api } from '../../data';
 import type { PlenumDetail as Detail } from '../../data/api';
 import { formatEventRange } from '../../shared/format';
 import { CalendarLinks } from './CalendarLinks';
+import { DeleteDialog, useDeleteArtifact } from '../common/DeleteAction';
 import {
   APPOINTMENT_STATUS_COLOR,
   APPOINTMENT_STATUS_LABEL,
@@ -53,6 +54,7 @@ export function PlenumDetail({ plenumId }: { plenumId: string }) {
 function Loaded({ p }: { p: Detail }) {
   const act = useActions();
   const latest = useLatest(p.version);
+  const remove = useDeleteArtifact('appointment', p.id, () => latest.current, '/termine');
   const rsvp = useRsvp();
   const { memberById, activeMembers, topicName, eventById } = useLookups();
   const now = useNow();
@@ -61,7 +63,7 @@ function Loaded({ p }: { p: Detail }) {
   const open = !closed && !cancelled;
   const started = hasStarted(p, now);
   const [tab, setTab] = useState<Tab>('ergebnis');
-  const [sheet, setSheet] = useState<'edit' | 'cancel' | 'close' | null>(null);
+  const [sheet, setSheet] = useState<'edit' | 'cancel' | 'close' | 'delete' | null>(null);
   const [menu, setMenu] = useState(false);
   // 16.2: nach dem Abschluss ändert sich die Anwesenheit nur nach Rückfrage (einmal je Ansicht)
   const [attendanceUnlocked, setAttendanceUnlocked] = useState(false);
@@ -80,56 +82,78 @@ function Loaded({ p }: { p: Detail }) {
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={open ? 128 : 92} />
       <TopBar>
-        {p.status === 'geplant' && (
-          <div className="relative">
-            <button
-              type="button"
-              aria-label="Weitere Aktionen zum Plenum"
-              aria-expanded={menu}
-              onClick={() => setMenu(!menu)}
-              className="hit mr-1 flex size-11 items-center justify-center text-leise"
-            >
-              <IconMore />
-            </button>
-            {menu && (
-              <>
+        <div className="relative">
+          <button
+            type="button"
+            aria-label="Weitere Aktionen zum Plenum"
+            aria-expanded={menu}
+            onClick={() => setMenu(!menu)}
+            className="hit mr-1 flex size-11 items-center justify-center text-leise"
+          >
+            <IconMore />
+          </button>
+          {menu && (
+            <>
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label="Menü schließen"
+                onClick={() => setMenu(false)}
+                className="fixed inset-0 z-[5] cursor-default"
+              />
+              <div className="absolute top-full right-1 z-[6] flex w-[200px] flex-col gap-0.5 rounded-[14px] border border-rand bg-erhoeht p-1.5 shadow-[0_12px_28px_rgba(0,0,0,0.5)]">
+                {/* WF-TER-04 / -05 gelten für alle Terminarten, auch Plenum */}
+                {p.status === 'geplant' && (
+                  <>
+                    <button
+                      type="button"
+                      data-wf="WF-TER-04"
+                      onClick={() => {
+                        setMenu(false);
+                        setSheet('edit');
+                      }}
+                      className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-text"
+                    >
+                      Bearbeiten
+                    </button>
+                    <button
+                      type="button"
+                      data-wf="WF-TER-05"
+                      onClick={() => {
+                        setMenu(false);
+                        setSheet('cancel');
+                      }}
+                      className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-rot-hell"
+                    >
+                      Plenum absagen
+                    </button>
+                  </>
+                )}
+                {/* WF-ALL-09 Löschen (Phase 9) */}
                 <button
                   type="button"
-                  tabIndex={-1}
-                  aria-label="Menü schließen"
-                  onClick={() => setMenu(false)}
-                  className="fixed inset-0 z-[5] cursor-default"
-                />
-                <div className="absolute top-full right-1 z-[6] flex w-[200px] flex-col gap-0.5 rounded-[14px] border border-rand bg-erhoeht p-1.5 shadow-[0_12px_28px_rgba(0,0,0,0.5)]">
-                  {/* WF-TER-04 / -05 gelten für alle Terminarten, auch Plenum */}
-                  <button
-                    type="button"
-                    data-wf="WF-TER-04"
-                    onClick={() => {
-                      setMenu(false);
-                      setSheet('edit');
-                    }}
-                    className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-text"
-                  >
-                    Bearbeiten
-                  </button>
-                  <button
-                    type="button"
-                    data-wf="WF-TER-05"
-                    onClick={() => {
-                      setMenu(false);
-                      setSheet('cancel');
-                    }}
-                    className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-rot-hell"
-                  >
-                    Plenum absagen
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                  data-wf="WF-ALL-09"
+                  onClick={() => {
+                    setMenu(false);
+                    setSheet('delete');
+                  }}
+                  className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-rot-hell"
+                >
+                  Löschen …
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </TopBar>
+      {sheet === 'delete' && (
+        <DeleteDialog
+          noun="Plenum"
+          consequence="Sein Ergebnis bleibt in den Einträgen erhalten."
+          onConfirm={() => void remove()}
+          onClose={() => setSheet(null)}
+        />
+      )}
 
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className="flex flex-col gap-2">

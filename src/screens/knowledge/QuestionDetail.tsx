@@ -29,6 +29,7 @@ import {
   StatusPill,
 } from './DetailParts';
 import { CommentsAndHistory } from '../../ui/Comments';
+import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { DecisionSheet, QuestionEditSheet } from './KnowledgeSheets';
 
 export function QuestionDetail({ questionId }: { questionId: string }) {
@@ -54,6 +55,7 @@ export function QuestionDetail({ questionId }: { questionId: string }) {
 function Loaded({ q }: { q: Detail }) {
   const act = useActions();
   const latest = useLatest(q.version);
+  const remove = useDeleteArtifact('question', q.id, () => latest.current, BACK_TO_AGENDA.to);
   const { topicName, memberById, eventById } = useLookups();
   const [sheet, setSheet] = useState<'result' | 'answer' | 'edit' | null>(null);
   const open = q.status === 'offen';
@@ -67,7 +69,15 @@ function Loaded({ q }: { q: Detail }) {
         back={BACK_TO_AGENDA}
         onEdit={q.archived_at ? undefined : () => setSheet('edit')}
         editWf="WF-FRA-06"
-      />
+      >
+        {!q.archived_at && (
+          <DeleteAction
+            noun="Frage"
+            consequence="Entscheidungen und Fakten aus ihr bleiben erhalten."
+            onConfirm={() => void remove()}
+          />
+        )}
+      </DetailTopBar>
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className="flex flex-col gap-2">
           <span className="label-mono flex flex-wrap items-center gap-2">

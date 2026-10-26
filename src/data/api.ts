@@ -33,6 +33,7 @@ import type {
   DecisionVoteKind,
   AppReport,
   AppReportCreateInput,
+  ArchiveTarget,
   QuestionUpdateInput,
   EventCreateInput,
   BookingCreateInput,
@@ -438,6 +439,8 @@ export interface MyzelApi {
   updateComment(commentId: string, body: string): Promise<void>;
   archiveTask(id: string, version: number): Promise<Undoable>;
   restoreTask(id: string, version: number): Promise<void>;
+  /** WF-ALL-09 Löschen (archivieren) für alle anderen Artefakte – mit Rückgängig (Phase 9) */
+  archiveArtifact(type: ArchiveTarget, id: string, version: number): Promise<Undoable>;
   undo(token: string): Promise<void>;
 
   // Veranstaltungen (WF-VER-02 bis -04)

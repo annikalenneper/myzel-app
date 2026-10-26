@@ -266,13 +266,13 @@ test('fremde Kommentare lassen sich nicht bearbeiten', async ({ page }) => {
   await expect(page.getByRole('tabpanel').getByRole('button', { name: 'Bearbeiten' })).toHaveCount(0);
 });
 
-test('WF-AUF-14: Archivieren mit Bestätigung bei Kommentaren, Wiederherstellen', async ({ page }) => {
+test('WF-AUF-14: Löschen mit Rückfrage archiviert, Wiederherstellen', async ({ page }) => {
   await openTask(page, 'Nebelmaschine reparieren');
   await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
-  await page.getByRole('button', { name: 'Archivieren', exact: true }).click();
-  const sheet = page.getByRole('dialog', { name: 'Aufgabe archivieren' });
+  await page.getByRole('button', { name: 'Löschen …' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Aufgabe löschen?' });
   await expect(sheet).toContainText('Die Aufgabe hat 2 Kommentare.');
-  await sheet.getByRole('button', { name: 'Trotzdem archivieren' }).click();
+  await sheet.getByRole('button', { name: 'Löschen', exact: true }).click();
   await expect(page.getByText('Archiviert – nicht mehr in den Listen.')).toBeVisible();
   const url = page.url();
   await page.goto('/agenda');
@@ -286,11 +286,16 @@ test('WF-AUF-14: Archivieren mit Bestätigung bei Kommentaren, Wiederherstellen'
   await expect(card(page, 'Nebelmaschine reparieren')).toBeVisible();
 });
 
-test('WF-AUF-14: ohne Kommentare archiviert das Menü sofort, mit Rückgängig', async ({ page }) => {
+test('WF-AUF-14: auch ohne Kommentare erst nach Rückfrage, mit Rückgängig', async ({ page }) => {
   await openTask(page, 'Farben und Siebe besorgen');
   await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
-  await page.getByRole('button', { name: 'Archivieren', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Aufgabe archivieren' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Löschen …' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Aufgabe löschen?' });
+  await sheet.getByRole('button', { name: 'Abbrechen' }).click();
+  await expect(page.getByText('Archiviert – nicht mehr in den Listen.')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  await page.getByRole('button', { name: 'Löschen …' }).click();
+  await sheet.getByRole('button', { name: 'Löschen', exact: true }).click();
   await expect(page.getByText('Archiviert – nicht mehr in den Listen.')).toBeVisible();
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
   await expect(page.getByText('Archiviert – nicht mehr in den Listen.')).toHaveCount(0);

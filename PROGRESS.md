@@ -120,7 +120,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         sehen sie), N3 (Profil lädt die Liste nicht nur für die Anzahl), N4 (angefangener Wunsch beim Öffnen wieder da),
         N5 (Rechte-Test für die neuen Tabellen) behoben; N1, N2 → U21
 
-- [ ] **Phase 9 – Verbesserungen (Nutzerin, 26.10.2026)** (lokal, Deploy nach Freigabe):
+- [x] **Phase 9 – Verbesserungen (Nutzerin, 26.10.2026)** (lokal, ohne Migration; Deploy nach Freigabe):
   - [x] Termine: Kommend/Vergangen als Reiter unter den Filtern, wie bei Events
   - [x] Events: Karten wie bei Terminen – Monats-Überschriften, Datum ohne Monat auf der Karte
   - [x] Event-Detail: „Aufgaben und offene Fragen zu diesem Event“ gehört ins Event, nicht in die Aufgabe; aus der
@@ -133,7 +133,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Aufgabe anlegen: gleich mit Beschreibung und Zuordnung
   - [x] Zuordnung: Option „Alle“
   - [x] Aufgabenkarte: kein Überlauf bei vielen Zugeordneten
-  - [ ] Alle Artefakte löschen (archivieren), mit Rückfrage
+  - [x] Alle Artefakte löschen (archivieren), mit Rückfrage
 
 ## Messungen
 
@@ -202,6 +202,10 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | F3  | 26.10.2026 | Sollen alle eine Benachrichtigung bekommen, wenn eine neue Entscheidung zum Bestätigen da ist (und kurz vor Fristende)? Bisher sieht man sie nur unter Wissen; ohne Stimme gilt sie nach der Frist.                                                                                                                                                                                                                                                                                                                                             | geklärt |
 | U20 | 26.10.2026 | Kalender (16.5): neue Workflow-ID WF-TER-11. Termine ohne Ende stehen im Kalender mit 1 Stunde, ein Plenum mit 3 Stunden (wie U4). Die Datei wird im Browser erzeugt, ohne Abo; spätere Änderungen und Absagen kommen nicht von selbst in den Kalender. Ob ein erneuter Import den Eintrag aktualisiert, hängt vom Kalender ab. Am Handy noch auf echten Geräten abzunehmen.                                                                                                                                                                    | Annahme |
 | U21 | 26.10.2026 | Rückmeldungen und Version (16.5): neue Workflow-IDs WF-PRO-05 (melden), WF-PRO-06 („Was ist neu?“), WF-ADM-10 (Liste). Rückmeldungen haben keinen Status (erledigt o. ä.) und keine Historie. Wer die App in einem Browser zum ersten Mal öffnet, sieht einmal den Eintrag der laufenden Version. „Was ist neu?“ kommt nur mit einer neuen Versionsnummer samt Changelog-Eintrag, nicht bei jedem Deploy (z. B. kleine Korrekturen), und erst nach dem automatischen Neuladen durch die neue App-Fassung. Rückmeldungen stehen nicht im Export. | Annahme |
+| U22 | 26.10.2026 | Phase 9: „Alle“ trägt alle aktiven Mitglieder einzeln als Bearbeitende ein (Liste eintragsweise, ein Rückgängig); die Karte zeigt dann „ALLE“, sonst höchstens drei Köpfe und „+n“. Beim Anlegen gibt es „Alle“ und einzelne Personen neben „Ich übernehme das“.                                                                                                                                                                                                                                                                                | Annahme |
+| U23 | 26.10.2026 | Phase 9: Löschen heißt Archivieren (neue Workflow-ID WF-ALL-09, Aufgaben weiter WF-AUF-14), immer mit Rückfrage; Verknüpftes bleibt. Wiederherstellen geht bei Aufgaben im Detail, bei allen anderen Arten über „Rückgängig“ direkt danach – eine Archiv-Ansicht gibt es noch nicht (F4).                                                                                                                                                                                                                                                       | Annahme |
+| U24 | 26.10.2026 | Phase 9: Kommentare und Verlauf stehen in allen Detailansichten in zwei Reitern (nicht nur Event und Entscheidung), damit es überall gleich aussieht. Aus Aufgabe, Frage und Entscheidung führt „Zum Event: …“ zur Veranstaltung.                                                                                                                                                                                                                                                                                                               | Annahme |
+| F4  | 26.10.2026 | Braucht es eine Archiv-Ansicht (z. B. im Profil), um gelöschte Veranstaltungen, Termine, Entscheidungen, Fragen, Dokumente und Partner später wiederherzustellen? Bisher geht das nur direkt danach über „Rückgängig“.                                                                                                                                                                                                                                                                                                                          | offen   |
 | F2  | 26.10.2026 | Ergebnis: Eine Frage steht einmal („Beantwortet: …“), ihre Entscheidungen/Fakten je einmal mit „(aus der Frage …)“. Passt das, oder sollen die Ergebnisse unter der Frage stehen und die Frage-Zeile entfallen?                                                                                                                                                                                                                                                                                                                                 | geklärt |
 
 ## Entscheidungsprotokoll
@@ -215,6 +219,7 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | 26.10.2026 | F1: Änderungen in Profil und Verwaltung gehören nie zum Plenum, auch nicht bei Personen auf der Teilnehmerliste.                                                                                                                     | Nutzerin.                                                   |
 | 26.10.2026 | F2: Im Plenum-Ergebnis steht eine Frage mit dem, was aus ihr wurde: „Frage: … – Antwort: …“ bei einer Antwort als Notiz, „Frage: … – daraus entstanden: Entscheidung „…“, Fakt „…““ bei Ergebnissen.                                 | Nutzerin.                                                   |
 | 26.10.2026 | F3: Neue Entscheidung zum Bestätigen geht als Benachrichtigung an alle anderen; am letzten Tag der Frist (ab 9 Uhr) an alle, die noch nicht abgestimmt haben.                                                                        | Nutzerin.                                                   |
+| 26.10.2026 | „In Arbeit“ trägt niemanden mehr automatisch ein; Zuordnen geht nur ausdrücklich.                                                                                                                                                    | Nutzerin (Phase 9).                                         |
 
 ## Abnahmen
 

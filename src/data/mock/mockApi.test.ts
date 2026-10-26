@@ -800,3 +800,38 @@ describe('Phase 9: Anlegen mit Beschreibung und Bearbeitenden, „Alle“', () =
     expect((await api.addAssignees(task.id, task.assignee_ids)).undo_token).toBe('');
   });
 });
+
+describe('Phase 9: Löschen ist Archivieren (WF-ALL-09)', () => {
+  it('jede Art verschwindet aus ihrer Liste, mit Verlauf und Rückgängig', async () => {
+    const [event] = await api.listEvents();
+    const [appointment] = await api.listAppointments();
+    const [decision] = await api.listDecisions();
+    const [question] = await api.listQuestions();
+    const [document] = await api.listDocuments();
+    const [partner] = await api.listPartners();
+    const cases = [
+      ['event', event!, async () => (await api.listEvents()).map((x) => x.id)],
+      ['appointment', appointment!, async () => (await api.listAppointments()).map((x) => x.id)],
+      ['decision', decision!, async () => (await api.listDecisions()).map((x) => x.id)],
+      ['question', question!, async () => (await api.listQuestions()).map((x) => x.id)],
+      ['document', document!, async () => (await api.listDocuments()).map((x) => x.id)],
+      ['partner', partner!, async () => (await api.listPartners()).map((x) => x.id)],
+    ] as const;
+    for (const [type, row, ids] of cases) {
+      const { undo_token } = await api.archiveArtifact(type, row.id, row.version);
+      expect(await ids(), type).not.toContain(row.id);
+      await api.undo(undo_token);
+      expect(await ids(), type).toContain(row.id);
+    }
+  });
+
+  it('prüft die Version und nimmt eine Entscheidung von der Agenda', async () => {
+    const marked = (await api.listDecisions()).find((d) => d.marked)!;
+    await expectError(api.archiveArtifact('decision', marked.id, marked.version + 5), 'conflict');
+    await api.archiveArtifact('decision', marked.id, marked.version);
+    const detail = await api.getDecision(marked.id);
+    expect([detail.marked, !!detail.archived_at]).toEqual([false, true]);
+    expect(detail.history.some((h) => h.action === 'archived')).toBe(true);
+    await expectError(api.archiveArtifact('task' as never, marked.id, 1), 'rule');
+  });
+});

@@ -1240,3 +1240,15 @@ export const appReportCreateSchema = z.object({
   app_version: z.string().trim().max(40).default(''),
 });
 export type AppReportCreateInput = z.input<typeof appReportCreateSchema>;
+
+// ── Löschen (Phase 9): Löschen ist Archivieren, wiederherstellbar ──────────
+/** Arten, die sich über WF-ALL-09 löschen lassen – Aufgaben archivieren über WF-AUF-14 */
+export const ARCHIVE_TARGETS = [
+  'event',
+  'appointment',
+  'decision',
+  'question',
+  'document',
+  'partner',
+] as const;
+export type ArchiveTarget = (typeof ARCHIVE_TARGETS)[number];

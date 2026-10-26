@@ -263,7 +263,7 @@ export function PickerSheet({
   );
 }
 
-/** WF-AUF-14 Archivieren – bei Aufgaben mit Kommentaren mit Bestätigung */
+/** WF-AUF-14 Löschen (archivieren) – immer mit Rückfrage (Phase 9) */
 export function ArchiveSheet({
   commentCount,
   onClose,
@@ -274,14 +274,15 @@ export function ArchiveSheet({
   onConfirm: () => void;
 }) {
   return (
-    <Sheet title="Aufgabe archivieren" onClose={onClose} wf="WF-AUF-14">
+    <Sheet title="Aufgabe löschen?" onClose={onClose} wf="WF-AUF-14">
       <span className="text-[14px] leading-normal text-weich">
         {commentCount > 0 &&
           `Die Aufgabe hat ${commentCount} ${commentCount === 1 ? 'Kommentar' : 'Kommentare'}. `}
-        Archivierte Aufgaben verschwinden aus allen Listen, lassen sich aber wiederherstellen.
+        Gelöschte Aufgaben werden archiviert: Sie verschwinden aus allen Listen, lassen sich aber
+        wiederherstellen.
       </span>
       <LightButton data-wf="WF-AUF-14" onClick={onConfirm}>
-        {commentCount > 0 ? 'Trotzdem archivieren' : 'Archivieren'}
+        Löschen
       </LightButton>
       <GhostButton onClick={onClose}>Abbrechen</GhostButton>
     </Sheet>

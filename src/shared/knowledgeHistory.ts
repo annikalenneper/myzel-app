@@ -81,6 +81,8 @@ export function knowledgeHistorySentence(
       return `${who} hat das Dokument „${String(c.document?.new)}“ verknüpft.`;
     case 'document_unlinked':
       return `${who} hat die Verknüpfung mit „${String(c.document?.old)}“ gelöst.`;
+    case 'archived':
+      return `${who} hat ${the} archiviert.`;
     case 'undo':
       return `${who} hat rückgängig gemacht: ${String(c.undone?.old ?? 'letzte Aktion')}.`;
     default:

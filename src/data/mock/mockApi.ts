@@ -15,6 +15,7 @@ import * as know from './knowledge';
 import * as comments from './comments';
 import * as notify from './notify';
 import * as plenum from './plenum';
+import * as archive from './archive';
 import * as reports from './reports';
 import * as series from './series';
 import * as telegram from './telegram';
@@ -391,6 +392,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     getSystemStatus: () =>
       read((d, n) => notify.systemStatus({ db: d, actor: actor(), now: n, inverse: [] })),
     createAppReport: (input) => writeOutside((ctx) => reports.createAppReport(ctx, input)),
+    archiveArtifact: (type, id, version) => write((ctx) => archive.archiveArtifact(ctx, type, id, version)),
     listAppReports: () =>
       read((d, n) => reports.listAppReports({ db: d, actor: actor(), now: n, inverse: [] })),
 
