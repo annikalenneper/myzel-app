@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Umbau 10/2026 abgeschlossen (Phasen 0–8), wartet auf Durchsicht und Deploy.** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Umbau 10/2026 abgeschlossen (Phasen 0–8, F1–F3) und live seit 26.10.2026 (Deploy b480e72, Migrationen bis 20261030000001 eingespielt, Integritätsprüfung ohne Befund).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
@@ -25,7 +25,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [-] Lese-Bündel je Ansicht: zurückgestellt – ohne Messung unklar, ob eine Function mit vier Verbindungen
     schneller ist als parallele Aufrufe; erst nach Messung entscheiden
   - [-] Function-Region EU: im Free-Tarif nicht möglich (Nutzerin, 25.10.2026), bleibt us-east-2
-- [x] **Phase 2 – Agenda als Hauptansicht** (lokal, Migration 20261026000001 noch nicht eingespielt):
+- [x] **Phase 2 – Agenda als Hauptansicht** (Migration 20261026000001):
   - [x] „Aufgaben“ → „Agenda“ (`/agenda`, Details `/agenda/:id`, `/agenda/frage/:id`, `/agenda/eintrag/:id`); alte
         Adressen `/aufgaben/…` und `/wissen/fragen/…` leiten um, Telegram-Buttons verstehen beide
   - [x] Agenda zeigt „Stimmt das noch?“ (aufgesetzte Entscheidungen/Fakten), Aufgaben, offene Fragen; Filter Art
@@ -38,7 +38,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         Aktionslisten in `remoteApi.ts` sind weg (eine fehlte schon für `setDecisionAgenda`, nur der Smoke-Test fand
         es); restliche Lese-Aktionen (Benachrichtigungen, Systemstatus, Mitglieder-Adressen, Deaktivieren) ohne
         Transaktion
-- [x] **Phase 3 – Plenum** (lokal, Migration 20261026000002 noch nicht eingespielt):
+- [x] **Phase 3 – Plenum** (Migration 20261026000002):
   - [x] Plenum-Detail nur noch Ergebnis und Protokoll (Agenda schon in Phase 2 entfernt)
   - [x] Laufendes Plenum: Beginn bis Ende, ohne Ende + 3 h, bis zum Abschließen. Die Sitzung kennt es samt
         Teilnahme; der Server ermittelt es in derselben Abfrage wie die handelnde Person (keine Extra-Rundreise)
@@ -54,7 +54,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Anwesenheit nach dem Abschluss nur nach Rückfrage; Historie mit Kennzeichen `after_close`
   - [x] Review Phase 2 (Subagent): kein hoher Befund; M1 (Agenda hängt, wenn Fragen nicht laden), N1, N3, N4, N5,
         N6 behoben; N2 durch Phase 3 erledigt
-- [x] **Phase 4 – Grundfunktionen** (lokal, Migration 20261027000001 noch nicht eingespielt):
+- [x] **Phase 4 – Grundfunktionen** (Migration 20261027000001):
   - [x] Kommentare an Aufgabe, Frage, Entscheidung/Fakt, Veranstaltung, Termin, Partner (WF-ALL-07); nur eigene
         bearbeitbar, alt → neu im Verlauf; an Aufgaben wie bisher mit Folgen und Benachrichtigung
   - [x] Verlauf in allen Detailansichten (neu: Veranstaltung, Termin, Partner) mit lesbaren Sätzen, Felder alt → neu
@@ -65,7 +65,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Text von Entscheidungen/Fakten höchstens 300 Zeichen mit Zähler „x/300“, sichtbar auf den Karten
   - [x] Review Phase 3 (Subagent): kein hoher Befund; M1 (Index für das Ergebnis, Migration), M2 (Telegram- und
         Push-Längen, Antworten gekürzt), N1–N4, N6 behoben; N5 bleibt (Tab über 24 h ohne Änderung), N7/N8 → Fragen
-- [x] **Phase 5 – Globaler „+“-Knopf** (lokal, ohne Migration):
+- [x] **Phase 5 – Globaler „+“-Knopf**:
   - [x] ein „+“ im Gerüst (WF-ALL-08) statt je Ansicht: Aufgabe · Frage · Entscheidung · Fakt · Veranstaltung ·
         Termin · Dokument · Partner; in einer Veranstaltung (Desktop) mit ihr vorbelegt, im Termin für Aufgaben
   - [x] Review Phase 4 (Subagent): kein hoher Befund; M1 (Rückgängig trotz Kommentar an der neuen Fassung), M2
@@ -73,7 +73,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         (Verlauf zeigt überall vorher → nachher, auch Kommentare und Aufgaben-Beschreibung), N1 (Artikel, Namen von
         Thema/Veranstaltung), N3–N6 behoben; N2 (Ersetzen bei archivierter Veranstaltung) erst relevant, wenn
         Veranstaltungen archivierbar werden; N7 → U15, N8 (Exportversion 3)
-- [x] **Phase 6 – Entscheidungen im Konsens** (lokal, Migration 20261028000001 noch nicht eingespielt):
+- [x] **Phase 6 – Entscheidungen im Konsens** (Migration 20261028000001):
   - [x] Neue Entscheidungen sind „offen“ mit Frist „Bestätigen bis“ (Standard 7 Tage, wählbar, höchstens 90 Tage);
         Fakten gelten sofort; bestehende bleiben gültig (U2). Auch beim Ersetzen bekommt die neue Fassung eine Frist
   - [x] Bestätigen/Widersprechen (WF-WIS-13) je Person eine Stimme, änderbar, mit Rückgängig; gültig, sobald alle
@@ -88,7 +88,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         ergänzt), M1 („+“ übernimmt auch im Termin dessen Veranstaltung, Dokumente gehen an den Termin; in der auf eine
         Veranstaltung gefilterten Agenda deren Veranstaltung), M2 (Desktop-Test für die Vorbelegung, Partner wird wirklich
         angelegt), N1 (Schein des „+“ als Token) behoben; N2 (Entscheidung und Fakt teilen WF-WIS-01) bleibt so
-- [x] **Phase 7 – Google Kalender** (lokal, ohne Migration):
+- [x] **Phase 7 – Google Kalender**:
   - [x] Termin- und Plenum-Detail: „In Google Kalender eintragen ↗“ und „.ics herunterladen“ (WF-TER-11); Titel, Zeit in
         UTC, Ort bzw. Call-Link, Beschreibung mit Link zurück in Myzel; die .ics-UID ist je Termin fest, ein erneuter
         Import ersetzt den alten Eintrag. Nicht bei abgesagten Terminen und abgeschlossenen Plena
@@ -102,7 +102,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] F2: Fragen im Ergebnis mit Antwort bzw. „daraus entstanden: …“; ihre Entscheidungen/Fakten stehen in der Zeile
         der Frage statt einzeln
   - [x] F3: Benachrichtigungen „Entscheidungen zum Bestätigen“ (neue Zeile in der Matrix): neu und letzter Tag der Frist
-- [x] **Phase 8 – App-Report und Versions-Info** (lokal, Migration 20261029000001 noch nicht eingespielt):
+- [x] **Phase 8 – App-Report und Versions-Info** (Migration 20261029000001):
   - [x] Profil › „Rückmeldung zur App“ (WF-PRO-05): Bug oder Feature-Wunsch, je mit Leitfrage, langer Text mit
         Senden/Abbrechen und lokalem Entwurf; eigene Tabelle `app_reports` ohne Lese-Policy
   - [x] Review Phase 7 (Subagent): kein hoher Befund; M1 (.ics am Handy über „Teilen“, damit das System den Kalender
