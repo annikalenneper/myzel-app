@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Umbau 10/2026 abgeschlossen (Phasen 0–8, F1–F3) und live seit 26.10.2026 (Deploy b480e72, Migrationen bis 20261030000001 eingespielt, Integritätsprüfung ohne Befund).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Umbau 10/2026 und Verbesserungen (Phasen 9–10) live seit 26.10.2026 – Version 0.9.0, Deploy db55b12, Integritätsprüfung ohne Befund.** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
@@ -120,7 +120,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         sehen sie), N3 (Profil lädt die Liste nicht nur für die Anzahl), N4 (angefangener Wunsch beim Öffnen wieder da),
         N5 (Rechte-Test für die neuen Tabellen) behoben; N1, N2 → U21
 
-- [x] **Phase 9 – Verbesserungen (Nutzerin, 26.10.2026)** (lokal, ohne Migration; Deploy nach Freigabe):
+- [x] **Phase 9 – Verbesserungen (Nutzerin, 26.10.2026)** (ohne Migration; live mit 0.9.0):
   - [x] Termine: Kommend/Vergangen als Reiter unter den Filtern, wie bei Events
   - [x] Events: Karten wie bei Terminen – Monats-Überschriften, Datum ohne Monat auf der Karte
   - [x] Event-Detail: „Aufgaben und offene Fragen zu diesem Event“ gehört ins Event, nicht in die Aufgabe; aus der
