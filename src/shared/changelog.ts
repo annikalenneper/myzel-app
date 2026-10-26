@@ -10,6 +10,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.9.0',
+    date: '2026-10-26',
+    items: [
+      'Agenda, Termine und Events mit Reitern: Aktuell/Abgeschlossen bzw. Kommend/Vergangen; Events nach Monat.',
+      'Aufgabe anlegen mit Beschreibung und Zuordnung – auch „Alle“. „In Arbeit“ trägt niemanden mehr von selbst ein.',
+      'Im Event: bestehende Aufgabe verknüpfen oder neue anlegen, Entscheidung/Fakt direkt in der Leiste.',
+      'Kommentare und Verlauf in zwei Reitern in allen Detailansichten.',
+      'Alles lässt sich löschen (archivieren) – immer mit Rückfrage und kurz danach mit Rückgängig.',
+      'Termine: Link zum Call geht auch später; „Zum Call“ als Knopf. Entscheidungen und Fakten: höchstens 200 Zeichen.',
+    ],
+  },
+  {
     version: '0.8.0',
     date: '2026-10-26',
     items: [
