@@ -471,6 +471,7 @@ function Retrospective({ event }: { event: EventDetail }) {
       {deciding && (
         <DecisionSheet
           sourceNote={`Nachbereitung ${event.title}`}
+          eventPreset={event.id}
           onClose={() => setDeciding(false)}
           onCreated={() => setDeciding(false)}
         />

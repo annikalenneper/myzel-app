@@ -7,7 +7,7 @@ import { addDays, berlinDate, daysUntil, dueState, isPlausibleDate } from './due
 import { suggestsFollowUp } from './eventDetails';
 import { allowedEventTransitions, canTransitionEvent } from './eventStatus';
 import { suggestShort } from './members';
-import { linkTarget, telegramHtml } from './telegram';
+import { linkTarget, pushText, telegramHtml } from './telegram';
 import { sortTasks } from './taskSort';
 import { blockReasonMissing, canTransitionTask, statusAfterLastAssigneeLeft } from './taskStatus';
 import { orderTopics, topicFilterIds, topicLabel } from './topics';
@@ -273,5 +273,27 @@ describe('Telegram-Text (16.2): formatiert und sicher', () => {
     expect(telegramHtml('Du bist eingetragen: „A & B“', 'https://x/a')).toBe(
       'Du bist eingetragen: „A &amp; B“\n\n<a href="https://x/a">In Myzel öffnen</a>',
     );
+  });
+});
+
+describe('Telegram und Push: Längen (Review Phase 3)', () => {
+  it('kürzt lange Zusammenfassungen für Telegram mit „… und N weitere“', () => {
+    const items = Array.from(
+      { length: 200 },
+      (_, i) => `• Neu: Aufgabe Nummer ${i} mit einem längeren Titel`,
+    );
+    const html = telegramHtml(
+      ['Plenum ist abgeschlossen.', '', 'Aufgaben:', ...items].join('\n'),
+      'https://x/a',
+    );
+    expect(html.length).toBeLessThan(4096);
+    expect(html).toMatch(/… und \d+ weitere\n\n<a href="https:\/\/x\/a">In Myzel öffnen<\/a>$/);
+  });
+
+  it('Push: Überschrift und Zahl der Punkte, einzeilig', () => {
+    expect(pushText('Plenum Oktober ist abgeschlossen.\n\nAufgaben:\n• A\n• B\n\nFragen:\n• C')).toBe(
+      'Plenum Oktober ist abgeschlossen. 3 Punkte im Ergebnis.',
+    );
+    expect(pushText('Du bist eingetragen.')).toBe('Du bist eingetragen.');
   });
 });

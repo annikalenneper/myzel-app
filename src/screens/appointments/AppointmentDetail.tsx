@@ -22,6 +22,9 @@ import { Avatar, cx, GhostButton, ListSkeleton, LoadError } from '../../ui/bits'
 import { IconBack } from '../../ui/icons';
 import { ConfirmDialog } from '../knowledge/DetailParts';
 import { LinkedDocuments } from '../knowledge/LinkedDocuments';
+import { CommentsSection } from '../../ui/Comments';
+import { HistoryList } from '../../ui/HistoryList';
+import { entityHistorySentence } from '../../shared/entityHistory';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
 import { rsvpButton, useRsvp } from './AppointmentsScreen';
@@ -240,6 +243,11 @@ function Loaded({ a }: { a: Detail }) {
           </button>
         </div>
 
+        {/* 16.3 Beschreibung wie bei allen Artefakten */}
+        {a.description && (
+          <div className="text-[15px] leading-normal whitespace-pre-wrap text-weich">{a.description}</div>
+        )}
+
         {/* F-WIS-05 Dokumente am Termin */}
         <LinkedDocuments
           wf="WF-WIS-06"
@@ -316,6 +324,21 @@ function Loaded({ a }: { a: Detail }) {
             )}
           </div>
         )}
+
+        <CommentsSection
+          target="appointment"
+          targetId={a.id}
+          comments={a.comments}
+          archived={!!a.archived_at}
+        />
+        <HistoryList
+          entries={a.history}
+          sentence={(h) =>
+            entityHistorySentence(h, 'Termin', {
+              memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+            })
+          }
+        />
       </div>
 
       {/* unten fixierte Aktionen */}

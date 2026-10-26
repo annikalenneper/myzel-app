@@ -126,6 +126,7 @@ export function generateSeries(ctx: Ctx, only?: string): number {
         type_id: s.type_id,
         topic_id: s.topic_id,
         event_id: null,
+        description: null,
         ...fields,
         status: 'geplant',
         series_id: s.id,

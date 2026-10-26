@@ -177,7 +177,7 @@ describe('Befunde aus dem Review (18.10.2026)', () => {
     const first = items(await api.getTemplateDialog(id))[0]!;
     const { undo_token } = await api.applyTemplate(id, [first.id]);
     const task = (await api.listTasks()).find((t) => t.event_id === id)!;
-    await api.addComment(task.id, 'Ich frage morgen an.');
+    await api.addComment('task', task.id, 'Ich frage morgen an.');
     await expectError(api.undo(undo_token), 'rule');
     expect((await api.listTasks()).some((t) => t.id === task.id)).toBe(true);
   });

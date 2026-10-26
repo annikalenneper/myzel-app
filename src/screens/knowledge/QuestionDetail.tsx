@@ -27,7 +27,8 @@ import {
   NotFound,
   StatusPill,
 } from './DetailParts';
-import { DecisionSheet } from './KnowledgeSheets';
+import { CommentsSection } from '../../ui/Comments';
+import { DecisionSheet, QuestionEditSheet } from './KnowledgeSheets';
 
 export function QuestionDetail({ questionId }: { questionId: string }) {
   const { data, error, reload } = useData(`question:${questionId}`, () => api.getQuestion(questionId));
@@ -53,14 +54,19 @@ function Loaded({ q }: { q: Detail }) {
   const act = useActions();
   const latest = useLatest(q.version);
   const { topicName, memberById, eventById } = useLookups();
-  const [sheet, setSheet] = useState<'result' | 'answer' | null>(null);
+  const [sheet, setSheet] = useState<'result' | 'answer' | 'edit' | null>(null);
   const open = q.status === 'offen';
   const event = q.event_id ? eventById.get(q.event_id) : undefined;
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={128} />
-      <DetailTopBar label="Frage" back={BACK_TO_AGENDA} />
+      <DetailTopBar
+        label="Frage"
+        back={BACK_TO_AGENDA}
+        onEdit={q.archived_at ? undefined : () => setSheet('edit')}
+        editWf="WF-FRA-06"
+      />
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className="flex flex-col gap-2">
           <span className="label-mono flex flex-wrap items-center gap-2">
@@ -127,6 +133,7 @@ function Loaded({ q }: { q: Detail }) {
             </span>
           )}
         </section>
+        <CommentsSection target="question" targetId={q.id} comments={q.comments} archived={!!q.archived_at} />
         <KnowledgeHistory history={q.history} noun="Frage" />
       </div>
 
@@ -192,6 +199,7 @@ function Loaded({ q }: { q: Detail }) {
           onClose={() => setSheet(null)}
         />
       )}
+      {sheet === 'edit' && <QuestionEditSheet q={q} onClose={() => setSheet(null)} />}
       {sheet === 'answer' && (
         <AnswerSheet
           title={q.title}

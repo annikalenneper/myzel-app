@@ -216,3 +216,26 @@ test('WF-WIS-11: globale Suche – Treffer beim Tippen, gruppiert, Gruppe des Sc
   await overlay.getByLabel('Suche über alles').fill('xyzxyz');
   await expect(overlay.getByTestId('WF-ALL-05')).toContainText('Nichts gefunden');
 });
+
+test('WF-WIS-12 / WF-ALL-07: Entscheidung bearbeiten mit Zähler, Text auf der Karte, Kommentar', async ({
+  page,
+}) => {
+  await open(page);
+  await card(page, 'Mate am Tresen für 2,50 €').getByRole('link').click();
+  await page.getByRole('button', { name: 'Bearbeiten', exact: true }).first().click();
+  const sheet = page.getByRole('dialog', { name: 'Bearbeiten' });
+  await sheet.getByLabel(/^Text/).fill('Gilt für alle Sorten.');
+  await expect(sheet).toContainText('21/300');
+  await sheet.locator('button[type=submit]').click();
+  await expect(sheet).toBeHidden();
+  await expect(
+    page.getByText('Gilt für alle Sorten.', { exact: true }).filter({ visible: true }).first(),
+  ).toBeVisible();
+
+  await page.getByLabel('Kommentar schreiben').fill('Auch für Club-Mate light?');
+  await page.getByRole('button', { name: 'Senden' }).click();
+  await expect(page.getByRole('region', { name: 'Kommentare' })).toContainText('Auch für Club-Mate light?');
+
+  await page.goto('/wissen');
+  await expect(card(page, 'Mate am Tresen für 2,50 €')).toContainText('Gilt für alle Sorten.');
+});

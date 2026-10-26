@@ -54,8 +54,17 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Anwesenheit nach dem Abschluss nur nach Rückfrage; Historie mit Kennzeichen `after_close`
   - [x] Review Phase 2 (Subagent): kein hoher Befund; M1 (Agenda hängt, wenn Fragen nicht laden), N1, N3, N4, N5,
         N6 behoben; N2 durch Phase 3 erledigt
-- [ ] **Phase 4 – Grundfunktionen:** Titel und Beschreibung überall bearbeitbar (Historie alt → neu), Kommentare und
-      Historie für alle Artefakte, Event-Bezug für alle, Fakten/Entscheidungen mit Text auf der Karte (max. 300 Zeichen)
+- [x] **Phase 4 – Grundfunktionen** (lokal, Migration 20261027000001 noch nicht eingespielt):
+  - [x] Kommentare an Aufgabe, Frage, Entscheidung/Fakt, Veranstaltung, Termin, Partner (WF-ALL-07); nur eigene
+        bearbeitbar, alt → neu im Verlauf; an Aufgaben wie bisher mit Folgen und Benachrichtigung
+  - [x] Verlauf in allen Detailansichten (neu: Veranstaltung, Termin, Partner) mit lesbaren Sätzen, Felder alt → neu
+  - [x] Bearbeiten: Frage (WF-FRA-06), Entscheidung/Fakt (WF-WIS-12, Korrektur – Inhaltliches über „Ersetzen“);
+        Beschreibung beim Anlegen von Fragen; Termine haben eine Beschreibung
+  - [x] Event-Bezug für Entscheidungen/Fakten; Veranstaltungs-Detail zeigt sie direkt, dazu „+ Frage“ und
+        „+ Festhalten“ mit vorbelegter Veranstaltung
+  - [x] Text von Entscheidungen/Fakten höchstens 300 Zeichen mit Zähler „x/300“, sichtbar auf den Karten
+  - [x] Review Phase 3 (Subagent): kein hoher Befund; M1 (Index für das Ergebnis, Migration), M2 (Telegram- und
+        Push-Längen, Antworten gekürzt), N1–N4, N6 behoben; N5 bleibt (Tab über 24 h ohne Änderung), N7/N8 → Fragen
 - [ ] **Phase 5 – Globaler „+“-Knopf:** jede Art aus jeder Ansicht anlegen, mit Vorbelegung aus dem Kontext
 - [ ] **Phase 6 – Entscheidungen im Konsens:** Frist (Standard 7 Tage, wählbar), Bestätigen/Widersprechen, Joblauf
 - [ ] **Phase 7 – Google Kalender:** Link „In Google Kalender eintragen“ und .ics-Download je Termin
@@ -120,6 +129,10 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | U12 | 26.10.2026 | Gehört eine Änderung zum Plenum, gilt das für Artefakte (Aufgabe, Veranstaltung, Termin, Entscheidung/Fakt, Frage, Dokument, Partner), nicht für Zu- und Absagen und nicht für das Plenum selbst (Protokoll, Teilnahme, Abschließen). | Annahme |
 | U13 | 26.10.2026 | Die Antwort auf „Gehört das zum Plenum?“ gilt im Tab bis zum Ende des Plenums; wer „Nein“ sagt, wird in diesem Plenum nicht wieder gefragt.                                                                                           | Annahme |
 | U14 | 26.10.2026 | Ergebnisse einer Frage stehen bei gleichem Zeitpunkt nach Titel sortiert. Eine ersetzte Entscheidung reicht die Frage an die neue Fassung weiter.                                                                                     | Annahme |
+| U15 | 27.10.2026 | Dokumente haben keine Detailansicht – Kommentare gibt es dort (noch) nicht; Titel/Beschreibung von Dokumenten bleiben, wie sie sind.                                                                                                  | Annahme |
+| U16 | 27.10.2026 | Neue Workflow-IDs: WF-ALL-07 Kommentar an einem Artefakt, WF-FRA-05 Ergebnis festhalten, WF-FRA-06 Frage bearbeiten, WF-WIS-12 Entscheidung/Fakt bearbeiten, WF-PLE-21 „Gehört das zum Plenum?“.                                      | Annahme |
+| F1  | 27.10.2026 | Teilnehmende markiert der Server auch bei Änderungen im Profil/Verwaltung (z. B. Deaktivieren) automatisch fürs Plenum, Außenstehende werden dort nicht gefragt. Soll das so sein, oder zählt im Profil gar nichts zum Plenum?        | offen   |
+| F2  | 27.10.2026 | Ergebnis: Eine Frage steht einmal („Beantwortet: …“), ihre Entscheidungen/Fakten je einmal mit „(aus der Frage …)“. Passt das, oder sollen die Ergebnisse unter der Frage stehen und die Frage-Zeile entfallen?                       | offen   |
 
 ## Entscheidungsprotokoll
 

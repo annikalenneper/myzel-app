@@ -17,7 +17,7 @@ import { formatAgo } from '../shared/format';
 import type { SessionPlenum } from '../shared/rules/plenum';
 import { useLocation } from 'react-router-dom';
 import { useSession } from './session';
-import { belongsToPlenum, rememberPlenumAnswer, runningPlenum } from './plenum';
+import { belongsToPlenum, forgetPlenumAnswers, rememberPlenumAnswer, runningPlenum } from './plenum';
 import { enqueueAction } from './useActions';
 import { refreshAll } from './useData';
 
@@ -107,6 +107,9 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       return null;
     });
   }, [pathname, sessionKey]);
+  // eine andere Person im selben Tab: frühere Antworten auf „Gehört das zum Plenum?“ gelten nicht
+  useEffect(() => forgetPlenumAnswers(), [sessionKey]);
+  const asking = useRef<Promise<boolean> | null>(null);
 
   const run = useCallback(
     async function run<T>(action: () => Promise<T>, options: RunOptions<T> = {}): Promise<T | undefined> {
@@ -115,9 +118,16 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       const plenum =
         options.plenum === false || at.startsWith('/profil') ? null : runningPlenum(now, new Date());
       if (plenum && belongsToPlenum(plenum) === undefined) {
-        const belongs = await new Promise<boolean>((resolve) => setPlenumAsk({ plenum, resolve }));
-        setPlenumAsk(null);
-        rememberPlenumAnswer(plenum.id, belongs);
+        // gleichzeitige Aktionen warten auf dieselbe Antwort – es gibt nur einen Dialog
+        asking.current ??= new Promise<boolean>((resolve) => setPlenumAsk({ plenum, resolve })).then(
+          (belongs) => {
+            asking.current = null;
+            setPlenumAsk(null);
+            rememberPlenumAnswer(plenum.id, belongs);
+            return belongs;
+          },
+        );
+        await asking.current;
       }
       try {
         const result = await action();

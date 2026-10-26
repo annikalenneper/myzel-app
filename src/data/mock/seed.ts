@@ -627,6 +627,7 @@ export function seedDb(now: Date): Db {
       title: `Plenum ${MONTH_NAMES[starts.getMonth()]} ${starts.getFullYear()}`,
       topic_id: topic.Organisatorisches!.id,
       event_id: null,
+      description: null,
       starts_at: starts.toISOString(),
       ends_at: null,
       format: 'online',

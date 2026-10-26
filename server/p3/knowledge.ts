@@ -27,10 +27,12 @@ import {
 } from '../../src/shared/rules/knowledge';
 import {
   decisionCreateSchema,
+  decisionUpdateSchema,
   decisionReplaceSchema,
   documentCreateSchema,
   questionClarifySchema,
   questionCreateSchema,
+  questionUpdateSchema,
   type DocumentLinkTarget,
   type HistoryChanges,
 } from '../../src/shared/schema';
@@ -49,6 +51,7 @@ import {
 } from '../core/context';
 import { addMark, dropMark, isMarked } from '../core/marks';
 import type { DecisionRow, DocumentRow, QuestionRow } from '../db/types';
+import { commentsOf } from '../p1/comments';
 import { historyOf } from '../p1/reads';
 import { documentForFile, missingDriveDocuments, visibleDriveFile, type DriveIndex } from '../p5/drive';
 import { isPlenum } from './appointments';
@@ -148,7 +151,7 @@ export async function listDecisions(trx: Db): Promise<DecisionListItem[]> {
 
 export async function getDecision(trx: Db, id: string): Promise<DecisionDetail> {
   const d = await findDecision(trx, id, false);
-  const [[item], plenum, doc, replaces, documents, history] = await Promise.all([
+  const [[item], plenum, doc, replaces, documents, comments, history] = await Promise.all([
     decisionItems(trx, [d]),
     d.source_plenum_id
       ? trx
@@ -166,6 +169,7 @@ export async function getDecision(trx: Db, id: string): Promise<DecisionDetail> 
       : undefined,
     trx.selectFrom('decisions').select(['id', 'title']).where('superseded_by_id', '=', id).execute(),
     linkedDocuments(trx, 'decision', id),
+    commentsOf(trx, 'decision', id),
     historyOf(trx, 'decision', id),
   ]);
   return {
@@ -174,6 +178,7 @@ export async function getDecision(trx: Db, id: string): Promise<DecisionDetail> 
     source_document: doc ?? null,
     replaces,
     documents,
+    comments,
     history,
   };
 }
@@ -182,6 +187,26 @@ interface Sources {
   source_plenum_id: string | null;
   source_document_id: string | null;
   source_note: string | null;
+}
+
+async function checkEvent(ctx: Ctx, eventId: string | null): Promise<void> {
+  if (!eventId) return;
+  const event = await ctx.trx
+    .selectFrom('events')
+    .select('id')
+    .where('id', '=', eventId)
+    .where('archived_at', 'is', null)
+    .executeTakeFirst();
+  if (!event)
+    throw new AppError('validation', 'Diese Veranstaltung gibt es nicht mehr.', { field: 'event_id' });
+}
+
+/** Felder alt → neu (3.10): was sich gegenüber der Zeile ändert */
+function changed<T extends object, K extends keyof T>(row: T, next: Pick<T, K>): HistoryChanges {
+  const changes: HistoryChanges = {};
+  for (const key of Object.keys(next) as K[])
+    if (row[key] !== next[key]) changes[key as string] = { old: row[key], new: next[key] };
+  return changes;
 }
 
 /** Mindestens eine Quelle ist Pflicht; ein Plenum als Quelle muss ein Plenum-Termin sein (3.8, 7.2). */
@@ -226,6 +251,7 @@ export async function insertDecision(
 ): Promise<DecisionRow> {
   await checkTopic(ctx, input.topic_id);
   await checkSources(ctx, input);
+  await checkEvent(ctx, input.event_id);
   const question = input.source_question_id
     ? await findQuestion(ctx.trx, input.source_question_id, false)
     : null;
@@ -245,6 +271,7 @@ export async function insertDecision(
       source_document_id: input.source_document_id,
       source_note: input.source_note,
       source_question_id: input.source_question_id,
+      event_id: input.event_id,
       archived_at: null,
       created_at: now,
       updated_at: now,
@@ -273,6 +300,21 @@ export async function createDecision(ctx: Ctx, raw: unknown): Promise<{ id: stri
   const decision = await insertDecision(ctx, parse(decisionCreateSchema, raw));
   ctx.inverse.length = 0;
   return { id: decision.id };
+}
+
+/** WF-WIS-12: Titel, Text, Thema, Veranstaltung korrigieren – Inhaltliches ändert „Ersetzen“ */
+export async function updateDecision(ctx: Ctx, id: string, raw: unknown): Promise<void> {
+  const input = parse(decisionUpdateSchema, raw);
+  const d = await findDecision(ctx.trx, id);
+  await checkVersion(ctx, 'decision', d, input.version);
+  if (d.status !== 'gueltig') throw rule('Nur gültige Einträge lassen sich bearbeiten.');
+  if (input.topic_id !== d.topic_id) await checkTopic(ctx, input.topic_id);
+  if (input.event_id !== d.event_id) await checkEvent(ctx, input.event_id);
+  const { title, description, topic_id, event_id } = input;
+  const changes = changed(d, { title, description, topic_id, event_id });
+  if (Object.keys(changes).length === 0) return;
+  await touch(ctx, 'decisions', 'decision', d, { title, description, topic_id, event_id });
+  await writeHistory(ctx, 'decision', id, 'updated', changes);
 }
 
 const decisionState = (d: DecisionRow) =>
@@ -312,8 +354,9 @@ export async function replaceDecision(
         source_plenum_id: input.source_plenum_id,
         source_document_id: input.source_document_id,
         source_note: input.source_note,
-        // die neue Fassung gehört weiter zur selben Frage
+        // die neue Fassung gehört weiter zur selben Frage und Veranstaltung
         source_question_id: old.source_question_id,
+        event_id: old.event_id,
       },
       'created_as_replacement',
     );
@@ -394,8 +437,12 @@ export async function listQuestions(trx: Db): Promise<QuestionListItem[]> {
 
 export async function getQuestion(trx: Db, id: string): Promise<QuestionDetail> {
   const q = await findQuestion(trx, id, false);
-  const [[item], history] = await Promise.all([questionItems(trx, [q]), historyOf(trx, 'question', id)]);
-  return { ...item!, history };
+  const [[item], comments, history] = await Promise.all([
+    questionItems(trx, [q]),
+    commentsOf(trx, 'question', id),
+    historyOf(trx, 'question', id),
+  ]);
+  return { ...item!, comments, history };
 }
 
 /** WF-FRA-01 */
@@ -435,6 +482,21 @@ export async function createQuestion(ctx: Ctx, raw: unknown): Promise<{ id: stri
   await writeHistory(ctx, 'question', question.id, 'created', changes);
   ctx.inverse.length = 0;
   return { id: question.id };
+}
+
+/** WF-FRA-06: Frage bearbeiten – Titel, Beschreibung, Thema, Veranstaltung, Dringlichkeit */
+export async function updateQuestion(ctx: Ctx, id: string, raw: unknown): Promise<void> {
+  const input = parse(questionUpdateSchema, raw);
+  const q = await findQuestion(ctx.trx, id);
+  await checkVersion(ctx, 'question', q, input.version);
+  if (q.archived_at) throw rule('Archivierte Fragen lassen sich nicht bearbeiten.');
+  if (input.topic_id !== q.topic_id) await checkTopic(ctx, input.topic_id);
+  if (input.event_id !== q.event_id) await checkEvent(ctx, input.event_id);
+  const { title, description, topic_id, event_id, urgency } = input;
+  const changes = changed(q, { title, description, topic_id, event_id, urgency });
+  if (Object.keys(changes).length === 0) return;
+  await touch(ctx, 'questions', 'question', q, { title, description, topic_id, event_id, urgency });
+  await writeHistory(ctx, 'question', id, 'updated', changes);
 }
 
 const questionState = (q: QuestionRow) =>

@@ -433,6 +433,11 @@ function ReviewCard({ d, selected }: { d: DecisionListItem; selected: boolean })
         {DECISION_KIND_LABEL[d.kind]} · {topicName(d.topic_id)}
       </span>
       <span className="text-[17px] leading-[1.3] font-semibold">{d.title}</span>
+      {d.description && (
+        <span className="line-clamp-3 text-[14px] leading-[1.45] break-words text-weich">
+          {d.description}
+        </span>
+      )}
       <span className="text-[13px] text-pink">Stimmt das noch?</span>
     </Link>
   );

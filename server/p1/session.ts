@@ -57,6 +57,9 @@ async function sessionPlenum(
     .where('a.status', 'in', ['geplant', 'stattgefunden'])
     .where(sql<boolean>`${end} >= ${at}::timestamptz`)
     .where(sql<boolean>`a.starts_at <= ${until}::timestamptz`)
+    // wie die Transaktion: ein laufendes zuerst (das zuletzt begonnene), sonst das nächste
+    .orderBy(sql`a.starts_at <= ${at}::timestamptz`, 'desc')
+    .orderBy(sql`case when a.starts_at <= ${at}::timestamptz then a.starts_at end`, 'desc')
     .orderBy('a.starts_at')
     .executeTakeFirst();
   return row

@@ -29,6 +29,7 @@ import {
   type Ctx,
   type Db,
 } from './server';
+import { commentsOf, historyOf } from './comments';
 import { checkDriveFolder, childEntries, driveItem } from './drive';
 
 const uuid = () => crypto.randomUUID();
@@ -78,6 +79,12 @@ export function getEventDetail(db: Db, id: string, now: Date): EventDetail {
     shift_plan_document: doc ? { id: doc.id, title: doc.title, url: doc.url } : null,
     summaries: sectionSummaries(details, bookings, partners),
     suggests_follow_up: suggestsFollowUp(event, now),
+    decisions: db.decisions
+      .filter((d) => d.event_id === id && !d.archived_at)
+      .sort((a, b) => b.decided_on.localeCompare(a.decided_on) || a.title.localeCompare(b.title))
+      .map((d) => ({ id: d.id, title: d.title, kind: d.kind, status: d.status, description: d.description })),
+    comments: commentsOf(db, 'event', id),
+    history: historyOf(db, 'event', id),
     partners,
   };
 }

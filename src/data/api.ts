@@ -28,6 +28,9 @@ import type {
   AppointmentUpdateInput,
   RsvpAnswer,
   Comment,
+  CommentTarget,
+  DecisionUpdateInput,
+  QuestionUpdateInput,
   EventCreateInput,
   BookingCreateInput,
   BookingUpdateInput,
@@ -114,6 +117,16 @@ export interface EventDetail extends EventListItem {
     missing: boolean;
     entries: DriveEntry[];
   } | null;
+  /** Entscheidungen und Fakten zu dieser Veranstaltung (16.3) */
+  decisions: {
+    id: string;
+    title: string;
+    kind: Decision['kind'];
+    status: Decision['status'];
+    description: string | null;
+  }[];
+  comments: Comment[];
+  history: HistoryEntry[];
   /** WF-VER-10 verknüpfte Partner */
   partners: {
     id: string;
@@ -154,6 +167,8 @@ export interface PartnerListItem extends Partner {
 /** S-24 Partner – Detail mit den Veranstaltungen, bei denen er beteiligt war (WF-VER-13) */
 export interface PartnerDetail extends PartnerListItem {
   events: { id: string; title: string; starts_at: string; status: EventStatus; role_note: string | null }[];
+  comments: Comment[];
+  history: HistoryEntry[];
 }
 
 export interface TopicWithUsage extends Topic {
@@ -194,6 +209,7 @@ export interface DecisionDetail extends DecisionListItem {
   /** Einträge, die durch diesen ersetzt wurden */
   replaces: { id: string; title: string }[];
   documents: DocumentListItem[];
+  comments: Comment[];
   history: HistoryEntry[];
 }
 
@@ -203,6 +219,7 @@ export interface QuestionListItem extends Question {
 }
 
 export interface QuestionDetail extends QuestionListItem {
+  comments: Comment[];
   history: HistoryEntry[];
 }
 
@@ -285,6 +302,8 @@ export interface AppointmentDetail extends AppointmentListItem {
   /** tatsächliche Teilnahme */
   attendee_ids: string[];
   tasks: { id: string; title: string; status: TaskStatus; assignee_ids: string[] }[];
+  comments: Comment[];
+  history: HistoryEntry[];
 }
 
 /** S-33 Plenum – Detail: ein Termin mit Ergebnis und Protokoll */
@@ -394,7 +413,12 @@ export interface MyzelApi {
   removeFollower(taskId: string, memberId: string): Promise<Undoable>;
   addBlocker(taskId: string, blockerTaskId: string): Promise<void>;
   removeBlocker(taskId: string, blockerTaskId: string): Promise<void>;
-  addComment(taskId: string, body: string): Promise<{ id: string; now_following: boolean }>;
+  /** Kommentar an jedem Artefakt (16.3); now_following nur bei Aufgaben */
+  addComment(
+    target: CommentTarget,
+    targetId: string,
+    body: string,
+  ): Promise<{ id: string; now_following: boolean }>;
   updateComment(commentId: string, body: string): Promise<void>;
   archiveTask(id: string, version: number): Promise<Undoable>;
   restoreTask(id: string, version: number): Promise<void>;
@@ -472,9 +496,13 @@ export interface MyzelApi {
   createDecision(input: DecisionCreateInput): Promise<{ id: string }>;
   replaceDecision(id: string, input: DecisionReplaceInput): Promise<Undoable & { successor_id: string }>;
   revokeDecision(id: string, note: string | null, version: number): Promise<Undoable>;
+  /** WF-WIS-12 Titel, Text, Thema, Veranstaltung korrigieren (Historie alt → neu) */
+  updateDecision(id: string, input: DecisionUpdateInput): Promise<void>;
   listQuestions(): Promise<QuestionListItem[]>;
   getQuestion(id: string): Promise<QuestionDetail>;
   createQuestion(input: QuestionCreateInput): Promise<{ id: string }>;
+  /** WF-FRA-06 Frage bearbeiten (Historie alt → neu) */
+  updateQuestion(id: string, input: QuestionUpdateInput): Promise<void>;
   /** WF-FRA-02 „Als beantwortet markieren“ – Ergebnisse hängen schon über createDecision an der Frage */
   clarifyQuestion(id: string, input: QuestionClarifyInput): Promise<Undoable>;
   discardQuestion(id: string, version: number): Promise<Undoable>;

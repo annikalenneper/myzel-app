@@ -30,8 +30,9 @@ import {
   type Db,
 } from '../core/context';
 import type { BookingRow, EventRow } from '../db/types';
+import { commentsOf } from '../p1/comments';
 import { findEvent } from '../p1/events';
-import { getEvent } from '../p1/reads';
+import { getEvent, historyOf } from '../p1/reads';
 import { eventDriveFolder } from '../p5/drive';
 
 export async function touchEvent(ctx: Ctx, event: EventRow, set: Partial<EventRow> = {}): Promise<void> {
@@ -68,7 +69,7 @@ async function detailsOf(trx: Db, eventId: string): Promise<EventDetails> {
 
 export async function getEventDetail(trx: Db, id: string, now: Date): Promise<EventDetail> {
   const event = await getEvent(trx, id, now);
-  const [details, bookings, leads, partners, doc] = await Promise.all([
+  const [details, bookings, leads, partners, doc, decisions, comments, history] = await Promise.all([
     detailsOf(trx, id),
     trx
       .selectFrom('event_bookings')
@@ -108,6 +109,17 @@ export async function getEventDetail(trx: Db, id: string, now: Date): Promise<Ev
           .where('id', '=', event.shift_plan_document_id)
           .executeTakeFirst()
       : undefined,
+    // Entscheidungen und Fakten zu dieser Veranstaltung (16.3)
+    trx
+      .selectFrom('decisions')
+      .select(['id', 'title', 'kind', 'status', 'description'])
+      .where('event_id', '=', id)
+      .where('archived_at', 'is', null)
+      .orderBy('decided_on', 'desc')
+      .orderBy('title')
+      .execute(),
+    commentsOf(trx, 'event', id),
+    historyOf(trx, 'event', id),
   ]);
   const partnerItems = partners.map((p) => ({ ...p, event_count: Number(p.event_count ?? 0) }));
   return {
@@ -120,6 +132,9 @@ export async function getEventDetail(trx: Db, id: string, now: Date): Promise<Ev
     suggests_follow_up: suggestsFollowUp(event, now),
     drive_folder: await eventDriveFolder(trx, event.drive_folder_id),
     partners: partnerItems,
+    decisions,
+    comments,
+    history,
   };
 }
 

@@ -116,9 +116,17 @@ export type TaskFollower = z.infer<typeof taskFollowerSchema>;
 export const taskBlockerSchema = z.object({ task_id: idSchema, blocker_task_id: idSchema });
 export type TaskBlocker = z.infer<typeof taskBlockerSchema>;
 
+/** Woran Kommentare hängen können (16.3) – genau eine Zielspalte ist gesetzt */
+export const COMMENT_TARGETS = ['task', 'question', 'decision', 'event', 'appointment', 'partner'] as const;
+export type CommentTarget = (typeof COMMENT_TARGETS)[number];
 export const commentSchema = z.object({
   id: idSchema,
-  task_id: idSchema,
+  task_id: idSchema.nullable(),
+  question_id: idSchema.nullable(),
+  decision_id: idSchema.nullable(),
+  event_id: idSchema.nullable(),
+  appointment_id: idSchema.nullable(),
+  partner_id: idSchema.nullable(),
   author_id: idSchema,
   body: z.string().min(1),
   created_at: timestampSchema,
@@ -333,6 +341,8 @@ export const appointmentSchema = z.object({
   series_date: dateSchema.nullable(),
   /** einzeln verschoben oder abgesagt: Serienänderungen lassen ihn in Ruhe */
   is_exception: z.boolean(),
+  /** Beschreibung wie bei allen Artefakten (16.3) */
+  description: z.string().nullable(),
   /** nur Plenum: verknüpftes Protokoll, protokollierende Person, Notizen in der App */
   protocol_document_id: idSchema.nullable(),
   protocol_member_id: idSchema.nullable(),
@@ -411,6 +421,8 @@ export const decisionSchema = z.object({
   source_note: z.string().nullable(),
   /** aus welcher Frage der Eintrag entstanden ist – eine Frage kann mehrere Ergebnisse haben (16.3) */
   source_question_id: idSchema.nullable(),
+  /** optional zu einer Veranstaltung (16.3) */
+  event_id: idSchema.nullable(),
   archived_at: timestampSchema.nullable(),
   created_at: timestampSchema,
   updated_at: timestampSchema,
@@ -647,6 +659,7 @@ const appointmentFields = {
   location: optionalText(200, 'Der Ort ist zu lang.'),
   online_url: optionalText(500, 'Der Link ist zu lang.'),
   event_id: idSchema.nullable().default(null),
+  description: optionalText(10000, 'Der Text ist zu lang.'),
 };
 type AppointmentPlace = { format: AppointmentFormat; location: string | null; online_url: string | null };
 /** Ort bei vor Ort/hybrid, Link bei online/hybrid (3.6) */
@@ -741,13 +754,21 @@ type SourceInput = {
 const oneSource = (v: SourceInput) => !!(v.source_plenum_id || v.source_document_id || v.source_note);
 const oneSourceIssue = { path: ['source'], message: 'Ohne Quelle lässt sich nichts festhalten.' };
 
+/** Text von Entscheidungen und Fakten: kurz, damit er auf die Karte passt (16.4) */
+export const DECISION_TEXT_MAX = 300;
+const decisionText = optionalText(
+  DECISION_TEXT_MAX,
+  `Der Text darf höchstens ${DECISION_TEXT_MAX} Zeichen haben.`,
+);
+
 /** WF-WIS-01: Entscheidung oder Fakt – mindestens eine Quelle ist Pflicht (3.8) */
 export const decisionCreateSchema = z
   .object({
     title: titleSchema,
-    description: optionalText(10000, 'Der Text ist zu lang.'),
+    description: decisionText,
     kind: decisionKindSchema,
     topic_id: z.uuid('Bitte ein Thema wählen.'),
+    event_id: idSchema.nullable().default(null),
     decided_on: dateSchema.nullable().default(null),
     /** Ergebnis einer Frage (16.3): die Frage bleibt dabei offen */
     source_question_id: idSchema.nullable().default(null),
@@ -761,7 +782,7 @@ export const decisionReplaceSchema = z
   .object({
     successor_id: idSchema.nullable().default(null),
     title: z.string().trim().max(200, 'Der Titel darf höchstens 200 Zeichen haben.').default(''),
-    description: optionalText(10000, 'Der Text ist zu lang.'),
+    description: decisionText,
     ...sourceFields,
     version: versionSchema,
   })
@@ -771,6 +792,16 @@ export const decisionReplaceSchema = z
   })
   .refine((v) => !!v.successor_id || oneSource(v), oneSourceIssue);
 export type DecisionReplaceInput = z.input<typeof decisionReplaceSchema>;
+
+/** WF-WIS-12: Titel, Text, Thema und Veranstaltung korrigieren – Inhaltliches ändert „Ersetzen“ (Annahme U6) */
+export const decisionUpdateSchema = z.object({
+  title: titleSchema,
+  description: decisionText,
+  topic_id: z.uuid('Bitte ein Thema wählen.'),
+  event_id: idSchema.nullable().default(null),
+  version: versionSchema,
+});
+export type DecisionUpdateInput = z.input<typeof decisionUpdateSchema>;
 
 /** WF-FRA-01 */
 export const questionCreateSchema = z.object({
@@ -785,6 +816,10 @@ export const questionCreateSchema = z.object({
   urgency: prioritySchema.default('mittel'),
 });
 export type QuestionCreateInput = z.input<typeof questionCreateSchema>;
+
+/** WF-FRA-06: Frage bearbeiten – Titel, Beschreibung, Thema, Veranstaltung, Dringlichkeit */
+export const questionUpdateSchema = questionCreateSchema.extend({ version: versionSchema });
+export type QuestionUpdateInput = z.input<typeof questionUpdateSchema>;
 
 /**
  * WF-FRA-02 „Als beantwortet markieren“ (16.3): schließt die Frage erst auf Wunsch. Die Antwort ist optional, wenn

@@ -1,4 +1,4 @@
-// Anlegen in Wissen: Entscheidung oder Fakt (WF-WIS-01) und offene Frage (WF-FRA-01)
+// Anlegen und Bearbeiten in Wissen: Entscheidung oder Fakt (WF-WIS-01, -12) und offene Frage (WF-FRA-01, -06)
 import { useState } from 'react';
 import { useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
@@ -8,7 +8,15 @@ import { api } from '../../data';
 import { PRIORITY_LABEL } from '../../shared/labels';
 import { DECISION_KIND_LABEL } from '../../shared/rules/knowledge';
 import { toIsoDate } from '../../shared/rules/due';
-import { DECISION_KINDS, PRIORITIES, type DecisionKind, type Priority } from '../../shared/schema';
+import { useActions, useLatest } from '../../app/useActions';
+import type { DecisionDetail, QuestionDetail } from '../../data/api';
+import {
+  DECISION_KINDS,
+  DECISION_TEXT_MAX,
+  PRIORITIES,
+  type DecisionKind,
+  type Priority,
+} from '../../shared/schema';
 import { cx, FieldError, LightButton } from '../../ui/bits';
 import { DateTile } from '../../ui/DateTile';
 import { Sheet } from '../../ui/Sheet';
@@ -98,6 +106,7 @@ export function DecisionSheet({
   sourceNote,
   initialKind = 'entscheidung',
   question,
+  eventPreset,
   onCreated,
 }: {
   onClose: () => void;
@@ -107,6 +116,8 @@ export function DecisionSheet({
   sourceNote?: string;
   /** Ergebnis dieser Frage: Titel und Thema vorbelegt */
   question?: { id: string; title: string; topic_id: string };
+  /** vorbelegte Veranstaltung, z. B. aus dem Veranstaltungs-Detail */
+  eventPreset?: string;
   onCreated?: () => void;
 }) {
   const WF = question ? 'WF-FRA-05' : 'WF-WIS-01';
@@ -115,6 +126,8 @@ export function DecisionSheet({
   const session = useSession();
   const [kind, setKind] = useState<DecisionKind>(initialKind);
   const [title, setTitle] = useState(question?.title ?? '');
+  const [description, setDescription] = useState('');
+  const [eventId, setEventId] = useState(eventPreset ?? '');
   const [topicId, setTopicId] = useState(
     () =>
       question?.topic_id ?? topics.find((t) => t.name === 'Organisatorisches' && !t.archived_at)?.id ?? '',
@@ -122,7 +135,8 @@ export function DecisionSheet({
   const [decidedOn, setDecidedOn] = useState(() => toIsoDate(new Date()));
   const [source, setSource] = useState<SourceValue>(() => {
     const plenum = runningPlenum(session, new Date());
-    if (plenum && belongsToPlenum(plenum) !== false) return { ...EMPTY_SOURCE, plenumId: plenum.id };
+    // nur wenn meine Änderungen sicher dazugehören (Teilnehmerliste oder „Ja“) – sonst fragt die App erst beim Speichern
+    if (plenum && belongsToPlenum(plenum) === true) return { ...EMPTY_SOURCE, plenumId: plenum.id };
     return sourceNote ? { ...EMPTY_SOURCE, note: sourceNote } : EMPTY_SOURCE;
   });
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +148,9 @@ export function DecisionSheet({
       ? 'Thema wählen, dann festhalten'
       : !sourceReady(source)
         ? 'Quelle angeben, dann festhalten'
-        : null;
+        : description.trim().length > DECISION_TEXT_MAX
+          ? `Text auf ${DECISION_TEXT_MAX} Zeichen kürzen`
+          : null;
 
   const save = async () => {
     if (missing || saving) return;
@@ -144,8 +160,10 @@ export function DecisionSheet({
       () =>
         api.createDecision({
           title,
+          description,
           kind,
           topic_id: topicId,
+          event_id: eventId || null,
           decided_on: decidedOn || null,
           source_plenum_id: source.plenumId,
           source_document_id: source.documentId,
@@ -202,6 +220,15 @@ export function DecisionSheet({
           <TopicSelect value={topicId} onChange={setTopicId} wf={WF} />
           <DateTile label="Datum" wf={WF} value={decidedOn} onChange={setDecidedOn} surface="bg-grund" />
         </div>
+        <TextField
+          label="Text"
+          wf={WF}
+          value={description}
+          onChange={setDescription}
+          max={DECISION_TEXT_MAX}
+          placeholder="Was genau gilt? Kurz, damit es auf die Karte passt."
+        />
+        <EventSelect value={eventId} onChange={setEventId} wf={WF} />
         <div className="flex flex-col gap-2">
           <span className={cx('label-mono', !sourceReady(source) && 'text-bernstein')}>
             Quelle * · mindestens eine
@@ -223,12 +250,21 @@ export function DecisionSheet({
 }
 
 /** WF-FRA-01 – offene Fragen stehen von selbst auf der Agenda (16.1) */
-export function QuestionSheet({ onClose, wf = 'WF-FRA-01' }: { onClose: () => void; wf?: string }) {
+export function QuestionSheet({
+  onClose,
+  wf = 'WF-FRA-01',
+  eventPreset,
+}: {
+  onClose: () => void;
+  wf?: string;
+  /** vorbelegte Veranstaltung */
+  eventPreset?: string;
+}) {
   const { run } = useFeedback();
-  const { events } = useLookups();
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [topicId, setTopicId] = useState('');
-  const [eventId, setEventId] = useState('');
+  const [eventId, setEventId] = useState(eventPreset ?? '');
   const [urgency, setUrgency] = useState<Priority>('mittel');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -246,6 +282,7 @@ export function QuestionSheet({ onClose, wf = 'WF-FRA-01' }: { onClose: () => vo
       () =>
         api.createQuestion({
           title,
+          description,
           topic_id: topicId,
           event_id: eventId || null,
           urgency,
@@ -278,24 +315,10 @@ export function QuestionSheet({ onClose, wf = 'WF-FRA-01' }: { onClose: () => vo
             className={field}
           />
         </label>
+        <TextField label="Beschreibung" wf={wf} value={description} onChange={setDescription} />
         <div className="grid grid-cols-2 gap-2.5">
           <TopicSelect value={topicId} onChange={setTopicId} wf={wf} />
-          <label className="label-mono flex min-w-0 flex-col gap-1.5">
-            Veranstaltung
-            <select
-              data-wf={wf}
-              value={eventId}
-              onChange={(e) => setEventId(e.target.value)}
-              className={cx(field, 'min-w-0 text-[15px]')}
-            >
-              <option value="">keine</option>
-              {events.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.title}
-                </option>
-              ))}
-            </select>
-          </label>
+          <EventSelect value={eventId} onChange={setEventId} wf={wf} />
         </div>
         <div className="flex flex-col gap-2">
           <span className="label-mono">Dringlichkeit</span>
@@ -310,6 +333,230 @@ export function QuestionSheet({ onClose, wf = 'WF-FRA-01' }: { onClose: () => vo
         <FieldError>{error}</FieldError>
         <LightButton type="submit" data-wf={wf} disabled={!!missing || saving}>
           {missing ?? 'Frage stellen'}
+        </LightButton>
+      </form>
+    </Sheet>
+  );
+}
+
+/** Veranstaltung wählen – optional (16.3) */
+export function EventSelect({
+  value,
+  onChange,
+  wf,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  wf: string;
+}) {
+  const { events } = useLookups();
+  return (
+    <label className="label-mono flex min-w-0 flex-col gap-1.5">
+      Veranstaltung
+      <select
+        data-wf={wf}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cx(field, 'min-w-0 text-[15px]')}
+      >
+        <option value="">keine</option>
+        {events
+          .filter((e) => !e.archived_at || e.id === value)
+          .map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.title}
+            </option>
+          ))}
+      </select>
+    </label>
+  );
+}
+
+/** Mehrzeiliger Text; mit max zählt das Feld mit („x/300“, 16.4) */
+export function TextField({
+  label,
+  value,
+  onChange,
+  wf,
+  max,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  wf: string;
+  max?: number;
+  placeholder?: string;
+}) {
+  const over = max !== undefined && value.trim().length > max;
+  return (
+    <label className="label-mono flex flex-col gap-1.5">
+      <span className="flex justify-between">
+        {label}
+        {max !== undefined && (
+          <span className={cx('font-mono normal-case', over ? 'text-rot' : 'text-leise')} aria-live="polite">
+            {value.trim().length}/{max}
+          </span>
+        )}
+      </span>
+      <textarea
+        data-wf={wf}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={over || undefined}
+        className={cx(
+          'min-h-20 rounded-[14px] border bg-grund px-3.5 py-3 font-sans text-[15px] leading-normal text-text normal-case',
+          over ? 'border-rot' : 'border-rand',
+        )}
+      />
+    </label>
+  );
+}
+
+/** WF-FRA-06 Frage bearbeiten – Historie alt → neu */
+export function QuestionEditSheet({ q, onClose }: { q: QuestionDetail; onClose: () => void }) {
+  const wf = 'WF-FRA-06';
+  const act = useActions();
+  const latest = useLatest(q.version);
+  const [title, setTitle] = useState(q.title);
+  const [description, setDescription] = useState(q.description ?? '');
+  const [topicId, setTopicId] = useState(q.topic_id);
+  const [eventId, setEventId] = useState(q.event_id ?? '');
+  const [urgency, setUrgency] = useState<Priority>(q.urgency);
+  const [error, setError] = useState<string | null>(null);
+  const missing = !title.trim() ? 'Frage eingeben, dann speichern' : null;
+  return (
+    <Sheet title="Frage bearbeiten" onClose={onClose} wf={wf} closeButton>
+      <form
+        className="flex flex-col gap-3.5"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (missing) return;
+          const ok = await act(
+            () =>
+              api.updateQuestion(q.id, {
+                title,
+                description,
+                topic_id: topicId,
+                event_id: eventId || null,
+                urgency,
+                version: latest.current,
+              }),
+            {
+              subject: 'diese Frage',
+              ownInput: description || title,
+              success: 'Gespeichert',
+              onInvalid: (er) => setError(er.message),
+            },
+          );
+          if (ok) onClose();
+        }}
+      >
+        <label className="label-mono flex flex-col gap-1.5">
+          Frage *
+          <input
+            type="text"
+            data-wf={wf}
+            value={title}
+            maxLength={200}
+            onChange={(e) => setTitle(e.target.value)}
+            className={field}
+          />
+        </label>
+        <TextField label="Beschreibung" wf={wf} value={description} onChange={setDescription} />
+        <div className="grid grid-cols-2 gap-2.5">
+          <TopicSelect value={topicId} onChange={setTopicId} wf={wf} />
+          <EventSelect value={eventId} onChange={setEventId} wf={wf} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="label-mono">Dringlichkeit</span>
+          <Segmented
+            label="Dringlichkeit"
+            wf={wf}
+            value={urgency}
+            onChange={setUrgency}
+            options={PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const)}
+          />
+        </div>
+        <FieldError>{error}</FieldError>
+        <LightButton type="submit" data-wf={wf} disabled={!!missing}>
+          {missing ?? 'Speichern'}
+        </LightButton>
+      </form>
+    </Sheet>
+  );
+}
+
+/** WF-WIS-12 Titel, Text, Thema, Veranstaltung korrigieren – Inhaltliches ändert „Ersetzen“ (Annahme U6) */
+export function DecisionEditSheet({ d, onClose }: { d: DecisionDetail; onClose: () => void }) {
+  const wf = 'WF-WIS-12';
+  const act = useActions();
+  const latest = useLatest(d.version);
+  const [title, setTitle] = useState(d.title);
+  const [description, setDescription] = useState(d.description ?? '');
+  const [topicId, setTopicId] = useState(d.topic_id);
+  const [eventId, setEventId] = useState(d.event_id ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const missing = !title.trim()
+    ? 'Titel eingeben, dann speichern'
+    : description.trim().length > DECISION_TEXT_MAX
+      ? `Text auf ${DECISION_TEXT_MAX} Zeichen kürzen`
+      : null;
+  return (
+    <Sheet title="Bearbeiten" onClose={onClose} wf={wf} closeButton>
+      <form
+        className="flex flex-col gap-3.5"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (missing) return;
+          const ok = await act(
+            () =>
+              api.updateDecision(d.id, {
+                title,
+                description,
+                topic_id: topicId,
+                event_id: eventId || null,
+                version: latest.current,
+              }),
+            {
+              subject: d.kind === 'fakt' ? 'diesen Fakt' : 'diese Entscheidung',
+              ownInput: description || title,
+              success: 'Gespeichert',
+              onInvalid: (er) => setError(er.message),
+            },
+          );
+          if (ok) onClose();
+        }}
+      >
+        <span className="text-[13px] leading-[1.4] text-leise">
+          Für Korrekturen. Ändert sich, was gilt, nimm „Ersetzen“ – dann bleibt die alte Fassung nachlesbar.
+        </span>
+        <label className="label-mono flex flex-col gap-1.5">
+          Titel *
+          <input
+            type="text"
+            data-wf={wf}
+            value={title}
+            maxLength={200}
+            onChange={(e) => setTitle(e.target.value)}
+            className={field}
+          />
+        </label>
+        <TextField
+          label="Text"
+          wf={wf}
+          value={description}
+          onChange={setDescription}
+          max={DECISION_TEXT_MAX}
+        />
+        <div className="grid grid-cols-2 gap-2.5">
+          <TopicSelect value={topicId} onChange={setTopicId} wf={wf} />
+          <EventSelect value={eventId} onChange={setEventId} wf={wf} />
+        </div>
+        <FieldError>{error}</FieldError>
+        <LightButton type="submit" data-wf={wf} disabled={!!missing}>
+          {missing ?? 'Speichern'}
         </LightButton>
       </form>
     </Sheet>

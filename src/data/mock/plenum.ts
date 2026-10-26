@@ -102,22 +102,30 @@ const CREATED = new Set(['created', 'created_as_replacement']);
  */
 export function results(db: Db, plenumId: string): ResultGroupItems[] {
   const undone = undoneIds(db);
-  const order: string[] = [];
+  // Reihenfolge wie auf dem Server: erste Änderung im Plenum; was nur über Quelle, Herkunft oder Antwort dabei ist,
+  // dahinter nach Anlegezeit; bei Gleichstand nach Art und ID
+  const firstAt = new Map<string, string>();
   const created = new Set<string>();
-  const add = (type: string, id: string) => {
-    const key = `${type}:${id}`;
-    if (!order.includes(key)) order.push(key);
-    return key;
+  const at = (key: string, time: string) => {
+    const known = firstAt.get(key);
+    if (!known || time < known) firstAt.set(key, time);
   };
   for (const h of db.history) {
     if (h.changes.plenum_id?.new !== plenumId || h.action === 'undo' || undone.has(h.id)) continue;
     if (!countsForPlenum(h.entity_type, h.entity_id, h.action, plenumId)) continue;
-    const key = add(h.entity_type, h.entity_id);
+    const key = `${h.entity_type}:${h.entity_id}`;
+    at(key, h.created_at);
     if (CREATED.has(h.action)) created.add(key);
   }
-  for (const d of db.decisions) if (d.source_plenum_id === plenumId) add('decision', d.id);
-  for (const t of db.tasks) if (t.origin_plenum_id === plenumId) add('task', t.id);
-  for (const q of db.questions) if (q.answered_in_plenum_id === plenumId) add('question', q.id);
+  const later = (time: string) => `~${time}`;
+  for (const d of db.decisions)
+    if (d.source_plenum_id === plenumId) at(`decision:${d.id}`, later(d.created_at));
+  for (const t of db.tasks) if (t.origin_plenum_id === plenumId) at(`task:${t.id}`, later(t.created_at));
+  for (const q of db.questions)
+    if (q.answered_in_plenum_id === plenumId) at(`question:${q.id}`, later(q.created_at));
+  const order = [...firstAt.keys()].sort(
+    (x, y) => firstAt.get(x)!.localeCompare(firstAt.get(y)!) || (x < y ? -1 : x > y ? 1 : 0),
+  );
 
   const subjects: ResultSubject[] = [];
   for (const key of order) {
@@ -138,6 +146,7 @@ export function results(db: Db, plenumId: string): ResultGroupItems[] {
       if (!row || row.archived_at) continue;
       const names = db.task_assignees
         .filter((a) => a.task_id === id)
+        .sort((a, b) => a.assigned_at.localeCompare(b.assigned_at))
         .map((a) => db.members.find((m) => m.id === a.member_id)?.display_name)
         .filter((n): n is string => !!n);
       subjects.push({ type, row, created: isNew, assignee_names: names });

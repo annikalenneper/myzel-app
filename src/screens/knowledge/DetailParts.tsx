@@ -8,7 +8,7 @@ import { formatHistoryTime } from '../../shared/format';
 import { knowledgeHistorySentence } from '../../shared/knowledgeHistory';
 import type { HistoryEntry } from '../../shared/schema';
 import { cx } from '../../ui/bits';
-import { IconBack, IconBookmark } from '../../ui/icons';
+import { IconBack, IconBookmark, IconEdit } from '../../ui/icons';
 import { useModal } from '../../ui/Sheet';
 
 /** Wohin „Zurück“ führt: aus Wissen nach Wissen, aus der Agenda zur Agenda */
@@ -23,11 +23,16 @@ export function DetailTopBar({
   label,
   back = BACK_TO_KNOWLEDGE,
   agenda,
+  onEdit,
+  editWf,
 }: {
   label: string;
   back?: BackTarget;
   /** Entscheidung oder Fakt auf die Agenda setzen (WF-AGE-03) – nur bei gültigen Einträgen */
   agenda?: { on: boolean; onToggle: () => void };
+  /** Titel, Beschreibung und Zuordnung bearbeiten (16.3) */
+  onEdit?: () => void;
+  editWf?: string;
 }) {
   return (
     <div className="sticky top-0 z-10 flex h-[60px] flex-none items-center gap-1 bg-grund px-3">
@@ -40,6 +45,17 @@ export function DetailTopBar({
       </Link>
       <span className="font-mono text-[13px] text-leise uppercase">{label}</span>
       <span className="flex-1" />
+      {onEdit && (
+        <button
+          type="button"
+          data-wf={editWf}
+          onClick={onEdit}
+          aria-label="Bearbeiten"
+          className="flex size-11 items-center justify-center text-leise"
+        >
+          <IconEdit />
+        </button>
+      )}
       {agenda && (
         <button
           type="button"

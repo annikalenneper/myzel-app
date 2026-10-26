@@ -12,6 +12,7 @@ import * as events from './events';
 import * as partners from './partners';
 import * as templates from './templates';
 import * as know from './knowledge';
+import * as comments from './comments';
 import * as notify from './notify';
 import * as plenum from './plenum';
 import * as series from './series';
@@ -232,8 +233,8 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     removeFollower: (taskId, memberId) => write((ctx) => server.removeFollower(ctx, taskId, memberId)),
     addBlocker: (taskId, blockerId) => write((ctx) => server.addBlocker(ctx, taskId, blockerId)),
     removeBlocker: (taskId, blockerId) => write((ctx) => server.removeBlocker(ctx, taskId, blockerId)),
-    addComment: (taskId, body) => write((ctx) => server.addComment(ctx, taskId, body)),
-    updateComment: (commentId, body) => write((ctx) => server.updateComment(ctx, commentId, body)),
+    addComment: (target, id, body) => write((ctx) => comments.addComment(ctx, target, id, body)),
+    updateComment: (commentId, body) => write((ctx) => comments.updateComment(ctx, commentId, body)),
     archiveTask: (id, version) => write((ctx) => server.archiveTask(ctx, id, version)),
     restoreTask: (id, version) => write((ctx) => server.restoreTask(ctx, id, version)),
     undo: (token) => write((ctx) => server.undo(ctx, token)),
@@ -325,11 +326,13 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     createDecision: (input) => write((ctx) => know.createDecision(ctx, input)),
     replaceDecision: (id, input) => write((ctx) => know.replaceDecision(ctx, id, input)),
     revokeDecision: (id, note, version) => write((ctx) => know.revokeDecision(ctx, id, note, version)),
+    updateDecision: (id, input) => write((ctx) => know.updateDecision(ctx, id, input)),
     listQuestions: () => read((d) => know.listQuestions(d)),
     getQuestion: (id) => read((d) => know.getQuestion(d, id)),
     createQuestion: (input) => write((ctx) => know.createQuestion(ctx, input)),
     clarifyQuestion: (id, input) => write((ctx) => know.clarifyQuestion(ctx, id, input)),
     discardQuestion: (id, version) => write((ctx) => know.discardQuestion(ctx, id, version)),
+    updateQuestion: (id, input) => write((ctx) => know.updateQuestion(ctx, id, input)),
     reopenQuestion: (id, version) => write((ctx) => know.reopenQuestion(ctx, id, version)),
     listDocuments: () => read((d) => know.listDocuments(d)),
     listLinkedDocuments: (target, targetId) => read((d) => know.linkedDocuments(d, target, targetId)),

@@ -20,6 +20,7 @@ import {
   type RsvpAnswer,
 } from '../../shared/schema';
 import type { AppointmentDetail, AppointmentListItem, AppointmentTypeWithUsage, Undoable } from '../api';
+import { commentsOf, historyOf } from './comments';
 import { enqueue } from './notify';
 import {
   checkVersion,
@@ -187,6 +188,8 @@ export function getAppointment(db: Db, id: string, meId: string): AppointmentDet
         status: t.status,
         assignee_ids: db.task_assignees.filter((x) => x.task_id === t.id).map((x) => x.member_id),
       })),
+    comments: commentsOf(db, 'appointment', id),
+    history: historyOf(db, 'appointment', id),
   };
 }
 
@@ -219,6 +222,7 @@ export function createAppointment(ctx: Ctx, raw: unknown): { id: string } {
     format: input.format,
     location: input.format === 'online' ? null : input.location,
     online_url: input.format === 'vor_ort' ? null : input.online_url,
+    description: input.description,
     status: 'geplant',
     series_id: null,
     series_date: null,
@@ -265,6 +269,7 @@ export function updateAppointment(ctx: Ctx, id: string, raw: unknown): { notifie
     location: input.format === 'online' ? null : input.location,
     online_url: input.format === 'vor_ort' ? null : input.online_url,
     event_id: input.event_id,
+    description: input.description,
   };
   const time = (v: string | null) => (v ? new Date(v).getTime() : null);
   const changes: HistoryChanges = {};

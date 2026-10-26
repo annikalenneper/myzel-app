@@ -40,6 +40,8 @@ import {
   type ReadCtx,
 } from '../core/context';
 import type { AppointmentRow, AppointmentTypeRow } from '../db/types';
+import { commentsOf } from '../p1/comments';
+import { historyOf } from '../p1/reads';
 import { notify } from '../p2/notify';
 
 /** Serien kommen mit P6 */
@@ -265,7 +267,7 @@ export async function listAppointments(ctx: ReadCtx): Promise<AppointmentListIte
 
 export async function getAppointment(trx: Db, id: string, meId: string): Promise<AppointmentDetail> {
   const a = await findAppointment(trx, id, false);
-  const [[item], rsvps, attendees, tasks, people] = await Promise.all([
+  const [[item], rsvps, attendees, tasks, people, comments, history] = await Promise.all([
     listItems(trx, [a], meId),
     trx.selectFrom('appointment_rsvps').selectAll().where('appointment_id', '=', id).execute(),
     trx.selectFrom('appointment_attendees').select('member_id').where('appointment_id', '=', id).execute(),
@@ -278,6 +280,8 @@ export async function getAppointment(trx: Db, id: string, meId: string): Promise
       .orderBy('id')
       .execute(),
     activeIds(trx),
+    commentsOf(trx, 'appointment', id),
+    historyOf(trx, 'appointment', id),
   ]);
   const assignees = tasks.length
     ? await trx
@@ -302,6 +306,8 @@ export async function getAppointment(trx: Db, id: string, meId: string): Promise
       ...t,
       assignee_ids: assignees.filter((x) => x.task_id === t.id).map((x) => x.member_id),
     })),
+    comments,
+    history,
   };
 }
 
@@ -348,6 +354,7 @@ export async function createAppointment(ctx: Ctx, raw: unknown): Promise<{ id: s
       format: input.format,
       location: input.format === 'online' ? null : input.location,
       online_url: input.format === 'vor_ort' ? null : input.online_url,
+      description: input.description,
       protocol_document_id: null,
       protocol_member_id: null,
       notes: null,
@@ -404,6 +411,7 @@ export async function updateAppointment(ctx: Ctx, id: string, raw: unknown): Pro
     location: input.format === 'online' ? null : input.location,
     online_url: input.format === 'vor_ort' ? null : input.online_url,
     event_id: input.event_id,
+    description: input.description,
   };
   const time = (v: string | null) => (v ? new Date(v).getTime() : null);
   const changes: HistoryChanges = {};

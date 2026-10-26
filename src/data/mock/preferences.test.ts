@@ -55,7 +55,7 @@ describe('Schalter-Matrix (F-PRO-02)', () => {
     await login('mo');
     const { id } = await api.createTask({ title: 'Kabel kaufen', topic_id: await topicId() });
     await api.addAssignee(id, await memberId('Jule'));
-    await api.addComment(id, 'Baumarkt hat welche');
+    await api.addComment('task', id, 'Baumarkt hat welche');
     expect(await juleGets('kommentar')).toEqual(['push:wartet']);
     expect(await juleGets('zuweisung')).toEqual(['push:wartet', 'telegram:wartet']);
     await login('jule');

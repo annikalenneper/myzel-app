@@ -12,6 +12,7 @@ import {
 import { notFound } from '../core/context';
 import type { Ctx } from '../core/context';
 import type { Database, MemberRow } from '../db/types';
+import * as comments from '../p1/comments';
 import * as events from '../p1/events';
 import * as members from '../p1/members';
 import * as reads from '../p1/reads';
@@ -104,8 +105,9 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   removeFollower: (ctx, [taskId, memberId]) => tasks.removeFollower(ctx, s(taskId), s(memberId)),
   addBlocker: (ctx, [taskId, blockerId]) => tasks.addBlocker(ctx, s(taskId), s(blockerId)),
   removeBlocker: (ctx, [taskId, blockerId]) => tasks.removeBlocker(ctx, s(taskId), s(blockerId)),
-  addComment: (ctx, [taskId, body]) => tasks.addComment(ctx, s(taskId), body),
-  updateComment: (ctx, [commentId, body]) => tasks.updateComment(ctx, s(commentId), body),
+  addComment: (ctx, [target, id, body]) =>
+    comments.addComment(ctx, comments.commentTarget(target), s(id), body),
+  updateComment: (ctx, [commentId, body]) => comments.updateComment(ctx, s(commentId), body),
   archiveTask: (ctx, [id, version]) => tasks.archiveTask(ctx, s(id), n(version)),
   restoreTask: (ctx, [id, version]) => tasks.restoreTask(ctx, s(id), n(version)),
   undo: (ctx, [token]) => undo(ctx, s(token)),
@@ -152,7 +154,9 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   createDecision: (ctx, [input]) => know.createDecision(ctx, input),
   replaceDecision: (ctx, [id, input]) => know.replaceDecision(ctx, s(id), input),
   revokeDecision: (ctx, [id, note, version]) => know.revokeDecision(ctx, s(id), note, n(version)),
+  updateDecision: (ctx, [id, input]) => know.updateDecision(ctx, s(id), input),
   createQuestion: (ctx, [input]) => know.createQuestion(ctx, input),
+  updateQuestion: (ctx, [id, input]) => know.updateQuestion(ctx, s(id), input),
   clarifyQuestion: (ctx, [id, input]) => know.clarifyQuestion(ctx, s(id), input),
   discardQuestion: (ctx, [id, version]) => know.discardQuestion(ctx, s(id), n(version)),
   reopenQuestion: (ctx, [id, version]) => know.reopenQuestion(ctx, s(id), n(version)),

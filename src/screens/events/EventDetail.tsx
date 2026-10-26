@@ -20,6 +20,11 @@ import { TemplateSheet } from './TemplateSheet';
 import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
 import { useShowEventOnAgenda } from '../agenda/EventAgendaLink';
 import { LinkedDocuments } from '../knowledge/LinkedDocuments';
+import { DecisionSheet, QuestionSheet } from '../knowledge/KnowledgeSheets';
+import { CommentsSection } from '../../ui/Comments';
+import { HistoryList } from '../../ui/HistoryList';
+import { entityHistorySentence } from '../../shared/entityHistory';
+import { DECISION_KIND_LABEL, DECISION_STATUS_LABEL } from '../../shared/rules/knowledge';
 import { EventDriveFolder } from './EventDrive';
 import { readDraft, writeDraft } from '../../app/drafts';
 import { useLookups } from '../../app/lookups';
@@ -71,9 +76,9 @@ function TopBar({ children }: { children?: React.ReactNode }) {
 function Loaded({ event }: { event: Detail }) {
   const act = useActions();
   const latest = useLatest(event.version);
-  const [sheet, setSheet] = useState<'edit' | 'close' | 'task' | 'shiftplan' | 'lead' | 'template' | null>(
-    null,
-  );
+  const [sheet, setSheet] = useState<
+    'edit' | 'close' | 'task' | 'question' | 'decision' | 'shiftplan' | 'lead' | 'template' | null
+  >(null);
   const { memberById } = useLookups();
   const { data: documents } = useData(`event-documents:${event.id}`, () =>
     api.listLinkedDocuments('event', event.id),
@@ -245,6 +250,15 @@ function Loaded({ event }: { event: Detail }) {
             >
               + Aufgabe
             </button>
+            {/* WF-FRA-01 Frage zur Veranstaltung – steht dann auf der Agenda */}
+            <button
+              type="button"
+              data-wf="WF-FRA-01"
+              onClick={() => setSheet('question')}
+              className="hit h-[34px] rounded-[17px] border border-rand-stark px-3 text-[13px] text-text"
+            >
+              + Frage
+            </button>
             {/* WF-VER-12 Vorlagen-Dialog erneut aufrufen – ohne Duplikate */}
             {!final && (
               <button
@@ -349,6 +363,59 @@ function Loaded({ event }: { event: Detail }) {
           target={{ type: 'event', id: event.id, kind: 'Veranstaltung', name: event.title }}
           documents={documents}
         />
+
+        {/* 16.3: Entscheidungen und Fakten zu dieser Veranstaltung direkt hier */}
+        <section aria-label="Entscheidungen & Fakten" className="flex flex-col gap-2">
+          <div className="flex min-h-8 items-center justify-between">
+            <span className="label-mono">Entscheidungen & Fakten · {event.decisions.length}</span>
+            <button
+              type="button"
+              data-wf="WF-WIS-01"
+              onClick={() => setSheet('decision')}
+              className="hit h-8 text-[13px] text-pink"
+            >
+              + Festhalten
+            </button>
+          </div>
+          {event.decisions.map((d) => (
+            <Link
+              key={d.id}
+              to={`/wissen/beschluesse/${d.id}`}
+              className={cx(
+                'flex flex-col gap-1 rounded-[14px] border border-linie bg-flaeche px-3.5 py-2.5 text-text no-underline',
+                d.status !== 'gueltig' && 'opacity-60',
+              )}
+            >
+              <span className="label-mono">
+                {DECISION_KIND_LABEL[d.kind]} · {DECISION_STATUS_LABEL[d.status]}
+              </span>
+              <span className="text-[15px] leading-[1.35] font-medium">{d.title}</span>
+              {d.description && (
+                <span className="line-clamp-3 text-[14px] leading-[1.45] break-words text-weich">
+                  {d.description}
+                </span>
+              )}
+            </Link>
+          ))}
+          {event.decisions.length === 0 && (
+            <span className="text-[14px] text-leise">Noch nichts zu dieser Veranstaltung festgehalten.</span>
+          )}
+        </section>
+
+        <CommentsSection
+          target="event"
+          targetId={event.id}
+          comments={event.comments}
+          archived={!!event.archived_at}
+        />
+        <HistoryList
+          entries={event.history}
+          sentence={(h) =>
+            entityHistorySentence(h, 'Veranstaltung', {
+              memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+            })
+          }
+        />
       </div>
 
       {/* nach einer fremden Änderung (neue version) startet das Formular mit dem frischen Stand */}
@@ -356,6 +423,8 @@ function Loaded({ event }: { event: Detail }) {
         <EventFormSheet key={event.version} event={event} onClose={() => setSheet(null)} />
       )}
       {sheet === 'template' && <TemplateSheet eventId={event.id} onClose={() => setSheet(null)} />}
+      {sheet === 'question' && <QuestionSheet eventPreset={event.id} onClose={() => setSheet(null)} />}
+      {sheet === 'decision' && <DecisionSheet eventPreset={event.id} onClose={() => setSheet(null)} />}
       {sheet === 'shiftplan' && (
         <DocumentPickSheet
           title="Schichtplan verknüpfen"

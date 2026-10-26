@@ -281,7 +281,7 @@ export interface Ctx {
 }
 
 const uuid = () => crypto.randomUUID();
-const iso = (ctx: Ctx) => ctx.now.toISOString();
+export const iso = (ctx: Ctx) => ctx.now.toISOString();
 export const rule = (message: string, field?: string) => new AppError('rule', message, { field });
 export const notFound = (what: string) => new AppError('not_found', `${what} gibt es nicht mehr.`);
 
@@ -842,12 +842,24 @@ export function removeBlocker(ctx: Ctx, taskId: string, blockerTaskId: string): 
   writeHistory(ctx, 'task', taskId, 'blocker_removed', { blocker: { old: blockerTaskId, new: null } });
 }
 
+/** Kommentar ohne Ziel – danach wird genau eine Zielspalte gesetzt (16.3) */
+export const noCommentTarget = () => ({
+  task_id: null,
+  question_id: null,
+  decision_id: null,
+  event_id: null,
+  appointment_id: null,
+  partner_id: null,
+});
+
+/** Kommentar an einer Aufgabe: wer kommentiert, folgt; Bearbeitende und Folgende erfahren es (6.2) */
 export function addComment(ctx: Ctx, taskId: string, raw: unknown): { id: string; now_following: boolean } {
   const body = parse(commentBodySchema, raw);
   const task = editableTask(ctx, taskId);
   const now = iso(ctx);
   const comment: Comment = {
     id: uuid(),
+    ...noCommentTarget(),
     task_id: taskId,
     author_id: ctx.actor.id,
     body,
@@ -878,13 +890,14 @@ export function updateComment(ctx: Ctx, commentId: string, raw: unknown): void {
   if (!comment) throw notFound('Diesen Kommentar');
   if (comment.author_id !== ctx.actor.id)
     throw new AppError('forbidden', 'Nur eigene Kommentare lassen sich bearbeiten.');
-  editableTask(ctx, comment.task_id);
+  const taskId = comment.task_id!;
+  editableTask(ctx, taskId);
   if (body === comment.body) return;
   // Text alt → neu (3.10)
   const previous = comment.body;
   comment.body = body;
   comment.updated_at = iso(ctx);
-  writeHistory(ctx, 'task', comment.task_id, 'comment_edited', {
+  writeHistory(ctx, 'task', taskId, 'comment_edited', {
     comment: { old: comment.id, new: comment.id },
     body: { old: previous, new: body },
   });

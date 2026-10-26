@@ -48,7 +48,8 @@ export async function results(trx: Db, plenumId: string): Promise<ResultGroupIte
       select h.entity_type as type, h.entity_id as id, h.created_at as at,
              h.action in ('created', 'created_as_replacement') as created
       from history h
-      where h.changes -> 'plenum_id' ->> 'new' = ${plenumId}
+      where h.changes ? 'plenum_id'
+        and h.changes -> 'plenum_id' ->> 'new' = ${plenumId}
         and h.action not in ('undo', 'rsvp')
         and h.entity_type in (${types})
         and not (h.entity_type = 'appointment' and h.entity_id = ${plenumId}::uuid)
@@ -56,9 +57,13 @@ export async function results(trx: Db, plenumId: string): Promise<ResultGroupIte
           select 1 from history u
           where u.action = 'undo' and u.changes -> 'history_ids' -> 'old' ? h.id::text
         )
-      union all select 'decision', id, created_at, false from decisions where source_plenum_id = ${plenumId}::uuid
-      union all select 'task', id, created_at, false from tasks where origin_plenum_id = ${plenumId}::uuid
-      union all select 'question', id, created_at, false from questions where answered_in_plenum_id = ${plenumId}::uuid
+      -- nur über Quelle, Herkunft oder Antwort dabei: hinter allem mit Änderungen im Plenum, nach Anlegezeit
+      union all select 'decision', id, created_at + interval '1000 years', false
+        from decisions where source_plenum_id = ${plenumId}::uuid
+      union all select 'task', id, created_at + interval '1000 years', false
+        from tasks where origin_plenum_id = ${plenumId}::uuid
+      union all select 'question', id, created_at + interval '1000 years', false
+        from questions where answered_in_plenum_id = ${plenumId}::uuid
     ) x
     group by type, id
     order by min(at), type, id`.execute(trx);

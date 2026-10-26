@@ -60,7 +60,19 @@ const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
  * Gruppenüberschriften (Zeilen mit „:“ am Ende), Aufzählungen bleiben; am Ende der Link in die App.
  */
 export function telegramHtml(text: string, url: string): string {
-  const lines = text.split('\n');
+  // Telegram nimmt höchstens 4096 Zeichen: vor dem Escapen kürzen, damit kein Tag zerschnitten wird
+  const all = text.split('\n');
+  const lines: string[] = [];
+  let length = 0;
+  for (const [i, line] of all.entries()) {
+    if (length + line.length + 1 > TELEGRAM_TEXT_BUDGET) {
+      const rest = all.slice(i).filter((l) => l.startsWith('•')).length;
+      lines.push(rest > 0 ? `… und ${rest} weitere` : '…');
+      break;
+    }
+    lines.push(line);
+    length += line.length + 1;
+  }
   const body = lines
     .map((line, i) => {
       const safe = escapeHtml(line);
@@ -69,4 +81,19 @@ export function telegramHtml(text: string, url: string): string {
     })
     .join('\n');
   return `${body}\n\n<a href="${escapeHtml(url)}">In Myzel öffnen</a>`;
+}
+
+/** Platz für den Text – das Escapen und der Link kommen noch dazu (Grenze 4096) */
+const TELEGRAM_TEXT_BUDGET = 3500;
+
+/**
+ * Text einer Push-Nachricht: kurz, eine Zeile (Nutzlast höchstens etwa 4 KB). Bei einer Zusammenfassung die
+ * Überschrift und die Zahl der Punkte – die Einzelheiten zeigt die App hinter dem Link.
+ */
+export function pushText(text: string): string {
+  const lines = text.split('\n');
+  const points = lines.filter((l) => l.startsWith('•')).length;
+  const first = lines[0]!.trim();
+  const short = points > 0 ? `${first} ${points} ${points === 1 ? 'Punkt' : 'Punkte'} im Ergebnis.` : first;
+  return short.length > 240 ? `${short.slice(0, 239)}…` : short;
 }

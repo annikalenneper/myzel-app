@@ -112,6 +112,12 @@ export type ResultSubject =
   | { type: 'document'; row: Pick<DocumentRow, 'id' | 'title' | 'url'>; created: boolean }
   | { type: 'partner'; row: Pick<Partner, 'id' | 'name'>; created: boolean };
 
+/** eine Zeile, höchstens max Zeichen – lange Antworten sprengen sonst Telegram und Push */
+const oneLine = (text: string, max: number) => {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+};
+
 const dueText = (isoDate: string) => {
   const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
   return formatDayMonth(new Date(y, m - 1, d));
@@ -147,7 +153,7 @@ function line(s: ResultSubject): { group: ResultGroup; item: ResultItem } {
     case 'question': {
       const text =
         s.row.status === 'geklaert'
-          ? `Beantwortet: ${s.row.title}${s.row.answer ? ` – ${s.row.answer}` : ''}`
+          ? `Beantwortet: ${s.row.title}${s.row.answer ? ` – ${oneLine(s.row.answer, 120)}` : ''}`
           : s.row.status === 'verworfen'
             ? `Verworfen: ${s.row.title}`
             : `${s.created ? 'Neue Frage' : 'Offen'}: ${s.row.title}`;

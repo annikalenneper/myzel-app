@@ -579,14 +579,15 @@ export async function updateComment(ctx: Ctx, commentId: string, raw: unknown): 
   if (!comment) throw notFound('Diesen Kommentar');
   if (comment.author_id !== ctx.actor.id)
     throw new AppError('forbidden', 'Nur eigene Kommentare lassen sich bearbeiten.');
-  await editableTask(ctx, comment.task_id);
+  const taskId = comment.task_id!;
+  await editableTask(ctx, taskId);
   if (body === comment.body) return;
   await ctx.trx
     .updateTable('comments')
     .set({ body, updated_at: iso(ctx) })
     .where('id', '=', commentId)
     .execute();
-  await writeHistory(ctx, 'task', comment.task_id, 'comment_edited', {
+  await writeHistory(ctx, 'task', taskId, 'comment_edited', {
     comment: { old: comment.id, new: comment.id },
     // Text alt → neu (3.10)
     body: { old: comment.body, new: body },

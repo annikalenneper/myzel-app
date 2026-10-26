@@ -17,11 +17,13 @@ import {
 } from '../../shared/rules/knowledge';
 import {
   decisionCreateSchema,
+  decisionUpdateSchema,
   decisionReplaceSchema,
   documentCreateSchema,
   DRIVE_FOLDER_MIME,
   questionClarifySchema,
   questionCreateSchema,
+  questionUpdateSchema,
   type Decision,
   type DocumentLinkTarget,
   type DocumentRow,
@@ -39,6 +41,7 @@ import type {
   Undoable,
 } from '../api';
 import { isPlenum } from './appointments';
+import { commentsOf, historyOf } from './comments';
 import { documentFor, driveFileMissing, driveItem } from './drive';
 import {
   addMark,
@@ -117,16 +120,10 @@ export function getDecision(db: Db, id: string): DecisionDetail {
       .filter((x) => x.superseded_by_id === id)
       .map((x) => ({ id: x.id, title: x.title })),
     documents: linkedDocuments(db, 'decision', id),
+    comments: commentsOf(db, 'decision', id),
     history: historyOf(db, 'decision', id),
   };
 }
-
-const historyOf = (db: Db, type: 'decision' | 'question', id: string) =>
-  db.history
-    .map((h, index) => ({ h, index }))
-    .filter(({ h }) => h.entity_type === type && h.entity_id === id)
-    .sort((a, b) => b.h.created_at.localeCompare(a.h.created_at) || b.index - a.index)
-    .map(({ h }) => h);
 
 interface Sources {
   source_plenum_id: string | null;
@@ -160,6 +157,7 @@ export function insertDecision(
 ): Decision {
   checkTopic(ctx, input.topic_id);
   checkSources(ctx, input);
+  checkEvent(ctx, input.event_id);
   const question = input.source_question_id ? findQuestion(ctx.db, input.source_question_id) : null;
   if (question?.archived_at)
     throw new AppError('validation', 'Diese Frage gibt es nicht mehr.', { field: 'source_question_id' });
@@ -177,6 +175,7 @@ export function insertDecision(
     source_document_id: input.source_document_id,
     source_note: input.source_note,
     source_question_id: input.source_question_id,
+    event_id: input.event_id,
     archived_at: null,
     created_at: now,
     updated_at: now,
@@ -205,6 +204,40 @@ export function createDecision(ctx: Ctx, raw: unknown): { id: string } {
   const decision = insertDecision(ctx, parse(decisionCreateSchema, raw));
   ctx.inverse = [];
   return { id: decision.id };
+}
+
+function checkEvent(ctx: Ctx, eventId: string | null): void {
+  if (eventId && !ctx.db.events.some((e) => e.id === eventId && !e.archived_at))
+    throw new AppError('validation', 'Diese Veranstaltung gibt es nicht mehr.', { field: 'event_id' });
+}
+
+/** Felder alt → neu in die Historie (3.10); gibt zurück, ob sich etwas geändert hat */
+function applyChanges<T extends object, K extends keyof T>(
+  row: T,
+  next: Pick<T, K>,
+  changes: HistoryChanges,
+): boolean {
+  for (const key of Object.keys(next) as K[]) {
+    if (row[key] === next[key]) continue;
+    changes[key as string] = { old: row[key], new: next[key] };
+    row[key] = next[key];
+  }
+  return Object.keys(changes).length > 0;
+}
+
+/** WF-WIS-12: Titel, Text, Thema, Veranstaltung korrigieren – Inhaltliches ändert „Ersetzen“ */
+export function updateDecision(ctx: Ctx, id: string, raw: unknown): void {
+  const input = parse(decisionUpdateSchema, raw);
+  const d = findDecision(ctx.db, id);
+  checkVersion(ctx, 'decision', d, input.version);
+  if (d.status !== 'gueltig') throw rule('Nur gültige Einträge lassen sich bearbeiten.');
+  if (input.topic_id !== d.topic_id) checkTopic(ctx, input.topic_id);
+  if (input.event_id !== d.event_id) checkEvent(ctx, input.event_id);
+  const changes: HistoryChanges = {};
+  const { title, description, topic_id, event_id } = input;
+  if (!applyChanges(d, { title, description, topic_id, event_id }, changes)) return;
+  touch(ctx, d);
+  writeHistory(ctx, 'decision', id, 'updated', changes);
 }
 
 const decisionState = (d: Decision) =>
@@ -239,8 +272,9 @@ export function replaceDecision(ctx: Ctx, id: string, raw: unknown): Undoable & 
         source_plenum_id: input.source_plenum_id,
         source_document_id: input.source_document_id,
         source_note: input.source_note,
-        // die neue Fassung gehört weiter zur selben Frage
+        // die neue Fassung gehört weiter zur selben Frage und Veranstaltung
         source_question_id: old.source_question_id,
+        event_id: old.event_id,
       },
       'created_as_replacement',
     );
@@ -299,7 +333,11 @@ export function listQuestions(db: Db): QuestionListItem[] {
 
 export function getQuestion(db: Db, id: string): QuestionDetail {
   const q = findQuestion(db, id);
-  return { ...questionItem(db, q), history: historyOf(db, 'question', id) };
+  return {
+    ...questionItem(db, q),
+    comments: commentsOf(db, 'question', id),
+    history: historyOf(db, 'question', id),
+  };
 }
 
 /** WF-FRA-01 */
@@ -331,6 +369,21 @@ export function createQuestion(ctx: Ctx, raw: unknown): { id: string } {
   writeHistory(ctx, 'question', question.id, 'created', changes);
   ctx.inverse = [];
   return { id: question.id };
+}
+
+/** WF-FRA-06: Frage bearbeiten – Titel, Beschreibung, Thema, Veranstaltung, Dringlichkeit */
+export function updateQuestion(ctx: Ctx, id: string, raw: unknown): void {
+  const input = parse(questionUpdateSchema, raw);
+  const q = findQuestion(ctx.db, id);
+  checkVersion(ctx, 'question', q, input.version);
+  if (q.archived_at) throw rule('Archivierte Fragen lassen sich nicht bearbeiten.');
+  if (input.topic_id !== q.topic_id) checkTopic(ctx, input.topic_id);
+  if (input.event_id !== q.event_id) checkEvent(ctx, input.event_id);
+  const changes: HistoryChanges = {};
+  const { title, description, topic_id, event_id, urgency } = input;
+  if (!applyChanges(q, { title, description, topic_id, event_id, urgency }, changes)) return;
+  touch(ctx, q);
+  writeHistory(ctx, 'question', id, 'updated', changes);
 }
 
 const questionState = (q: Question) =>

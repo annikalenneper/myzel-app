@@ -390,7 +390,7 @@ describe('Bearbeiten, Kommentare, Archiv (WF-AUF-04, -05, -12, -14)', () => {
     await login('lea');
     await api.updateTaskFields(task.id, { priority: 'hoch' }, 1);
     await login('jule');
-    const comment = await api.addComment(task.id, 'Bin dabei');
+    const comment = await api.addComment('task', task.id, 'Bin dabei');
     expect(comment.now_following).toBe(true);
     const after = await api.getTask(task.id);
     expect(after.follower_ids).toEqual([member('Mo').id, member('Lea').id, member('Jule').id]);
@@ -399,8 +399,8 @@ describe('Bearbeiten, Kommentare, Archiv (WF-AUF-04, -05, -12, -14)', () => {
 
   it('lässt nur eigene Kommentare bearbeiten und keine leeren zu', async () => {
     const task = await newTask();
-    const { id } = await api.addComment(task.id, 'Erster');
-    await expectError(api.addComment(task.id, '   '), 'validation');
+    const { id } = await api.addComment('task', task.id, 'Erster');
+    await expectError(api.addComment('task', task.id, '   '), 'validation');
     await api.updateComment(id, 'Erster, korrigiert');
     await login('lea');
     await expectError(api.updateComment(id, 'Gekapert'), 'forbidden');

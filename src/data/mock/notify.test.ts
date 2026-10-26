@@ -112,7 +112,7 @@ describe('Ereignisse und Outbox (6.1, 6.2)', () => {
   it('Kommentar geht an Bearbeitende und Folgende außer Autor*in', async () => {
     const { id } = await api.createTask({ title: 'Kabel kaufen', topic_id: await topicId() });
     await api.addAssignee(id, await memberId('Jule'));
-    await api.addComment(id, 'Baumarkt hat welche');
+    await api.addComment('task', id, 'Baumarkt hat welche');
     const jule = (await messages('jule')).filter((m) => m.event_type === 'kommentar');
     expect(jule[0]!.text).toBe('Neuer Kommentar von Mo bei „Kabel kaufen“: Baumarkt hat welche');
     expect((await api.demo!.myMessages()).some((m) => m.event_type === 'kommentar')).toBe(false);

@@ -11,6 +11,12 @@ export function rememberPlenumAnswer(plenumId: string, belongs: boolean): void {
   api.setPlenumAnswer(plenumId, belongs);
 }
 
+/** beim Wechsel der angemeldeten Person: neu fragen */
+export function forgetPlenumAnswers(): void {
+  for (const plenumId of answers.keys()) api.setPlenumAnswer(plenumId, false);
+  answers.clear();
+}
+
 /** das Plenum, das gerade läuft – sonst null */
 export function runningPlenum(session: Session | undefined, now: Date): SessionPlenum | null {
   if (session?.state !== 'member' || !session.plenum) return null;

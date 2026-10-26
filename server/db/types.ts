@@ -126,7 +126,13 @@ export interface TaskBlockersTable {
 
 export interface CommentsTable {
   id: Generated<string>;
-  task_id: string;
+  /** genau eine Zielspalte ist gesetzt (16.3) */
+  task_id: string | null;
+  question_id: string | null;
+  decision_id: string | null;
+  event_id: string | null;
+  appointment_id: string | null;
+  partner_id: string | null;
   author_id: string;
   body: string;
   created_at: CreatedAt;
@@ -211,6 +217,7 @@ export interface AppointmentsTable {
   is_exception: Generated<boolean>;
   protocol_document_id: string | null;
   protocol_member_id: string | null;
+  description: string | null;
   notes: string | null;
   archived_at: Timestamp | null;
   created_at: CreatedAt;
@@ -267,6 +274,7 @@ export interface DecisionsTable {
   source_document_id: string | null;
   source_note: string | null;
   source_question_id: string | null;
+  event_id: string | null;
   archived_at: Timestamp | null;
   created_at: CreatedAt;
   updated_at: Timestamp;

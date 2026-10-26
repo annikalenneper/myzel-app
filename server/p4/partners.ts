@@ -16,6 +16,8 @@ import {
   type Db,
 } from '../core/context';
 import type { PartnerRow } from '../db/types';
+import { commentsOf } from '../p1/comments';
+import { historyOf } from '../p1/reads';
 import { findEvent } from '../p1/events';
 
 export async function findPartner(trx: Db, id: string, lock = true): Promise<PartnerRow> {
@@ -52,7 +54,7 @@ export async function listPartners(trx: Db): Promise<PartnerListItem[]> {
 /** WF-VER-13: Detail zeigt, bei welchen Veranstaltungen der Partner schon beteiligt war */
 export async function getPartner(trx: Db, id: string): Promise<PartnerDetail> {
   const partner = await findPartner(trx, id, false);
-  const [[item], events] = await Promise.all([
+  const [[item], events, comments, history] = await Promise.all([
     listItems(trx, [partner]),
     trx
       .selectFrom('event_partners as ep')
@@ -61,8 +63,10 @@ export async function getPartner(trx: Db, id: string): Promise<PartnerDetail> {
       .where('ep.partner_id', '=', id)
       .orderBy('e.starts_at', 'desc')
       .execute(),
+    commentsOf(trx, 'partner', id),
+    historyOf(trx, 'partner', id),
   ]);
-  return { ...item!, events };
+  return { ...item!, events, comments, history };
 }
 
 async function assertContact(ctx: Ctx, memberId: string | null): Promise<void> {

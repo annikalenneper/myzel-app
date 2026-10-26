@@ -338,6 +338,12 @@ function DecisionCard({
         <span className={cx('text-[17px] leading-[1.3] font-semibold', !valid && 'line-through')}>
           {d.title}
         </span>
+        {/* 16.4: der Text steht auf der Karte, nicht nur der Titel */}
+        {d.description && (
+          <span className="line-clamp-3 text-[14px] leading-[1.45] break-words text-weich">
+            {d.description}
+          </span>
+        )}
         {d.superseded_by_title && (
           <span className="text-[13px] leading-[1.4] text-weich">
             → ersetzt durch: <b>{d.superseded_by_title}</b>

@@ -3,6 +3,7 @@
 import { AppError } from '../../shared/errors';
 import { partnerCreateSchema, partnerUpdateSchema, type Partner } from '../../shared/schema';
 import type { PartnerDetail, PartnerListItem, Undoable } from '../api';
+import { commentsOf, historyOf } from './comments';
 import {
   checkVersion,
   findEvent,
@@ -48,7 +49,12 @@ export function getPartner(db: Db, id: string): PartnerDetail {
       return { id: e.id, title: e.title, starts_at: e.starts_at, status: e.status, role_note: ep.role_note };
     })
     .sort((a, b) => b.starts_at.localeCompare(a.starts_at));
-  return { ...listItem(db, partner), events };
+  return {
+    ...listItem(db, partner),
+    events,
+    comments: commentsOf(db, 'partner', id),
+    history: historyOf(db, 'partner', id),
+  };
 }
 
 function assertContact(db: Db, memberId: string | null): void {

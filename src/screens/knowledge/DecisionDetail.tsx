@@ -10,6 +10,7 @@ import { api } from '../../data';
 import type { DecisionDetail as Detail } from '../../data/api';
 import { formatDayMonth } from '../../shared/format';
 import { canSupersede, DECISION_KIND_LABEL, DECISION_STATUS_LABEL } from '../../shared/rules/knowledge';
+import { DECISION_TEXT_MAX } from '../../shared/schema';
 import { cx, FieldError, GhostButton, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
 import { Sheet } from '../../ui/Sheet';
 import {
@@ -23,7 +24,9 @@ import {
   type BackTarget,
 } from './DetailParts';
 import { LinkedDocuments } from './LinkedDocuments';
-import { Segmented } from './KnowledgeSheets';
+import { CommentsSection } from '../../ui/Comments';
+import { EventAgendaLink } from '../agenda/EventAgendaLink';
+import { DecisionEditSheet, Segmented, TextField } from './KnowledgeSheets';
 import { EMPTY_SOURCE, SourceFields, sourceReady, type SourceValue } from './SourceFields';
 
 const dateText = (isoDate: string) => {
@@ -60,8 +63,9 @@ export function DecisionDetail({
 function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
   const act = useActions();
   const latest = useLatest(d.version);
-  const { topicName } = useLookups();
-  const [sheet, setSheet] = useState<'replace' | 'revoke' | 'document' | null>(null);
+  const { topicName, eventById } = useLookups();
+  const event = d.event_id ? eventById.get(d.event_id) : undefined;
+  const [sheet, setSheet] = useState<'replace' | 'revoke' | 'document' | 'edit' | null>(null);
   const [note, setNote] = useState('');
   const valid = d.status === 'gueltig';
   const noun = DECISION_KIND_LABEL[d.kind];
@@ -75,6 +79,8 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
         label="Beschlüsse"
         back={back}
         agenda={valid ? { on: d.marked, onToggle: () => setAgenda(!d.marked) } : undefined}
+        onEdit={valid ? () => setSheet('edit') : undefined}
+        editWf="WF-WIS-12"
       />
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className={cx('flex flex-col gap-2', !valid && 'opacity-60')}>
@@ -184,6 +190,8 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
           documents={d.documents}
         />
 
+        {event && <EventAgendaLink eventId={event.id} />}
+        <CommentsSection target="decision" targetId={d.id} comments={d.comments} archived={!!d.archived_at} />
         <KnowledgeHistory history={d.history} noun={noun} />
       </div>
 
@@ -210,6 +218,7 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
         </ActionBar>
       )}
 
+      {sheet === 'edit' && <DecisionEditSheet d={d} onClose={() => setSheet(null)} />}
       {sheet === 'replace' && (
         <ReplaceSheet
           decision={d}
@@ -322,7 +331,9 @@ export function ReplaceSheet({
         ? 'Titel eingeben, dann ersetzen'
         : !sourceReady(source)
           ? 'Quelle angeben, dann ersetzen'
-          : null
+          : text.trim().length > DECISION_TEXT_MAX
+            ? `Text auf ${DECISION_TEXT_MAX} Zeichen kürzen`
+            : null
       : !picked
         ? 'Eintrag wählen, dann ersetzen'
         : null;
@@ -381,18 +392,16 @@ export function ReplaceSheet({
                 className="h-[46px] rounded-xl border border-rand bg-grund px-3.5 font-sans text-[16px] text-text normal-case"
               />
             </label>
-            <label className="label-mono flex flex-col gap-1.5">
-              Text · optional
-              <textarea
-                data-wf={wf}
-                value={text}
-                onChange={(e) => {
-                  setText(e.target.value);
-                  writeDraft(replaceDraftKey(decision.id), e.target.value);
-                }}
-                className="min-h-20 rounded-[14px] border border-rand bg-grund px-3.5 py-3 font-sans text-[15px] leading-normal text-text normal-case"
-              />
-            </label>
+            <TextField
+              label="Text · optional"
+              wf={wf}
+              value={text}
+              max={DECISION_TEXT_MAX}
+              onChange={(value) => {
+                setText(value);
+                writeDraft(replaceDraftKey(decision.id), value);
+              }}
+            />
             <span className="label-mono">Quelle *</span>
             <SourceFields value={source} onChange={setSource} wf={wf} />
           </>

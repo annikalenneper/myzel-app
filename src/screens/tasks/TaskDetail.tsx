@@ -1,5 +1,5 @@
 // S-12 Aufgabe – Detail · P1
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
 import { BarOffset, useFeedback } from '../../app/feedback';
@@ -9,17 +9,18 @@ import { useActions, useLatest } from '../../app/useActions';
 import { optimisticPatch, useData } from '../../app/useData';
 import { api } from '../../data';
 import type { TaskDetail as TaskDetailData, TaskListItem } from '../../data/api';
-import { formatCommentTime, formatHistoryTime } from '../../shared/format';
+import { formatHistoryTime } from '../../shared/format';
 import { taskHistorySentence } from '../../shared/historyText';
 import { PRIORITY_LABEL, TASK_STATUS_COLOR, TASK_STATUS_LABEL } from '../../shared/labels';
 import { dueState, toIsoDate } from '../../shared/rules/due';
 import { canTransitionTask, isActiveTaskStatus } from '../../shared/rules/taskStatus';
-import { PRIORITIES, TASK_STATUSES, type Comment, type Member, type TaskStatus } from '../../shared/schema';
+import { PRIORITIES, TASK_STATUSES, type Member, type TaskStatus } from '../../shared/schema';
 import { Avatar, cx, FieldError, ListSkeleton, LoadError, PriorityBars } from '../../ui/bits';
 import { DateTile } from '../../ui/DateTile';
-import { IconBack, IconMore, IconSend } from '../../ui/icons';
+import { IconBack, IconMore } from '../../ui/icons';
 import { EventAgendaLink } from '../agenda/EventAgendaLink';
 import { LinkedDocuments } from '../knowledge/LinkedDocuments';
+import { CommentBar, CommentRow } from '../../ui/Comments';
 import { ArchiveSheet, BlockSheet, DiscardSheet, PeopleSheet, PickerSheet } from './sheets';
 
 type SheetKind =
@@ -554,6 +555,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
             )}
             {task.comments.map((c) => (
               <CommentRow
+                wf="WF-AUF-12"
                 key={c.id}
                 comment={c}
                 author={memberById.get(c.author_id)}
@@ -578,7 +580,14 @@ function Loaded({ task }: { task: TaskDetailData }) {
       </div>
 
       {!archived && (
-        <CommentBar taskId={task.id} following={following} act={act} onSent={() => setTab('comments')} />
+        <CommentBar
+          target="task"
+          targetId={task.id}
+          following={following}
+          act={act}
+          wf="WF-AUF-12"
+          onSent={() => setTab('comments')}
+        />
       )}
 
       {sheet === 'block' && (
@@ -1004,189 +1013,3 @@ function Description({ task, act }: { task: TaskDetailData; act: Act }) {
 }
 
 /** WF-AUF-12 – nur eigene Kommentare sind bearbeitbar */
-function CommentRow({
-  comment,
-  author,
-  own,
-  act,
-}: {
-  comment: Comment;
-  author: Member | undefined;
-  own: boolean;
-  act: Act;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const edited = comment.updated_at !== comment.created_at;
-
-  const save = async () => {
-    const text = draft ?? '';
-    const ok = await act(() => api.updateComment(comment.id, text), {
-      success: 'Gespeichert',
-      ownInput: text,
-      onInvalid: (e) => setError(e.message),
-    });
-    if (ok) setDraft(null);
-  };
-
-  return (
-    <div className="flex gap-2.5">
-      <Avatar member={author} size={30} />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-[13px] font-semibold">
-          {author?.display_name ?? 'Unbekannt'}{' '}
-          <span className="font-mono text-[11px] font-normal text-leise">
-            {formatCommentTime(comment.created_at, new Date())}
-            {edited && ' · BEARBEITET'}
-          </span>
-        </span>
-        {draft === null ? (
-          <>
-            <span className="text-[15px] leading-[1.45] break-words whitespace-pre-wrap text-weich">
-              {comment.body}
-            </span>
-            {own && (
-              <button
-                type="button"
-                data-wf="WF-AUF-12"
-                onClick={() => setDraft(comment.body)}
-                className="hit h-[26px] self-start text-[12px] text-leise"
-              >
-                Bearbeiten
-              </button>
-            )}
-          </>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <textarea
-              data-wf="WF-AUF-12"
-              aria-label="Kommentar bearbeiten"
-              autoFocus
-              value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                setError(null);
-              }}
-              className="min-h-20 rounded-[14px] border border-violett bg-grund px-3.5 py-2.5 text-[15px] leading-normal text-text"
-            />
-            <FieldError>{error}</FieldError>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                data-wf="WF-AUF-12"
-                onClick={() => setDraft(null)}
-                className="hit h-9 px-3.5 text-[14px] text-leise"
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                data-wf="WF-AUF-12"
-                disabled={!draft.trim()}
-                onClick={() => void save()}
-                className="hit h-9 rounded-[18px] bg-geplant px-4 text-[14px] font-semibold text-grund disabled:bg-erhoeht disabled:text-leise"
-              >
-                Speichern
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** WF-AUF-12 Kommentar senden – unten fixiert; bei leerem Feld gesperrt */
-function CommentBar({
-  taskId,
-  following,
-  act,
-  onSent,
-}: {
-  taskId: string;
-  following: boolean;
-  act: Act;
-  onSent: () => void;
-}) {
-  const draftKey = `task:${taskId}:kommentar`;
-  const [text, setText] = useState(() => readDraft(draftKey) ?? '');
-  const [sending, setSending] = useState(false);
-  const lock = useRef(false);
-  const field = useRef<HTMLInputElement>(null);
-  const sent = useRef<string | null>(null);
-  const strip = (value: string) =>
-    sent.current && value.startsWith(sent.current) ? value.slice(sent.current.length) : value;
-  useEffect(() => {
-    // das Feld zeigt den gekürzten Text – ab jetzt gilt wieder, was dasteht
-    if (sent.current && !field.current?.value.startsWith(sent.current)) sent.current = null;
-  }, [text]);
-
-  const send = async () => {
-    // während des Sendens gesperrt – ein Doppeltipp legt keinen zweiten Kommentar an
-    if (!text.trim() || lock.current) return;
-    lock.current = true;
-    setSending(true);
-    await act(
-      async () => {
-        const result = await api.addComment(taskId, text);
-        // nur den gesendeten Text entfernen – was inzwischen weitergetippt wurde, bleibt stehen
-        // (Tastendrücke können sich mit dem Leeren kreuzen – deshalb merkt sich das Feld, was weg soll)
-        sent.current = text;
-        const rest = strip(field.current?.value ?? '');
-        if (rest) writeDraft(draftKey, rest);
-        else clearDraft(draftKey);
-        setText(rest);
-        onSent();
-        return result;
-      },
-      {
-        ownInput: text,
-        draftKept: true,
-        success: (r) => (r.now_following && !following ? 'Gesendet · du folgst jetzt' : 'Gesendet'),
-      },
-    );
-    lock.current = false;
-    setSending(false);
-  };
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        void send();
-      }}
-      className="sticky bottom-0 z-10 flex flex-none items-center gap-2.5 border-t border-linie bg-nav px-4 pt-3 pb-[calc(18px+env(safe-area-inset-bottom,0px))]"
-    >
-      <label htmlFor="kommentar" className="sr-only">
-        Kommentar schreiben
-      </label>
-      <input
-        id="kommentar"
-        ref={field}
-        type="text"
-        data-wf="WF-AUF-12"
-        autoComplete="off"
-        placeholder="Kommentar schreiben …"
-        value={text}
-        onChange={(e) => {
-          const next = strip(e.target.value);
-          setText(next);
-          writeDraft(draftKey, next);
-        }}
-        className="h-11 min-w-0 flex-1 rounded-[22px] border border-rand bg-flaeche px-4 text-[15px] text-text"
-      />
-      <button
-        type="submit"
-        data-wf="WF-AUF-12"
-        disabled={!text.trim() || sending}
-        aria-label="Senden"
-        className={cx(
-          'flex size-11 flex-none items-center justify-center rounded-full',
-          text.trim() && !sending ? 'bg-marke text-grund' : 'bg-erhoeht text-leise',
-        )}
-      >
-        <IconSend size={20} />
-      </button>
-    </form>
-  );
-}

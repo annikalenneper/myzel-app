@@ -2,7 +2,7 @@
 // Jede Nachricht nennt Titel, Datum und einen Direktlink; Telegram bekommt den Link als volle Adresse.
 // Jeder Aufruf nach außen hat eine Zeitgrenze, damit ein hängender Dienst den Joblauf nicht aufhält.
 import webpush from 'web-push';
-import { telegramHtml } from '../../src/shared/rules/telegram';
+import { pushText, telegramHtml } from '../../src/shared/rules/telegram';
 import { RetryLater, type Senders } from './notify';
 
 const TIMEOUT_MS = 4_000;
@@ -65,7 +65,7 @@ export function liveSenders(): Senders {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({ title: 'Myzel', body: message.text, link: message.link }),
+          JSON.stringify({ title: 'Myzel', body: pushText(message.text), link: message.link }),
           { TTL: 24 * 3600, timeout: TIMEOUT_MS },
         );
         return 'ok';

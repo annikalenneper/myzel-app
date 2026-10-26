@@ -14,6 +14,7 @@ import { DateTimeTile } from '../../ui/DateTimeTile';
 import { DateTile } from '../../ui/DateTile';
 import { Sheet } from '../../ui/Sheet';
 import { RepeatSelect, SERIES_HINT, SeriesSheet } from './SeriesSheet';
+import { TextField } from '../knowledge/KnowledgeSheets';
 
 export function AppointmentFormSheet({
   appointment,
@@ -41,6 +42,7 @@ export function AppointmentFormSheet({
   const [location, setLocation] = useState(appointment?.location ?? '');
   const [onlineUrl, setOnlineUrl] = useState(appointment?.online_url ?? '');
   const [eventId, setEventId] = useState(appointment?.event_id ?? '');
+  const [description, setDescription] = useState(appointment?.description ?? '');
   const [error, setError] = useState<{ field: string | null; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   /** [P6] beim Anlegen: Regel der Serie, leer = einmalig */
@@ -133,6 +135,7 @@ export function AppointmentFormSheet({
       location,
       online_url: onlineUrl,
       event_id: eventId || null,
+      description,
     };
     const onInvalid = (e: { field: string | null; message: string }) =>
       setError({ field: e.field, message: e.message });
@@ -388,6 +391,9 @@ export function AppointmentFormSheet({
               ))}
             </select>
           </label>
+        )}
+        {!isSeries && (
+          <TextField label="Beschreibung" wf={wf} value={description} onChange={setDescription} />
         )}
         <FieldError>
           {error &&
