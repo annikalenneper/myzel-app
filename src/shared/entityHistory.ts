@@ -39,7 +39,7 @@ const FIELD: Record<string, [label: string, shape: Shape]> = {
 
 const short = (v: unknown, max = 80) => {
   const text = String(v ?? '')
-    .replace(/s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 };

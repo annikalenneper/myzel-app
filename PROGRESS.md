@@ -74,6 +74,10 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         Thema/Veranstaltung), N3–N6 behoben; N2 (Ersetzen bei archivierter Veranstaltung) erst relevant, wenn
         Veranstaltungen archivierbar werden; N7 → U15, N8 (Exportversion 3)
 - [ ] **Phase 6 – Entscheidungen im Konsens:** Frist (Standard 7 Tage, wählbar), Bestätigen/Widersprechen, Joblauf
+  - [x] Review Phase 5 (Subagent): H1 (Verlauf ersetzte jedes „s“ durch ein Leerzeichen – fehlender Backslash, Test
+        ergänzt), M1 („+“ übernimmt auch im Termin dessen Veranstaltung, Dokumente gehen an den Termin; in der auf eine
+        Veranstaltung gefilterten Agenda deren Veranstaltung), M2 (Desktop-Test für die Vorbelegung, Partner wird wirklich
+        angelegt), N1 (Schein des „+“ als Token) behoben; N2 (Entscheidung und Fakt teilen WF-WIS-01) bleibt so
 - [ ] **Phase 7 – Google Kalender:** Link „In Google Kalender eintragen“ und .ics-Download je Termin
 - [ ] **Phase 8 – App-Report und Versions-Info:** Bug/Feature-Wunsch melden, Admin-Liste; Version, Changelog,
       Hinweis auf neue Version

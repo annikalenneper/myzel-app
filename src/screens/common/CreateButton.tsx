@@ -1,9 +1,13 @@
 // Ein „+“ für alle Arten aus jeder Ansicht (Umbau 10/2026, Phase 5): Aufgabe, Frage, Entscheidung, Fakt,
-// Veranstaltung, Termin, Dokument, Partner – vorbelegt aus dem Kontext (in einer Veranstaltung oder einem Termin).
+// Veranstaltung, Termin, Dokument, Partner – vorbelegt aus dem Kontext (in einer Veranstaltung, einem Termin oder der
+// auf eine Veranstaltung gefilterten Agenda).
 import { useState } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
+import { useAgendaFilter } from '../../app/agendaFilter';
 import { useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
+import { useData } from '../../app/useData';
+import { api } from '../../data';
 import { cx } from '../../ui/bits';
 import { IconPlus } from '../../ui/icons';
 import { Sheet } from '../../ui/Sheet';
@@ -31,11 +35,21 @@ export function CreateButton({ navVisible, hidden }: { navVisible: boolean; hidd
   const { barVisible } = useFeedback();
   const navigate = useNavigate();
   const { eventById } = useLookups();
-  // Kontext: geöffnete Veranstaltung oder geöffneter Termin
-  const eventId = useMatch('/events/:eventId')?.params.eventId;
+  const { filter } = useAgendaFilter();
+  // Kontext: geöffnete Veranstaltung, geöffneter Termin (samt seiner Veranstaltung) oder gefilterte Agenda
+  const openEventId = useMatch('/events/:eventId')?.params.eventId;
   const appointmentId = useMatch('/termine/:appointmentId')?.params.appointmentId;
+  const onAgenda = !!useMatch('/agenda/*');
   const onEventList = !!useMatch('/events');
   const onAppointmentList = !!useMatch('/termine');
+  // dieselbe Anfrage wie die Detailansicht – kommt aus dem Zwischenspeicher
+  const { data: appointment } = useData(
+    appointmentId ? `appointment:${appointmentId}` : 'appointment:keiner',
+    () => (appointmentId ? api.getAppointment(appointmentId) : Promise.resolve(null)),
+  );
+  let eventId = openEventId;
+  if (appointmentId) eventId = appointment?.event_id ?? undefined;
+  else if (onAgenda) eventId = filter.eventId ?? undefined;
   const event = eventId ? eventById.get(eventId) : undefined;
   const [choosing, setChoosing] = useState(false);
   const [kind, setKind] = useState<Kind | null>(null);
@@ -52,7 +66,7 @@ export function CreateButton({ navVisible, hidden }: { navVisible: boolean; hidd
           onClick={() => setChoosing(true)}
           aria-label="Neu anlegen"
           className={cx(
-            'bg-marke fixed right-5 z-10 size-[58px] items-center justify-center rounded-full text-grund shadow-[0_8px_24px_rgba(157,110,240,0.45)] lg:right-auto lg:bottom-6 lg:left-[562px] lg:flex',
+            'bg-marke fixed right-5 z-10 size-[58px] items-center justify-center rounded-full text-grund schein-marke lg:right-auto lg:bottom-6 lg:left-[562px] lg:flex',
             navVisible
               ? 'bottom-[calc(96px+env(safe-area-inset-bottom,0px))]'
               : 'bottom-[calc(24px+env(safe-area-inset-bottom,0px))]',
@@ -66,10 +80,17 @@ export function CreateButton({ navVisible, hidden }: { navVisible: boolean; hidd
       {choosing && (
         <Sheet title="Neu anlegen" onClose={() => setChoosing(false)} wf="WF-ALL-08" closeButton>
           <div className="flex flex-col gap-3">
-            {event && (
+            {appointmentId && appointment ? (
               <span className="text-[13px] leading-[1.4] text-leise">
-                Aufgabe, Frage, Entscheidung, Fakt, Termin und Dokument gehören gleich zu „{event.title}“.
+                Aufgabe und Dokument gehören gleich zu „{appointment.title}“
+                {event ? `, Frage, Entscheidung und Fakt zu „${event.title}“` : ''}.
               </span>
+            ) : (
+              event && (
+                <span className="text-[13px] leading-[1.4] text-leise">
+                  Aufgabe, Frage, Entscheidung, Fakt, Termin und Dokument gehören gleich zu „{event.title}“.
+                </span>
+              )
             )}
             <div role="group" aria-label="Was anlegen?" className="grid grid-cols-2 gap-2">
               {KINDS.map(([key, label, wf]) => (
@@ -120,7 +141,13 @@ export function CreateButton({ navVisible, hidden }: { navVisible: boolean; hidd
       )}
       {kind === 'document' && (
         <DocumentLinkScreen
-          target={event ? { type: 'event', id: event.id, kind: 'Veranstaltung', name: event.title } : null}
+          target={
+            appointmentId && appointment
+              ? { type: 'appointment', id: appointment.id, kind: 'Termin', name: appointment.title }
+              : event
+                ? { type: 'event', id: event.id, kind: 'Veranstaltung', name: event.title }
+                : null
+          }
           onClose={close}
         />
       )}

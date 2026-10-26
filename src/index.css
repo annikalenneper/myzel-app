@@ -90,6 +90,10 @@
 @utility bg-marke-fortschritt {
   background-image: linear-gradient(90deg, #f062c0, #9d6ef0);
 }
+/* Schein unter dem schwebenden „+“ */
+@utility schein-marke {
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-violett) 45%, transparent);
+}
 @utility bg-marke-strich {
   background-image: linear-gradient(90deg, #f062c0, #5b7fff);
 }

@@ -503,5 +503,9 @@ test('WF-ALL-08: ein „+“ für alle Arten – Frage aus der Agenda, Partner a
 
   await page.goto('/partner');
   await createNew(page, 'Partner');
-  await expect(page.getByRole('dialog', { name: /Partner/ })).toBeVisible();
+  const partner = page.getByRole('dialog', { name: 'Neuer Partner' });
+  await partner.getByLabel('Name *').fill('Kulturkollektiv Nord');
+  await partner.locator('button[type=submit]').click();
+  await expect(page).toHaveURL(/\/partner\/.+/);
+  await expect(page.getByRole('heading', { name: 'Kulturkollektiv Nord' })).toBeVisible();
 });

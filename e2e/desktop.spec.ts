@@ -1,6 +1,6 @@
 // Abläufe, die eine echte Tastatur bzw. das Desktop-Layout brauchen (8.3: Liste und Detail nebeneinander)
 import { devices, expect, test } from '@playwright/test';
-import { login, statusChip } from './helpers';
+import { createNew, login, statusChip } from './helpers';
 
 test.use({ ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } });
 
@@ -91,4 +91,24 @@ test('WF-ALL-03: neue Aktion bei offener Netzfehler-Meldung läuft sofort und ve
   await expect(
     page.getByText('Mo hat den Status von Neu auf Erledigt geändert.', { exact: false }),
   ).toHaveCount(1);
+});
+
+test('WF-ALL-08: „+“ übernimmt die Veranstaltung aus Detail und gefilterter Agenda', async ({ page }) => {
+  await login(page);
+  await page.goto('/events');
+  await page
+    .getByRole('link', { name: /Winterrave/ })
+    .first()
+    .click();
+  await expect(page.getByRole('heading', { name: /Winterrave/ }).first()).toBeVisible();
+  await createNew(page, 'Frage');
+  let sheet = page.getByRole('dialog', { name: 'Neue Frage' });
+  await expect(sheet.locator('select option:checked', { hasText: 'Winterrave' })).toHaveCount(1);
+  await sheet.getByRole('button', { name: 'Schließen' }).click();
+
+  await page.getByTestId('WF-AGE-02').first().click();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
+  await createNew(page, 'Fakt');
+  sheet = page.getByRole('dialog', { name: 'Neu festhalten' });
+  await expect(sheet.locator('select option:checked', { hasText: 'Winterrave' })).toHaveCount(1);
 });

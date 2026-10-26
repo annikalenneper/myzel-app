@@ -45,4 +45,10 @@ describe('Verlauf: vorher → nachher (16.3)', () => {
       entityHistorySentence(entry('comment_edited', { body: { old: 'Dez', new: 'Jan' } }), 'Partner', look),
     ).toBe('Mo hat einen Kommentar von „Dez“ auf „Jan“ geändert.');
   });
+
+  it('Leerraum und Zeilenumbrüche werden zu einem Leerzeichen, Buchstaben bleiben', () => {
+    expect(describeFieldChanges({ description: { old: 'Mate am Tresen\n\nfür Gäste', new: 'Saft' } })).toBe(
+      'die Beschreibung von „Mate am Tresen für Gäste“ auf „Saft“ geändert',
+    );
+  });
 });
