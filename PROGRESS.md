@@ -148,6 +148,21 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         Testdaten-Schicht), M4 (Historie für „Alle“ in einer Abfrage), N1 (Agenda-Filter auf gelöschtes Event wird
         zurückgesetzt), N2–N5 behoben; offen: Rückgängig von „Alle“ löscht weiter eintragsweise (selten)
 
+- [ ] **Phase 11 – Archiv im Profil (geplant, F4; noch nicht umsetzen)**
+  - [ ] Profil › „Archiv“: alles Gelöschte an einem Ort, gruppiert nach Art (Aufgaben, Veranstaltungen, Termine,
+        Entscheidungen & Fakten, Fragen, Dokumente, Partner), zuletzt Gelöschtes zuerst, mit „gelöscht von … am …“
+        (aus dem Verlauf, Eintrag „archived“); Suche nach Titel
+  - [ ] Wiederherstellen je Eintrag (neue Workflow-ID, Vorschlag WF-PRO-07): eine Server-Aktion für alle Arten wie
+        `archiveArtifact` – Versionsprüfung, `version` erhöhen, Verlauf „wiederhergestellt“, Rückgängig; Aufgaben
+        nutzen das vorhandene `restoreTask`
+  - [ ] Regeln beim Wiederherstellen prüfen: Dokument aus dem Drive, zu dem es inzwischen einen neuen Eintrag gibt
+        (eindeutig je Drive-Datei) → Hinweis statt Fehler; Serientermin bleibt Ausnahme der Serie; Entscheidung kommt
+        ohne Agenda-Markierung zurück; Aufgaben an gelöschten Veranstaltungen/Terminen bleiben verknüpft
+  - [ ] Detailansichten Gelöschter verlinken aufs Archiv statt nur „Gelöscht – nur noch zum Nachlesen“
+  - [ ] Testdaten-Schicht und Server gleich, Unit-Tests in beiden Schichten, E2E für Löschen → Archiv → Wiederherstellen
+  - [ ] Offen zu entscheiden beim Start: Archiv für alle Mitglieder oder nur für Admins (Vorschlag: alle, denn alle
+        dürfen löschen); endgültiges Löschen gibt es nicht (Löschen ist Archivieren)
+
 ## Messungen
 
 Live am 25.10.2026 (Deploy defc1e1), typische Werte je Anfrage aus dem Netlify-Log. Function läuft in us-east-2
@@ -218,7 +233,7 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | U22 | 26.10.2026 | Phase 9: „Alle“ trägt alle aktiven Mitglieder einzeln als Bearbeitende ein (Liste eintragsweise, ein Rückgängig); die Karte zeigt dann „ALLE“, sonst höchstens drei Köpfe und „+n“. Beim Anlegen gibt es „Alle“ und einzelne Personen neben „Ich übernehme das“.                                                                                                                                                                                                                                                                                | Annahme |
 | U23 | 26.10.2026 | Phase 9: Löschen heißt Archivieren (neue Workflow-ID WF-ALL-09, Aufgaben weiter WF-AUF-14), immer mit Rückfrage; Verknüpftes bleibt. Wiederherstellen geht bei Aufgaben im Detail, bei allen anderen Arten über „Rückgängig“ direkt danach – eine Archiv-Ansicht gibt es noch nicht (F4).                                                                                                                                                                                                                                                       | Annahme |
 | U24 | 26.10.2026 | Phase 9: Kommentare und Verlauf stehen in allen Detailansichten in zwei Reitern (nicht nur Event und Entscheidung), damit es überall gleich aussieht. Aus Aufgabe, Frage und Entscheidung führt „Zum Event: …“ zur Veranstaltung.                                                                                                                                                                                                                                                                                                               | Annahme |
-| F4  | 26.10.2026 | Braucht es eine Archiv-Ansicht (z. B. im Profil), um gelöschte Veranstaltungen, Termine, Entscheidungen, Fragen, Dokumente und Partner später wiederherzustellen? Bisher geht das nur direkt danach über „Rückgängig“.                                                                                                                                                                                                                                                                                                                          | offen   |
+| F4  | 26.10.2026 | Braucht es eine Archiv-Ansicht (z. B. im Profil), um gelöschte Veranstaltungen, Termine, Entscheidungen, Fragen, Dokumente und Partner später wiederherzustellen? Bisher geht das nur direkt danach über „Rückgängig“.                                                                                                                                                                                                                                                                                                                          | geklärt |
 | F2  | 26.10.2026 | Ergebnis: Eine Frage steht einmal („Beantwortet: …“), ihre Entscheidungen/Fakten je einmal mit „(aus der Frage …)“. Passt das, oder sollen die Ergebnisse unter der Frage stehen und die Frage-Zeile entfallen?                                                                                                                                                                                                                                                                                                                                 | geklärt |
 
 ## Entscheidungsprotokoll
@@ -233,6 +248,7 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | 26.10.2026 | F2: Im Plenum-Ergebnis steht eine Frage mit dem, was aus ihr wurde: „Frage: … – Antwort: …“ bei einer Antwort als Notiz, „Frage: … – daraus entstanden: Entscheidung „…“, Fakt „…““ bei Ergebnissen.                                 | Nutzerin.                                                   |
 | 26.10.2026 | F3: Neue Entscheidung zum Bestätigen geht als Benachrichtigung an alle anderen; am letzten Tag der Frist (ab 9 Uhr) an alle, die noch nicht abgestimmt haben.                                                                        | Nutzerin.                                                   |
 | 26.10.2026 | „In Arbeit“ trägt niemanden mehr automatisch ein; Zuordnen geht nur ausdrücklich.                                                                                                                                                    | Nutzerin (Phase 9).                                         |
+| 26.10.2026 | F4: Archiv-Ansicht im Profil zum Wiederherstellen gelöschter Einträge – zunächst nur als Plan (Phase 11), nicht umsetzen.                                                                                                            | Nutzerin.                                                   |
 
 ## Abnahmen
 
