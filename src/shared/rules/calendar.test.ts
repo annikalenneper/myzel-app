@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calendarEnd, googleCalendarUrl, icsFile, icsFileName } from './calendar';
+import { calendarEnd, GOOGLE_DETAILS_MAX, googleCalendarUrl, icsFile, icsFileName } from './calendar';
 
 const plenum = {
   id: 'a1',
@@ -10,10 +10,12 @@ const plenum = {
   location: 'Lager',
   online_url: 'https://meet.example.org/myzel',
   description: 'Bitte Protokoll\nmitbringen',
-  status: 'geplant' as const,
+  version: 3,
   is_plenum: true,
 };
 const link = 'https://myzel.example.org/termine/a1';
+const encoder = new TextEncoder();
+const unfold = (ics: string) => ics.replace(/\r\n /g, '');
 
 describe('Termin in den Kalender (16.5)', () => {
   it('ohne Ende: Plenum 3 Stunden, sonst 1 Stunde', () => {
@@ -32,17 +34,35 @@ describe('Termin in den Kalender (16.5)', () => {
     );
   });
 
-  it('.ics: maskierter Text, Zeilen höchstens 75 Bytes, abgesagt als CANCELLED', () => {
-    const ics = icsFile({ ...plenum, description: 'Ä'.repeat(60) }, link, new Date('2026-10-28T10:00:00Z'));
+  it('online: der Call ist der Ort; vor Ort: kein Call; ohne Ort kein location', () => {
+    const online = new URL(googleCalendarUrl({ ...plenum, format: 'online', location: null }, link));
+    expect(online.searchParams.get('location')).toBe('https://meet.example.org/myzel');
+    expect(online.searchParams.get('details')).toContain('Call: https://meet.example.org/myzel');
+    const here = new URL(googleCalendarUrl({ ...plenum, format: 'vor_ort', online_url: null }, link));
+    expect(here.searchParams.get('details')).not.toContain('Call:');
+    const nowhere = { ...plenum, format: 'vor_ort' as const, location: null, online_url: null };
+    expect(new URL(googleCalendarUrl(nowhere, link)).searchParams.has('location')).toBe(false);
+    expect(icsFile(nowhere, link, new Date())).not.toContain('LOCATION:');
+  });
+
+  it('Google-Link: lange Beschreibung gekürzt, Call und Link in Myzel bleiben', () => {
+    const url = new URL(googleCalendarUrl({ ...plenum, description: 'Ä'.repeat(10_000) }, link));
+    const details = url.searchParams.get('details')!;
+    expect(details.startsWith(`${'Ä'.repeat(GOOGLE_DETAILS_MAX - 1)}…`)).toBe(true);
+    expect(details.endsWith(link)).toBe(true);
+    expect(url.toString().length).toBeLessThan(16_000);
+  });
+
+  it('.ics: maskierter Text, Version als SEQUENCE, Zeilen höchstens 75 Bytes – auch mit Emoji', () => {
+    const text = `${'Ä'.repeat(40)}👩‍👩‍👧${'x'.repeat(30)}🎉`;
+    const ics = icsFile({ ...plenum, description: text }, link, new Date('2026-10-28T10:00:00Z'));
     expect(ics).toContain('UID:a1@myzel\r\n');
     expect(ics).toContain('DTSTART:20261030T170000Z\r\n');
+    expect(ics).toContain('SEQUENCE:3\r\n');
     expect(ics).toContain('SUMMARY:Plenum Oktober\\; mit Gästen\\, offen\r\n');
-    expect(ics).toContain('STATUS:CONFIRMED');
-    const encoder = new TextEncoder();
     for (const line of ics.split('\r\n')) expect(encoder.encode(line).length).toBeLessThanOrEqual(75);
     // entfaltet ergibt sich wieder der ganze Text
-    expect(ics.replace(/\r\n /g, '')).toContain(`DESCRIPTION:${'Ä'.repeat(60)}\\n\\nCall:`);
-    expect(icsFile({ ...plenum, status: 'abgesagt' }, link, new Date())).toContain('STATUS:CANCELLED');
+    expect(unfold(ics)).toContain(`DESCRIPTION:${text}\\n\\nCall:`);
   });
 
   it('Dateiname ohne Sonderzeichen', () => {

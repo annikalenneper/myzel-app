@@ -5,8 +5,11 @@ import { PLENUM_DEFAULT_HOURS } from './plenum';
 
 type CalendarAppointment = Pick<
   Appointment,
-  'id' | 'title' | 'starts_at' | 'ends_at' | 'format' | 'location' | 'online_url' | 'description' | 'status'
+  'id' | 'title' | 'starts_at' | 'ends_at' | 'format' | 'location' | 'online_url' | 'description' | 'version'
 > & { is_plenum: boolean };
+
+/** Beschreibung im Google-Link höchstens so lang – sonst wird die Adresse zu lang für Google */
+export const GOOGLE_DETAILS_MAX = 1500;
 
 /** Ohne Ende: ein Plenum dauert 3 Stunden (wie beim laufenden Plenum, U4), alle anderen Termine 1 Stunde */
 export function calendarEnd(a: Pick<CalendarAppointment, 'starts_at' | 'ends_at' | 'is_plenum'>): string {
@@ -26,9 +29,10 @@ const place = (a: CalendarAppointment) =>
   a.format === 'online' ? (a.online_url ?? '') : (a.location ?? a.online_url ?? '');
 
 /** Beschreibung im Kalender: Text des Termins, Link zum Call, Link in Myzel */
-function details(a: CalendarAppointment, appLink: string): string {
+function details(a: CalendarAppointment, appLink: string, max = Infinity): string {
+  const text = a.description?.trim() ?? '';
   return [
-    a.description?.trim(),
+    text.length > max ? `${text.slice(0, max - 1)}…` : text,
     a.online_url && a.format !== 'vor_ort' ? `Call: ${a.online_url}` : null,
     appLink,
   ]
@@ -42,7 +46,7 @@ export function googleCalendarUrl(a: CalendarAppointment, appLink: string): stri
     action: 'TEMPLATE',
     text: a.title,
     dates: `${utc(a.starts_at)}/${utc(calendarEnd(a))}`,
-    details: details(a, appLink),
+    details: details(a, appLink, GOOGLE_DETAILS_MAX),
   });
   const where = place(a);
   if (where) params.set('location', where);
@@ -74,7 +78,10 @@ function fold(line: string): string {
   return parts.join('\r\n ');
 }
 
-/** .ics-Datei mit genau diesem Termin; dieselbe UID ersetzt beim erneuten Import den alten Eintrag */
+/**
+ * .ics-Datei mit genau diesem Termin. UID und SEQUENCE (die Version) erlauben Kalendern, einen erneut importierten
+ * Termin zu aktualisieren – ob sie es tun, hängt vom Kalender ab (U20).
+ */
 export function icsFile(a: CalendarAppointment, appLink: string, now: Date): string {
   const where = place(a);
   const lines = [
@@ -88,11 +95,13 @@ export function icsFile(a: CalendarAppointment, appLink: string, now: Date): str
     `DTSTAMP:${utc(now.toISOString())}`,
     `DTSTART:${utc(a.starts_at)}`,
     `DTEND:${utc(calendarEnd(a))}`,
+    `SEQUENCE:${a.version}`,
     `SUMMARY:${escapeText(a.title)}`,
     ...(where ? [`LOCATION:${escapeText(where)}`] : []),
     `DESCRIPTION:${escapeText(details(a, appLink))}`,
     `URL:${appLink}`,
-    `STATUS:${a.status === 'abgesagt' ? 'CANCELLED' : 'CONFIRMED'}`,
+    // abgesagte Termine bieten die App nicht zum Eintragen an
+    'STATUS:CONFIRMED',
     'END:VEVENT',
     'END:VCALENDAR',
   ];

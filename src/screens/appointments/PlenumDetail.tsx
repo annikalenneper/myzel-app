@@ -157,7 +157,7 @@ function Loaded({ p }: { p: Detail }) {
           <span className="font-mono text-[13px] text-weich uppercase">
             {formatEventRange(p.starts_at, p.ends_at)}
           </span>
-          {open && <CalendarLinks a={p} />}
+          {!cancelled && <CalendarLinks a={p} />}
         </div>
 
         {p.online_url && open && (

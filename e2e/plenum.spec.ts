@@ -108,3 +108,16 @@ test('WF-PLE-21: während des Plenums fragt die App einmal nach – die Änderun
     'Vereinshaftpflicht verlängern · Geplant',
   );
 });
+
+test('WF-TER-11: auch das Plenum lässt sich in den Kalender übernehmen', async ({ page }) => {
+  await openPlenum(page);
+  await expect(page.getByRole('link', { name: 'In Google Kalender eintragen ↗' })).toHaveAttribute(
+    'href',
+    /text=Plenum\+Oktober/,
+  );
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '.ics herunterladen' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe('Plenum-Oktober.ics');
+});
