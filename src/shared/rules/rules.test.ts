@@ -290,6 +290,11 @@ describe('Telegram und Push: Längen (Review Phase 3)', () => {
     expect(html).toMatch(/… und \d+ weitere\n\n<a href="https:\/\/x\/a">In Myzel öffnen<\/a>$/);
   });
 
+  it('kürzt eine überlange erste Zeile selbst, statt nur „…“ zu schicken', () => {
+    const html = telegramHtml(`${'T'.repeat(5000)}\n• eins`, 'https://x/a');
+    expect(html).toContain(`<b>${'T'.repeat(499)}…</b>\n• eins`);
+  });
+
   it('Push: Überschrift und Zahl der Punkte, einzeilig', () => {
     expect(pushText('Plenum Oktober ist abgeschlossen.\n\nAufgaben:\n• A\n• B\n\nFragen:\n• C')).toBe(
       'Plenum Oktober ist abgeschlossen. 3 Punkte im Ergebnis.',

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { NavLink, Outlet, useMatch } from 'react-router-dom';
 import { Avatar, cx } from '../ui/bits';
 import { IconCalendar, IconEvents, IconKnowledge, IconProfile, IconTasks } from '../ui/icons';
+import { CreateButton } from '../screens/common/CreateButton';
 import { useMe } from './session';
 
 const NAV: { to: string; label: string; icon: (p: { size?: number }) => ReactNode }[] = [
@@ -98,6 +99,7 @@ export function AppShell() {
   const subPage = useMatch('/profil/:page');
   // Partner (S-24) erreicht man aus der Veranstaltung – mit Zurück-Pfeil statt Navigation
   const partners = useMatch('/partner/*');
+  const partnerList = useMatch('/partner');
   const detail =
     agendaDetail ||
     agendaSubDetail ||
@@ -111,6 +113,8 @@ export function AppShell() {
       <Sidebar />
       <Outlet />
       {!detail && <BottomNav />}
+      {/* ein „+“ für alle Arten (Phase 5) – mobil nicht in Detailansichten, dort stehen unten eigene Leisten */}
+      <CreateButton navVisible={!detail} hidden={!!detail && !partnerList} />
     </div>
   );
 }

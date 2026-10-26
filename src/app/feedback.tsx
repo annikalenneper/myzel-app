@@ -72,7 +72,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [plenumAsk, setPlenumAsk] = useState<{
     plenum: SessionPlenum;
-    resolve: (belongs: boolean) => void;
+    /** null: abgebrochen, weil eine andere Person übernommen hat */
+    resolve: (belongs: boolean | null) => void;
   } | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const { pathname } = useLocation();
@@ -107,9 +108,14 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       return null;
     });
   }, [pathname, sessionKey]);
-  // eine andere Person im selben Tab: frühere Antworten auf „Gehört das zum Plenum?“ gelten nicht
-  useEffect(() => forgetPlenumAnswers(), [sessionKey]);
-  const asking = useRef<Promise<boolean> | null>(null);
+  const asking = useRef<Promise<boolean | null> | null>(null);
+  const cancelAsk = useRef<(() => void) | null>(null);
+  // eine andere Person im selben Tab: frühere Antworten auf „Gehört das zum Plenum?“ gelten nicht, eine offene
+  // Rückfrage wird verworfen – die wartenden Aktionen der vorigen Person laufen nicht mehr
+  useEffect(() => {
+    forgetPlenumAnswers();
+    cancelAsk.current?.();
+  }, [sessionKey]);
 
   const run = useCallback(
     async function run<T>(action: () => Promise<T>, options: RunOptions<T> = {}): Promise<T | undefined> {
@@ -119,15 +125,17 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         options.plenum === false || at.startsWith('/profil') ? null : runningPlenum(now, new Date());
       if (plenum && belongsToPlenum(plenum) === undefined) {
         // gleichzeitige Aktionen warten auf dieselbe Antwort – es gibt nur einen Dialog
-        asking.current ??= new Promise<boolean>((resolve) => setPlenumAsk({ plenum, resolve })).then(
-          (belongs) => {
-            asking.current = null;
-            setPlenumAsk(null);
-            rememberPlenumAnswer(plenum.id, belongs);
-            return belongs;
-          },
-        );
-        await asking.current;
+        asking.current ??= new Promise<boolean | null>((resolve) => {
+          cancelAsk.current = () => resolve(null);
+          setPlenumAsk({ plenum, resolve });
+        }).then((belongs) => {
+          asking.current = null;
+          cancelAsk.current = null;
+          setPlenumAsk(null);
+          if (belongs !== null) rememberPlenumAnswer(plenum.id, belongs);
+          return belongs;
+        });
+        if ((await asking.current) === null) return undefined;
       }
       try {
         const result = await action();

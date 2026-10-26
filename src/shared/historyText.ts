@@ -1,6 +1,7 @@
 // Historie einer Aufgabe in lesbaren Sätzen (F-AUF-05):
 // „Lea hat den Status von Geplant auf In Arbeit geändert.“
 import { formatDayMonth } from './format';
+import { commentEdited, oldToNew } from './entityHistory';
 import { PRIORITY_LABEL, TASK_STATUS_LABEL } from './labels';
 import type { HistoryEntry, Priority, TaskStatus } from './schema';
 
@@ -44,7 +45,8 @@ function fieldSentences(entry: HistoryEntry, who: string, look: HistoryLookup): 
     out.push(
       c.appointment_id.new ? `${who} hat einen Termin zugeordnet.` : `${who} hat den Termin entfernt.`,
     );
-  if (c.description) out.push(`${who} hat die Beschreibung geändert.`);
+  if (c.description)
+    out.push(`${who} hat ${oldToNew('die Beschreibung', c.description.old, c.description.new, 120)}.`);
   return out;
 }
 
@@ -120,7 +122,7 @@ export function taskHistorySentence(entry: HistoryEntry, look: HistoryLookup): s
     case 'comment_added':
       return `${who} hat kommentiert.`;
     case 'comment_edited':
-      return `${who} hat einen eigenen Kommentar bearbeitet.`;
+      return `${who} hat ${commentEdited(c)}.`;
     case 'archived':
       return `${who} hat die Aufgabe archiviert.` + markSuffix(entry);
     case 'restored':

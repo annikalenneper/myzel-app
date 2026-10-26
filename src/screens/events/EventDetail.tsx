@@ -79,7 +79,7 @@ function Loaded({ event }: { event: Detail }) {
   const [sheet, setSheet] = useState<
     'edit' | 'close' | 'task' | 'question' | 'decision' | 'shiftplan' | 'lead' | 'template' | null
   >(null);
-  const { memberById } = useLookups();
+  const { memberById, topicName, eventById } = useLookups();
   const { data: documents } = useData(`event-documents:${event.id}`, () =>
     api.listLinkedDocuments('event', event.id),
   );
@@ -413,6 +413,8 @@ function Loaded({ event }: { event: Detail }) {
           sentence={(h) =>
             entityHistorySentence(h, 'Veranstaltung', {
               memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+              topicName,
+              eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
             })
           }
         />

@@ -493,7 +493,7 @@ async function stillUndoable(
         .forUpdate()
         .executeTakeFirst();
       if (!created) continue;
-      const [successorOf, linked, marked] = await Promise.all([
+      const [successorOf, linked, marked, commented] = await Promise.all([
         ctx.trx
           .selectFrom('decisions')
           .select('id')
@@ -511,8 +511,9 @@ async function stillUndoable(
           .select('id')
           .where('decision_id', '=', created.id)
           .executeTakeFirst(),
+        ctx.trx.selectFrom('comments').select('id').where('decision_id', '=', created.id).executeTakeFirst(),
       ]);
-      if (created.version > 1 || successorOf || linked || marked)
+      if (created.version > 1 || successorOf || linked || marked || commented)
         throw rule(
           'Der neue Eintrag wird inzwischen weiterverwendet – das lässt sich nicht mehr rückgängig machen.',
         );

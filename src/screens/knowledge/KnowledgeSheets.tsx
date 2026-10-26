@@ -1,6 +1,7 @@
 // Anlegen und Bearbeiten in Wissen: Entscheidung oder Fakt (WF-WIS-01, -12) und offene Frage (WF-FRA-01, -06)
 import { useState } from 'react';
 import { useFeedback } from '../../app/feedback';
+import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
 import { useLookups } from '../../app/lookups';
 import { belongsToPlenum, runningPlenum } from '../../app/plenum';
 import { useSession } from '../../app/session';
@@ -420,14 +421,21 @@ export function QuestionEditSheet({ q, onClose }: { q: QuestionDetail; onClose: 
   const act = useActions();
   const latest = useLatest(q.version);
   const [title, setTitle] = useState(q.title);
-  const [description, setDescription] = useState(q.description ?? '');
+  // 7.3: die Beschreibung als lokaler Entwurf, bis gespeichert ist
+  const draftKey = `frage:${q.id}:beschreibung`;
+  const [description, setDescription] = useState(() => readDraft(draftKey) ?? q.description ?? '');
+  // gespeichert oder abgebrochen: der Entwurf ist erledigt (er überdauert nur Neuladen und Netzabbruch)
+  const close = () => {
+    clearDraft(draftKey);
+    onClose();
+  };
   const [topicId, setTopicId] = useState(q.topic_id);
   const [eventId, setEventId] = useState(q.event_id ?? '');
   const [urgency, setUrgency] = useState<Priority>(q.urgency);
   const [error, setError] = useState<string | null>(null);
   const missing = !title.trim() ? 'Frage eingeben, dann speichern' : null;
   return (
-    <Sheet title="Frage bearbeiten" onClose={onClose} wf={wf} closeButton>
+    <Sheet title="Frage bearbeiten" onClose={close} wf={wf} closeButton>
       <form
         className="flex flex-col gap-3.5"
         onSubmit={async (e) => {
@@ -450,7 +458,7 @@ export function QuestionEditSheet({ q, onClose }: { q: QuestionDetail; onClose: 
               onInvalid: (er) => setError(er.message),
             },
           );
-          if (ok) onClose();
+          if (ok) close();
         }}
       >
         <label className="label-mono flex flex-col gap-1.5">
@@ -464,7 +472,15 @@ export function QuestionEditSheet({ q, onClose }: { q: QuestionDetail; onClose: 
             className={field}
           />
         </label>
-        <TextField label="Beschreibung" wf={wf} value={description} onChange={setDescription} />
+        <TextField
+          label="Beschreibung"
+          wf={wf}
+          value={description}
+          onChange={(v) => {
+            setDescription(v);
+            writeDraft(draftKey, v);
+          }}
+        />
         <div className="grid grid-cols-2 gap-2.5">
           <TopicSelect value={topicId} onChange={setTopicId} wf={wf} />
           <EventSelect value={eventId} onChange={setEventId} wf={wf} />
@@ -494,7 +510,12 @@ export function DecisionEditSheet({ d, onClose }: { d: DecisionDetail; onClose: 
   const act = useActions();
   const latest = useLatest(d.version);
   const [title, setTitle] = useState(d.title);
-  const [description, setDescription] = useState(d.description ?? '');
+  const draftKey = `beschluss:${d.id}:text`;
+  const [description, setDescription] = useState(() => readDraft(draftKey) ?? d.description ?? '');
+  const close = () => {
+    clearDraft(draftKey);
+    onClose();
+  };
   const [topicId, setTopicId] = useState(d.topic_id);
   const [eventId, setEventId] = useState(d.event_id ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -504,7 +525,7 @@ export function DecisionEditSheet({ d, onClose }: { d: DecisionDetail; onClose: 
       ? `Text auf ${DECISION_TEXT_MAX} Zeichen kürzen`
       : null;
   return (
-    <Sheet title="Bearbeiten" onClose={onClose} wf={wf} closeButton>
+    <Sheet title="Bearbeiten" onClose={close} wf={wf} closeButton>
       <form
         className="flex flex-col gap-3.5"
         onSubmit={async (e) => {
@@ -526,7 +547,7 @@ export function DecisionEditSheet({ d, onClose }: { d: DecisionDetail; onClose: 
               onInvalid: (er) => setError(er.message),
             },
           );
-          if (ok) onClose();
+          if (ok) close();
         }}
       >
         <span className="text-[13px] leading-[1.4] text-leise">
@@ -547,7 +568,10 @@ export function DecisionEditSheet({ d, onClose }: { d: DecisionDetail; onClose: 
           label="Text"
           wf={wf}
           value={description}
-          onChange={setDescription}
+          onChange={(v) => {
+            setDescription(v);
+            writeDraft(draftKey, v);
+          }}
           max={DECISION_TEXT_MAX}
         />
         <div className="grid grid-cols-2 gap-2.5">

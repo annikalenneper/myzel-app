@@ -80,7 +80,7 @@ function Loaded({ a }: { a: Detail }) {
   const act = useActions();
   const latest = useLatest(a.version);
   const rsvp = useRsvp();
-  const { memberById, activeMembers, topicName } = useLookups();
+  const { memberById, activeMembers, topicName, eventById } = useLookups();
   const [sheet, setSheet] = useState<'edit' | 'task' | 'cancel' | 'series' | null>(null);
   const now = useNow();
   const { data: documents } = useData(`appointment-documents:${a.id}`, () =>
@@ -336,6 +336,8 @@ function Loaded({ a }: { a: Detail }) {
           sentence={(h) =>
             entityHistorySentence(h, 'Termin', {
               memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+              topicName,
+              eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
             })
           }
         />

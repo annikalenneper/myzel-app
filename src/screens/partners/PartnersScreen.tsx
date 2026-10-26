@@ -2,7 +2,7 @@
 // abgeleitet. Partner sind zentral gespeichert und haben keine eigene Navigation (3.5): Man erreicht sie
 // über die Veranstaltung, die Suche und das Plenum.
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { ListDetailLayout } from '../../app/AppShell';
 import { BarOffset, useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
@@ -16,7 +16,7 @@ import type { PartnerDetail as Detail, PartnerListItem } from '../../data/api';
 import { formatEventRange } from '../../shared/format';
 import { EVENT_STATUS_LABEL } from '../../shared/labels';
 import { Avatar, cx, FieldError, LightButton, ListSkeleton, LoadError, PrimaryButton } from '../../ui/bits';
-import { IconBack, IconEdit, IconPlus } from '../../ui/icons';
+import { IconBack, IconEdit } from '../../ui/icons';
 import { Sheet } from '../../ui/Sheet';
 
 const WF_LIST = 'WF-VER-13';
@@ -35,10 +35,8 @@ export function PartnersScreen() {
 const count = (n: number) => `${n} ${n === 1 ? 'Veranstaltung' : 'Veranstaltungen'}`;
 
 function PartnerList({ selectedId }: { selectedId: string | null }) {
-  const navigate = useNavigate();
   const { data: partners, error, reload } = useData('partners', () => api.listPartners());
   const [query, setQuery] = useState('');
-  const [creating, setCreating] = useState(false);
   const q = query.trim().toLowerCase();
   const shown = (partners ?? []).filter(
     (p) => !q || [p.name, p.kind, p.contact_person].some((v) => v?.toLowerCase().includes(q)),
@@ -75,22 +73,10 @@ function PartnerList({ selectedId }: { selectedId: string | null }) {
         ))}
         {partners && shown.length === 0 && (
           <div data-wf="WF-ALL-05" className="py-8 text-center text-[14px] text-leise">
-            {q ? 'Kein Partner passt zur Suche.' : 'Noch keine Partner. Leg den ersten an.'}
+            {q ? 'Kein Partner passt zur Suche.' : 'Noch keine Partner. Leg den ersten über „+“ an.'}
           </div>
         )}
       </div>
-      <button
-        type="button"
-        data-wf="WF-VER-10"
-        aria-label="Partner anlegen"
-        onClick={() => setCreating(true)}
-        className="bg-marke fixed right-5 bottom-[calc(24px+env(safe-area-inset-bottom,0px))] z-10 flex size-[58px] items-center justify-center rounded-full text-grund shadow-[0_8px_24px_rgba(157,110,240,0.45)] lg:right-auto lg:bottom-6 lg:left-[562px]"
-      >
-        <IconPlus size={26} />
-      </button>
-      {creating && (
-        <PartnerFormSheet onClose={() => setCreating(false)} onCreated={(id) => navigate(`/partner/${id}`)} />
-      )}
     </div>
   );
 }
@@ -157,7 +143,7 @@ function DetailTop({ children }: { children?: React.ReactNode }) {
 }
 
 function Loaded({ p }: { p: Detail }) {
-  const { memberById } = useLookups();
+  const { memberById, topicName, eventById } = useLookups();
   const [editing, setEditing] = useState(false);
   const contact = p.internal_contact_member_id ? memberById.get(p.internal_contact_member_id) : undefined;
   const rows: [string, React.ReactNode][] = [
@@ -252,6 +238,8 @@ function Loaded({ p }: { p: Detail }) {
           sentence={(h) =>
             entityHistorySentence(h, 'Partner', {
               memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+              topicName,
+              eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
             })
           }
         />

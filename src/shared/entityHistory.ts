@@ -1,62 +1,85 @@
 // Verlauf von Veranstaltungen, Terminen und Partnern in lesbaren Sätzen (16.3). Geänderte Felder stehen mit alt → neu;
-// lange Texte wie die Beschreibung gekürzt mit ihrem vorherigen Stand.
+// lange Texte wie die Beschreibung gekürzt, vorher und nachher.
 import type { HistoryChanges, HistoryEntry } from './schema';
 
 export interface EntityLookup {
   memberName(id: string): string;
+  /** Namen für Thema und Veranstaltung – ohne: nur „das Thema geändert“ */
+  topicName?(id: string): string;
+  eventTitle?(id: string): string;
 }
 
 export type EntityNoun = 'Veranstaltung' | 'Termin' | 'Partner';
 
-const FIELD: Record<string, string> = {
-  title: 'Titel',
-  name: 'Namen',
-  description: 'Beschreibung',
-  starts_at: 'Beginn',
-  ends_at: 'Ende',
-  format: 'Format',
-  location: 'Ort',
-  online_url: 'Link',
-  event_id: 'Veranstaltung',
-  type: 'Art',
-  kind: 'Art',
-  setup_at: 'Aufbau',
-  teardown_at: 'Abbau',
-  contact_person: 'Ansprechperson',
-  email: 'E-Mail',
-  phone: 'Telefon',
-  website: 'Website',
-  notes: 'Notizen',
-  internal_contact_member_id: 'interne Kontaktperson',
-  topic_id: 'Thema',
-  urgency: 'Dringlichkeit',
+// Feld → [Bezeichnung mit Artikel im Akkusativ, Art der Darstellung]
+type Shape = 'value' | 'text' | 'plain' | 'topic' | 'event' | 'member';
+const FIELD: Record<string, [label: string, shape: Shape]> = {
+  title: ['den Titel', 'value'],
+  name: ['den Namen', 'value'],
+  description: ['die Beschreibung', 'text'],
+  notes: ['die Notizen', 'text'],
+  starts_at: ['den Beginn', 'plain'],
+  ends_at: ['das Ende', 'plain'],
+  format: ['das Format', 'plain'],
+  location: ['den Ort', 'value'],
+  online_url: ['den Link', 'value'],
+  event_id: ['die Veranstaltung', 'event'],
+  type: ['die Art', 'plain'],
+  kind: ['die Art', 'plain'],
+  setup_at: ['den Aufbau', 'plain'],
+  teardown_at: ['den Abbau', 'plain'],
+  contact_person: ['die Ansprechperson', 'value'],
+  email: ['die E-Mail', 'value'],
+  phone: ['die Telefonnummer', 'value'],
+  website: ['die Website', 'value'],
+  internal_contact_member_id: ['die interne Kontaktperson', 'member'],
+  topic_id: ['das Thema', 'topic'],
+  urgency: ['die Dringlichkeit', 'plain'],
 };
 
 const short = (v: unknown, max = 80) => {
   const text = String(v ?? '')
-    .replace(/\s+/g, ' ')
+    .replace(/s+/g, ' ')
     .trim();
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 };
 
+/** „von „A“ auf „B“ geändert“, „ergänzt: „B““ oder „entfernt (vorher: „A“)“ – Texte gekürzt (16.3: vorher → nachher) */
+export function oldToNew(label: string, old: unknown, next: unknown, max = 80): string {
+  const a = short(old, max);
+  const b = short(next, max);
+  if (!a) return `${label} ergänzt: „${b}“`;
+  if (!b) return `${label} entfernt (vorher: „${a}“)`;
+  return `${label} von „${a}“ auf „${b}“ geändert`;
+}
+
+/** bearbeiteter Kommentar: „einen Kommentar von „A“ auf „B“ geändert“ */
+export const commentEdited = (c: HistoryChanges) =>
+  c.body ? oldToNew('einen Kommentar', c.body.old, c.body.new, 60) : 'einen Kommentar bearbeitet';
+
 /**
- * „den Titel von „A“ auf „B“ geändert und die Beschreibung geändert (vorher: „…“)“ – für jede Art gleich (3.10).
+ * „den Titel von „A“ auf „B“ geändert und die Beschreibung von „…“ auf „…“ geändert“ – für jede Art gleich (3.10).
  * Leer, wenn keine bekannten Felder dabei sind.
  */
-export function describeFieldChanges(c: HistoryChanges): string {
+export function describeFieldChanges(
+  c: HistoryChanges,
+  look?: Omit<EntityLookup, 'memberName'> & Partial<EntityLookup>,
+): string {
   const parts: string[] = [];
   for (const [key, change] of Object.entries(c)) {
-    const label = FIELD[key];
-    if (!label) continue;
-    if (key === 'title' || key === 'name')
-      parts.push(`den ${label} von „${short(change.old)}“ auf „${short(change.new)}“ geändert`);
-    else if (key === 'description' || key === 'notes')
-      parts.push(
-        change.old
-          ? `die ${label} geändert (vorher: „${short(change.old)}“)`
-          : `die ${label} ergänzt: „${short(change.new)}“`,
-      );
-    else parts.push(`${key.endsWith('_at') || key === 'format' ? 'den' : 'die'} ${label} geändert`);
+    const field = FIELD[key];
+    if (!field) continue;
+    const [label, shape] = field;
+    const name = (id: unknown, of?: (id: string) => string) => (id && of ? of(String(id)) : '');
+    if (shape === 'value') parts.push(oldToNew(label, change.old, change.new));
+    else if (shape === 'text') parts.push(oldToNew(label, change.old, change.new, 120));
+    else if (shape === 'topic' && look?.topicName)
+      parts.push(oldToNew(label, name(change.old, look.topicName), name(change.new, look.topicName)));
+    else if (shape === 'event' && look?.eventTitle)
+      parts.push(oldToNew(label, name(change.old, look.eventTitle), name(change.new, look.eventTitle)));
+    else if (shape === 'member' && look?.memberName)
+      parts.push(oldToNew(label, name(change.old, look.memberName), name(change.new, look.memberName)));
+    else parts.push(`${label} geändert`);
   }
   if (parts.length <= 1) return parts.join('');
   return `${parts.slice(0, -1).join(', ')} und ${parts.at(-1)}`;
@@ -71,7 +94,7 @@ export function entityHistorySentence(entry: HistoryEntry, noun: EntityNoun, loo
     case 'created':
       return `${who} hat ${the} angelegt.`;
     case 'updated': {
-      const fields = describeFieldChanges(c);
+      const fields = describeFieldChanges(c, look);
       return fields ? `${who} hat ${fields}.` : `${who} hat ${the} geändert.`;
     }
     case 'status':
@@ -101,7 +124,7 @@ export function entityHistorySentence(entry: HistoryEntry, noun: EntityNoun, loo
     case 'comment_added':
       return `${who} hat kommentiert.`;
     case 'comment_edited':
-      return `${who} hat einen Kommentar bearbeitet.`;
+      return `${who} hat ${commentEdited(c)}.`;
     case 'document_linked':
       return `${who} hat das Dokument „${String(c.document?.new)}“ verknüpft.`;
     case 'document_unlinked':

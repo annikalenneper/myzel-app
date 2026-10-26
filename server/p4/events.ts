@@ -117,6 +117,7 @@ export async function getEventDetail(trx: Db, id: string, now: Date): Promise<Ev
       .where('archived_at', 'is', null)
       .orderBy('decided_on', 'desc')
       .orderBy('title')
+      .orderBy('id')
       .execute(),
     commentsOf(trx, 'event', id),
     historyOf(trx, 'event', id),

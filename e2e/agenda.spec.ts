@@ -1,13 +1,13 @@
 // S-10 Agenda (16.1, WF-AGE-01 bis -03) · S-11 bis S-13 · WF-AUF-01 bis -15 und Querschnitt WF-ALL-01 bis -03, -05
 import { expect, test } from '@playwright/test';
-import { card, login, openTask, statusChip, undoBar } from './helpers';
+import { card, login, openTask, statusChip, undoBar, createNew } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await login(page);
 });
 
 test('WF-AUF-03: Schnellanlage – Pflicht nur Titel und Thema', async ({ page }) => {
-  await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
+  await createNew(page, 'Aufgabe');
   const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
   const submit = sheet.locator('button[type=submit]');
   await expect(submit).toBeDisabled();
@@ -337,7 +337,7 @@ test('WF-ALL-03: Netzfehler – Meldung auf Deutsch, Text bleibt, „Nochmal“ 
 test('WF-ALL-03: „Nochmal“ in der Schnellanlage legt genau eine Aufgabe an; Kommentar wird nicht doppelt', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
+  await createNew(page, 'Aufgabe');
   const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
   await sheet.getByLabel('Titel *').fill('Kabeltrommel kaufen');
   await sheet.getByRole('button', { name: 'Lager & Material' }).click();
@@ -406,7 +406,7 @@ test('WF-AUF-10: schnelles Tippen auf zwei Personen trägt beide ein', async ({ 
 });
 
 test('lange Wörter im Titel sprengen das Layout nicht', async ({ page }) => {
-  await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
+  await createNew(page, 'Aufgabe');
   const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
   await sheet
     .getByLabel('Titel *')
@@ -418,7 +418,7 @@ test('lange Wörter im Titel sprengen das Layout nicht', async ({ page }) => {
 });
 
 test('Tippflächen der Agenda sind mindestens 44 px hoch', async ({ page }) => {
-  for (const testId of ['WF-AUF-01', 'WF-AGE-01', 'WF-AUF-03']) {
+  for (const testId of ['WF-AUF-01', 'WF-AGE-01', 'WF-ALL-08']) {
     const size = await page
       .getByTestId(testId)
       .first()
@@ -466,7 +466,7 @@ test('WF-AUF-04: Frist per Tastatur speichert erst das vollständige Datum', asy
 test('WF-AUF-03: beim Thema „Veranstaltungen“ schlägt die Anlage gleich die Veranstaltung vor', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
+  await createNew(page, 'Aufgabe');
   const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
   await sheet.getByLabel('Titel *').fill('Garderobe organisieren');
   const suggestion = sheet.getByRole('group', { name: /Zu welcher Veranstaltung/ });
@@ -476,4 +476,32 @@ test('WF-AUF-03: beim Thema „Veranstaltungen“ schlägt die Anlage gleich die
   await suggestion.getByRole('button', { name: 'Winterrave' }).click();
   await sheet.locator('button[type=submit]').click();
   await expect(page.getByTestId('WF-ALL-02')).toContainText('Aufgabe angelegt · Winterrave');
+});
+
+test('WF-ALL-08: ein „+“ für alle Arten – Frage aus der Agenda, Partner aus der Partnerliste', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Neu anlegen' }).click();
+  const choice = page.getByRole('group', { name: 'Was anlegen?' });
+  await expect(choice.getByRole('button')).toHaveText([
+    'Aufgabe',
+    'Frage',
+    'Entscheidung',
+    'Fakt',
+    'Veranstaltung',
+    'Termin',
+    'Dokument',
+    'Partner',
+  ]);
+  await choice.getByRole('button', { name: 'Frage', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'Neue Frage' });
+  await sheet.getByLabel('Frage *').fill('Wer holt die Getränke?');
+  await sheet.getByLabel('Thema *').selectOption({ label: 'Veranstaltungen' });
+  await sheet.locator('button[type=submit]').click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole('link', { name: /Wer holt die Getränke\?/ })).toBeVisible();
+
+  await page.goto('/partner');
+  await createNew(page, 'Partner');
+  await expect(page.getByRole('dialog', { name: /Partner/ })).toBeVisible();
 });

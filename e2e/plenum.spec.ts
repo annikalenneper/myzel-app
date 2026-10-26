@@ -1,6 +1,6 @@
 // Phase 3 – Plenum: S-33 (WF-PLE-03, -19, -20) – Ergebnis und Protokoll; die Agenda ist eine eigene Ansicht (16.1)
 import { expect, test, type Page } from '@playwright/test';
-import { login, undoBar } from './helpers';
+import { login, undoBar, createNew } from './helpers';
 
 const openPlenum = async (page: Page, title = 'Plenum Oktober') => {
   await login(page);
@@ -37,7 +37,7 @@ test('WF-PLE-03: Protokoll – Person, Notizen mit Speichern/Abbrechen, Drive-Pr
 test('WF-PLE-20: Plenum abschließen – Teilnahme, Vorschau, Zusammenfassung an alle', async ({ page }) => {
   await login(page);
   await page.goto('/termine');
-  await page.getByRole('button', { name: 'Termin anlegen' }).click();
+  await createNew(page, 'Termin');
   const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
   await sheet.getByRole('button', { name: 'Plenum' }).click();
   await sheet.getByLabel('Titel *').fill('Plenum Sondersitzung');
@@ -71,7 +71,7 @@ test('WF-PLE-21: während des Plenums fragt die App einmal nach – die Änderun
 }) => {
   await login(page);
   await page.goto('/termine');
-  await page.getByRole('button', { name: 'Termin anlegen' }).click();
+  await createNew(page, 'Termin');
   const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
   await sheet.getByRole('button', { name: 'Plenum' }).click();
   await sheet.getByLabel('Titel *').fill('Plenum Jetzt');

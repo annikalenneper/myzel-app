@@ -61,7 +61,10 @@ const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
  */
 export function telegramHtml(text: string, url: string): string {
   // Telegram nimmt höchstens 4096 Zeichen: vor dem Escapen kürzen, damit kein Tag zerschnitten wird
-  const all = text.split('\n');
+  // eine einzelne überlange Zeile (etwa der Titel) selbst kürzen, statt nur „…“ zu schicken
+  const all = text
+    .split('\n')
+    .map((l) => (l.length > TELEGRAM_LINE_MAX ? `${l.slice(0, TELEGRAM_LINE_MAX - 1)}…` : l));
   const lines: string[] = [];
   let length = 0;
   for (const [i, line] of all.entries()) {
@@ -85,6 +88,7 @@ export function telegramHtml(text: string, url: string): string {
 
 /** Platz für den Text – das Escapen und der Link kommen noch dazu (Grenze 4096) */
 const TELEGRAM_TEXT_BUDGET = 3500;
+const TELEGRAM_LINE_MAX = 500;
 
 /**
  * Text einer Push-Nachricht: kurz, eine Zeile (Nutzlast höchstens etwa 4 KB). Bei einer Zusammenfassung die

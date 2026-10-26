@@ -81,7 +81,12 @@ export function getEventDetail(db: Db, id: string, now: Date): EventDetail {
     suggests_follow_up: suggestsFollowUp(event, now),
     decisions: db.decisions
       .filter((d) => d.event_id === id && !d.archived_at)
-      .sort((a, b) => b.decided_on.localeCompare(a.decided_on) || a.title.localeCompare(b.title))
+      .sort(
+        (a, b) =>
+          b.decided_on.localeCompare(a.decided_on) ||
+          a.title.localeCompare(b.title) ||
+          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      )
       .map((d) => ({ id: d.id, title: d.title, kind: d.kind, status: d.status, description: d.description })),
     comments: commentsOf(db, 'event', id),
     history: historyOf(db, 'event', id),

@@ -979,7 +979,8 @@ export function undo(ctx: Ctx, token: string): void {
       (created.version > 1 ||
         db.decisions.some((d) => d.superseded_by_id === created.id && d.id !== record.entity_id) ||
         db.document_links.some((l) => l.target_type === 'decision' && l.target_id === created.id) ||
-        db.plenum_marks.some((m) => m.decision_id === created.id))
+        db.plenum_marks.some((m) => m.decision_id === created.id) ||
+        db.comments.some((c) => c.decision_id === created.id))
     )
       throw rule(
         'Der neue Eintrag wird inzwischen weiterverwendet – das lässt sich nicht mehr rückgängig machen.',

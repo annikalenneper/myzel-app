@@ -12,7 +12,7 @@ import { DECISION_STATUS_LABEL, DOC_TYPE_LABEL } from '../../shared/rules/knowle
 import { topicFilterIds } from '../../shared/rules/topics';
 import type { DecisionKind, DecisionStatus } from '../../shared/schema';
 import { cx, ListSkeleton, Pill } from '../../ui/bits';
-import { IconBookmark, IconPlus } from '../../ui/icons';
+import { IconBookmark } from '../../ui/icons';
 import { Menu, type MenuOption } from '../../ui/Menu';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { DecisionDetail } from './DecisionDetail';
@@ -81,7 +81,6 @@ function KnowledgeList({
   drive: boolean;
   selectedId: string | null;
 }) {
-  const { barVisible } = useFeedback();
   const navigate = useNavigate();
   // gewählter Reiter; solange keiner gewählt ist, steht ein geöffneter Fakt im Reiter „Fakten“
   const [picked, setAppTab] = useState<KnowledgeTab | null>(null);
@@ -96,15 +95,6 @@ function KnowledgeList({
   };
   const [sheet, setSheet] = useState<'entscheidung' | 'fakt' | 'document' | null>(null);
   const [driveFile, setDriveFile] = useState<DriveEntry | null>(null);
-  const fab: Record<
-    Exclude<KnowledgeTab, 'drive'>,
-    [wf: string, label: string, kind: 'entscheidung' | 'fakt' | 'document']
-  > = {
-    entscheidungen: ['WF-WIS-01', 'Entscheidung festhalten', 'entscheidung'],
-    fakten: ['WF-WIS-01', 'Fakt festhalten', 'fakt'],
-    dokumente: ['WF-WIS-06', 'Dokument per Link erfassen', 'document'],
-  };
-
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={92} />
@@ -155,18 +145,6 @@ function KnowledgeList({
         {tab === 'drive' && <DriveTab onLink={setDriveFile} />}
       </div>
 
-      {/* Kontextabhängiges „+“: Entscheidung · Fakt · Dokument per Link */}
-      {!barVisible && tab !== 'drive' && (
-        <button
-          type="button"
-          data-wf={fab[tab][0]}
-          onClick={() => setSheet(fab[tab][2])}
-          aria-label={fab[tab][1]}
-          className="bg-marke fixed right-5 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-10 flex size-[58px] items-center justify-center rounded-full text-grund shadow-[0_8px_24px_rgba(157,110,240,0.45)] lg:right-auto lg:bottom-6 lg:left-[562px]"
-        >
-          <IconPlus size={26} />
-        </button>
-      )}
       {(sheet === 'entscheidung' || sheet === 'fakt') && (
         <DecisionSheet initialKind={sheet} onClose={() => setSheet(null)} />
       )}

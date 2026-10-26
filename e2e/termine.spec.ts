@@ -1,6 +1,6 @@
 // Phase 3 – Termine: S-30 bis S-32 (WF-TER-01 bis -08), S-53 (WF-ADM-06)
 import { expect, test, type Page } from '@playwright/test';
-import { login, undoBar } from './helpers';
+import { login, undoBar, createNew } from './helpers';
 
 const open = async (page: Page) => {
   await login(page);
@@ -64,7 +64,7 @@ test('WF-TER-03: Zu- und Absage auf der Karte, zweiter Tipp nimmt zurück, Rück
 
 test('WF-TER-02: Terminart belegt vor; Ort bzw. Link sind je nach Format Pflicht', async ({ page }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Termin anlegen' }).click();
+  await createNew(page, 'Termin');
   const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
   const submit = sheet.locator('button[type=submit]');
   await expect(submit).toHaveText('Terminart wählen, dann anlegen');
@@ -91,7 +91,7 @@ test('WF-TER-02: Terminart belegt vor; Ort bzw. Link sind je nach Format Pflicht
 
 test('WF-PLE-01: Plenum anlegen mit Hinweis zum Ergebnis', async ({ page }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Termin anlegen' }).click();
+  await createNew(page, 'Termin');
   const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
   await sheet.getByRole('button', { name: 'Plenum' }).click();
   await expect(sheet.getByTestId('WF-PLE-01')).toContainText('Ins Ergebnis kommt alles');
@@ -137,7 +137,7 @@ test('WF-TER-06: vergangener Termin – Teilnahme aus den Zusagen vorbefüllt, K
   page,
 }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Termin anlegen' }).click();
+  await createNew(page, 'Termin');
   const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
   await sheet.getByRole('button', { name: 'Sonstiges' }).click();
   await sheet.getByLabel('Titel *').fill('Lagerbegehung');

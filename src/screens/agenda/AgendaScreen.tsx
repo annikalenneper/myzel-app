@@ -11,7 +11,7 @@ import {
   type AgendaScope,
 } from '../../app/agendaFilter';
 import { ListDetailLayout } from '../../app/AppShell';
-import { BarOffset, useFeedback } from '../../app/feedback';
+import { BarOffset } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
 import { useMe } from '../../app/session';
 import { useData } from '../../app/useData';
@@ -25,7 +25,6 @@ import { ACTIVE_TASK_STATUSES, FINAL_TASK_STATUSES, isActiveTaskStatus } from '.
 import { topicFilterIds } from '../../shared/rules/topics';
 import type { TaskStatus } from '../../shared/schema';
 import { Avatar, cx, ListSkeleton, LoadError, Pill } from '../../ui/bits';
-import { IconPlus } from '../../ui/icons';
 import { Menu, type MenuOption } from '../../ui/Menu';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { DecisionDetail } from '../knowledge/DecisionDetail';
@@ -74,7 +73,6 @@ export function AgendaScreen({ detail = 'task' }: { detail?: AgendaDetail }) {
 
 function AgendaList({ selectedId }: { selectedId: string | null }) {
   const me = useMe();
-  const { barVisible } = useFeedback();
   const { topics, topicName, events, eventById } = useLookups();
   const { filter, setFilter } = useAgendaFilter();
   const { data: tasks, error, reload } = useData('tasks', () => api.listTasks());
@@ -359,18 +357,6 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
         )}
       </div>
 
-      {/* WF-AUF-03 Schnellanlage öffnen – weicht der Rückgängig-Leiste */}
-      {!barVisible && (
-        <button
-          type="button"
-          data-wf="WF-AUF-03"
-          onClick={() => setCreating('task')}
-          aria-label="Aufgabe anlegen"
-          className="bg-marke fixed right-5 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-10 flex size-[58px] items-center justify-center rounded-full text-grund shadow-[0_8px_24px_rgba(157,110,240,0.45)] lg:right-auto lg:bottom-6 lg:left-[562px]"
-        >
-          <IconPlus size={26} />
-        </button>
-      )}
       {creating === 'task' && <TaskCreateSheet onClose={() => setCreating(null)} />}
       {creating === 'question' && <QuestionSheet onClose={() => setCreating(null)} />}
     </div>

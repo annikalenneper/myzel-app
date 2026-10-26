@@ -1,6 +1,6 @@
 // Phase 6 – Serien: anlegen, bearbeiten, einzelner Termin als Ausnahme, beenden (WF-TER-09, WF-TER-10)
 import { expect, test, type Page } from '@playwright/test';
-import { login, undoBar } from './helpers';
+import { login, undoBar, createNew } from './helpers';
 
 const open = async (page: Page) => {
   await login(page);
@@ -23,7 +23,7 @@ const openBautag = async (page: Page) => {
 test('WF-TER-09: Serie anlegen – Auswahl passend zum Tag, Termine entstehen sofort', async ({ page }) => {
   await open(page);
   const before = await seriesCards(page).count();
-  await page.getByRole('button', { name: 'Termin anlegen' }).click();
+  await createNew(page, 'Termin');
   const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
   await sheet.getByRole('button', { name: 'Betriebsausflug' }).click();
   await sheet.getByLabel('Titel *').fill('Lauftreff');

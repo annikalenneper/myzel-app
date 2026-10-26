@@ -11,7 +11,6 @@ import { formatTime } from '../../shared/format';
 import { appointmentEnd, canRsvp, FORMAT_LABEL } from '../../shared/rules/appointments';
 import type { RsvpAnswer } from '../../shared/schema';
 import { Avatar, cx, ListSkeleton, LoadError, Pill } from '../../ui/bits';
-import { IconPlus } from '../../ui/icons';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { AppointmentDetail } from './AppointmentDetail';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
@@ -87,7 +86,6 @@ export const rsvpButton = (on: boolean, kind: RsvpAnswer) =>
 
 function AppointmentList({ selectedId }: { selectedId: string | null }) {
   const me = useMe();
-  const { barVisible } = useFeedback();
   const rsvp = useRsvp();
   const { data: appointments, error, reload } = useData('appointments', () => api.listAppointments());
   const { data: types } = useData('appointment-types', () => api.listAppointmentTypes());
@@ -254,18 +252,6 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
         )}
       </div>
 
-      {/* WF-TER-02 Termin anlegen */}
-      {!barVisible && (
-        <button
-          type="button"
-          data-wf="WF-TER-02"
-          onClick={() => setCreating(true)}
-          aria-label="Termin anlegen"
-          className="bg-marke fixed right-5 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-10 flex size-[58px] items-center justify-center rounded-full text-grund shadow-[0_8px_24px_rgba(157,110,240,0.45)] lg:right-auto lg:bottom-6 lg:left-[562px]"
-        >
-          <IconPlus size={26} />
-        </button>
-      )}
       {creating && (
         <AppointmentFormSheet
           onClose={() => setCreating(false)}

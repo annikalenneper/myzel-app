@@ -1,6 +1,6 @@
 // S-20 bis S-22 · WF-VER-01 bis -05
 import { expect, test } from '@playwright/test';
-import { login, undoBar } from './helpers';
+import { login, undoBar, createNew } from './helpers';
 
 const eventStatus = (page: import('@playwright/test').Page, name: string) =>
   page.getByRole('group', { name: 'Status' }).getByRole('button', { name, exact: true });
@@ -33,7 +33,7 @@ test('WF-VER-01: kommend und vergangen nach Datum, mit Status und Fortschritt', 
 });
 
 test('WF-VER-02 / -03: anlegen als Idee, Ende muss nach dem Beginn liegen, bearbeiten', async ({ page }) => {
-  await page.getByRole('button', { name: 'Veranstaltung anlegen' }).click();
+  await createNew(page, 'Veranstaltung');
   const sheet = page.getByRole('dialog', { name: 'Neue Veranstaltung' });
   const submit = sheet.locator('button[type=submit]');
   await expect(submit).toBeDisabled();

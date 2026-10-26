@@ -34,7 +34,7 @@ import {
 } from './schema';
 
 /** 2: Umbau 10/2026 – Markierungen nur an Entscheidungen, Ergebnisse einer Frage über decisions.source_question_id */
-export const EXPORT_FORMAT_VERSION = 2;
+export const EXPORT_FORMAT_VERSION = 3;
 
 /** Felder, die nie in den Export gehören – auch nicht als alter oder neuer Wert in der Historie */
 export const EXPORT_EXCLUDED_FIELDS = [

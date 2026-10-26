@@ -1,6 +1,6 @@
 // Phase 3 – Wissen: S-40 bis S-44 (WF-WIS-01 bis -04, -06, -07, -11, WF-FRA-01 bis -03, WF-AGE-03, WF-AUF-13)
 import { expect, test, type Page } from '@playwright/test';
-import { login, openTask, undoBar } from './helpers';
+import { login, openTask, undoBar, createNew } from './helpers';
 
 const open = async (page: Page) => {
   await login(page);
@@ -43,7 +43,7 @@ test('WF-WIS-04: Reiter Entscheidungen und Fakten – Standard nur gültige; Fil
 
 test('WF-WIS-01: Entscheidung festhalten geht nur mit Quelle', async ({ page }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Entscheidung festhalten' }).click();
+  await createNew(page, 'Entscheidung');
   const sheet = page.getByRole('dialog', { name: 'Neu festhalten' });
   const submit = sheet.locator('button[type=submit]');
   await sheet.getByLabel('Titel *').fill('Lagerschlüssel liegt bei Mo');

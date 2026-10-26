@@ -1,11 +1,13 @@
 // Verlauf von Entscheidungen/Fakten und Fragen in lesbaren Sätzen (E-10, F-PLE-05 „im Plenum vom …“)
-import { describeFieldChanges } from './entityHistory';
+import { commentEdited, describeFieldChanges } from './entityHistory';
 import type { HistoryEntry } from './schema';
 
 export interface KnowledgeLookup {
   memberName(id: string): string;
   /** „im Plenum September“ – leer, wenn das Plenum unbekannt ist */
   plenumTitle(id: string): string;
+  topicName?(id: string): string;
+  eventTitle?(id: string): string;
 }
 
 export function knowledgeHistorySentence(
@@ -51,13 +53,13 @@ export function knowledgeHistorySentence(
     case 'unmarked':
       return `${who} hat die Markierung „Fürs Plenum“ entfernt.`;
     case 'updated': {
-      const fields = describeFieldChanges(c);
+      const fields = describeFieldChanges(c, look);
       return fields ? `${who} hat ${fields}.` : `${who} hat ${the} bearbeitet.`;
     }
     case 'comment_added':
       return `${who} hat kommentiert.`;
     case 'comment_edited':
-      return `${who} hat einen Kommentar bearbeitet.`;
+      return `${who} hat ${commentEdited(c)}.`;
     case 'document_linked':
       return `${who} hat das Dokument „${String(c.document?.new)}“ verknüpft.`;
     case 'document_unlinked':

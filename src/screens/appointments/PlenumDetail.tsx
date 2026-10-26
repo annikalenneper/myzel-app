@@ -24,6 +24,9 @@ import type { Member } from '../../shared/schema';
 import { Avatar, cx, FieldError, GhostButton, ListSkeleton, LoadError } from '../../ui/bits';
 import { IconMore } from '../../ui/icons';
 import { Sheet } from '../../ui/Sheet';
+import { CommentsSection } from '../../ui/Comments';
+import { HistoryList } from '../../ui/HistoryList';
+import { entityHistorySentence } from '../../shared/entityHistory';
 import { ConfirmDialog } from '../knowledge/DetailParts';
 import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
 import { TopBar } from './AppointmentDetail';
@@ -50,7 +53,7 @@ function Loaded({ p }: { p: Detail }) {
   const act = useActions();
   const latest = useLatest(p.version);
   const rsvp = useRsvp();
-  const { memberById, activeMembers } = useLookups();
+  const { memberById, activeMembers, topicName, eventById } = useLookups();
   const now = useNow();
   const closed = p.status === 'abgeschlossen';
   const cancelled = p.status === 'abgesagt';
@@ -279,6 +282,9 @@ function Loaded({ p }: { p: Detail }) {
           </div>
         )}
 
+        {p.description && (
+          <div className="text-[15px] leading-normal whitespace-pre-wrap text-weich">{p.description}</div>
+        )}
         <div role="tablist" aria-label="Plenum" className="flex gap-[22px] border-b border-linie">
           {tabs.map(([key, label]) => (
             <button
@@ -299,6 +305,24 @@ function Loaded({ p }: { p: Detail }) {
 
         {tab === 'ergebnis' && <Results p={p} />}
         {tab === 'protokoll' && <Protocol p={p} />}
+
+        {/* 16.3: Kommentare und Verlauf wie an jedem Termin */}
+        <CommentsSection
+          target="appointment"
+          targetId={p.id}
+          comments={p.comments}
+          archived={!!p.archived_at}
+        />
+        <HistoryList
+          entries={p.history}
+          sentence={(h) =>
+            entityHistorySentence(h, 'Termin', {
+              memberName: (id) => memberById.get(id)?.display_name ?? 'Jemand',
+              topicName,
+              eventTitle: (id) => eventById.get(id)?.title ?? 'unbekannt',
+            })
+          }
+        />
       </div>
 
       {/* unten fixiert: Abschließen (WF-PLE-20) */}

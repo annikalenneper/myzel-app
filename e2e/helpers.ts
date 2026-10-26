@@ -18,3 +18,15 @@ export const card = (page: Page, title: string) => page.getByRole('article').fil
 export const undoBar = (page: Page) => page.getByTestId('WF-ALL-02');
 export const statusChip = (page: Page, name: string) =>
   page.getByRole('group', { name: 'Status' }).getByRole('button', { name, exact: true });
+
+/** Phase 5: ein „+“ für alle Arten – öffnet die Auswahl und wählt die Art */
+export async function createNew(
+  page: Page,
+  kind: 'Aufgabe' | 'Frage' | 'Entscheidung' | 'Fakt' | 'Veranstaltung' | 'Termin' | 'Dokument' | 'Partner',
+) {
+  await page.getByRole('button', { name: 'Neu anlegen' }).click();
+  await page
+    .getByRole('group', { name: 'Was anlegen?' })
+    .getByRole('button', { name: kind, exact: true })
+    .click();
+}

@@ -18,11 +18,14 @@ import { TextField } from '../knowledge/KnowledgeSheets';
 
 export function AppointmentFormSheet({
   appointment,
+  eventPreset,
   onClose,
   onCreated,
 }: {
   /** vorhandenen Termin bearbeiten; ohne: neu anlegen */
   appointment?: AppointmentDetail;
+  /** neu angelegt aus einer Veranstaltung heraus: sie ist vorbelegt */
+  eventPreset?: string;
   onClose: () => void;
   onCreated?: (id: string) => void;
 }) {
@@ -41,7 +44,7 @@ export function AppointmentFormSheet({
   const [format, setFormat] = useState<AppointmentFormat>(appointment?.format ?? 'vor_ort');
   const [location, setLocation] = useState(appointment?.location ?? '');
   const [onlineUrl, setOnlineUrl] = useState(appointment?.online_url ?? '');
-  const [eventId, setEventId] = useState(appointment?.event_id ?? '');
+  const [eventId, setEventId] = useState(appointment?.event_id ?? eventPreset ?? '');
   const [description, setDescription] = useState(appointment?.description ?? '');
   const [error, setError] = useState<{ field: string | null; message: string } | null>(null);
   const [saving, setSaving] = useState(false);

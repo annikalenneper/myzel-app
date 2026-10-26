@@ -1,7 +1,7 @@
 // Smoke-Tests gegen das echte Backend (7.4 Nr. 6): Kernabläufe der Phase 1 durch App, HTTP-Schicht,
 // Server-Funktionen und Postgres. Die Daten bleiben über Neuladen erhalten, weil sie auf dem Server liegen.
 import { expect, test, type Page } from '@playwright/test';
-import { card, openTask, statusChip, undoBar } from '../helpers';
+import { card, openTask, statusChip, undoBar, createNew } from '../helpers';
 
 /** Login-ID der Testkonten wie in server/db/seedFromMock.ts */
 const authId = (n: number) => `aaaaaaaa-0000-4000-8000-0001${String(n).padStart(8, '0')}`;
@@ -52,7 +52,7 @@ test('Agenda: Liste, Schnellanlage, Status mit Rückgängig, Kommentar – alles
     page.getByRole('link', { name: /Winterrave Priorität hoch Location für Winterrave bestätigen/ }),
   ).toBeVisible();
 
-  await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
+  await createNew(page, 'Aufgabe');
   const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
   await sheet.getByLabel('Titel *').fill('Smoke: Nebelfluid nachbestellen');
   await sheet.getByRole('button', { name: 'Lager & Material' }).click();
@@ -183,7 +183,7 @@ test('Phase 4: Party mit Vorlagen-Dialog anlegen, Detailbereich pflegen – blei
 }) => {
   await signIn(page, authId(1), 'mo@example.org');
   await page.goto('/events');
-  await page.getByRole('button', { name: 'Veranstaltung anlegen' }).click();
+  await createNew(page, 'Veranstaltung');
   const sheet = page.getByRole('dialog', { name: 'Neue Veranstaltung' });
   await sheet.getByLabel('Titel *').fill('Smoke: Maifest');
   await sheet.getByLabel('Beginn *').fill('2027-05-01T22:00');

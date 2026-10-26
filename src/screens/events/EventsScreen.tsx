@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ListDetailLayout } from '../../app/AppShell';
-import { BarOffset, useFeedback } from '../../app/feedback';
+import { BarOffset } from '../../app/feedback';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { EventListItem } from '../../data/api';
@@ -10,7 +10,6 @@ import { eventDay, eventMonth } from '../../shared/format';
 import { EVENT_STATUS_COLOR, EVENT_STATUS_LABEL, EVENT_TYPE_LABEL } from '../../shared/labels';
 import { LONG_FOLLOW_UP_DAYS } from '../../shared/rules/eventDetails';
 import { cx, ListSkeleton, LoadError } from '../../ui/bits';
-import { IconPlus } from '../../ui/icons';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { EventDetail } from './EventDetail';
 import { EventFormSheet } from './EventFormSheet';
@@ -39,7 +38,6 @@ const endOf = (e: Pick<EventListItem, 'starts_at' | 'ends_at'>) => {
 const startOf = (e: EventListItem) => new Date(e.starts_at).getTime();
 
 function EventList({ selectedId }: { selectedId: string | null }) {
-  const { barVisible } = useFeedback();
   const { data: events, error, reload } = useData('events', () => api.listEvents());
   const [tab, setTab] = useState<Tab>('kommend');
   const [templateFor, setTemplateFor] = useState<string | null>(null);
@@ -164,18 +162,6 @@ function EventList({ selectedId }: { selectedId: string | null }) {
         )}
       </div>
 
-      {/* WF-VER-02 Veranstaltung anlegen */}
-      {!barVisible && (
-        <button
-          type="button"
-          data-wf="WF-VER-02"
-          onClick={() => setCreating(true)}
-          aria-label="Veranstaltung anlegen"
-          className="bg-marke fixed right-5 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-10 flex size-[58px] items-center justify-center rounded-full text-grund shadow-[0_8px_24px_rgba(157,110,240,0.45)] lg:right-auto lg:bottom-6 lg:left-[562px]"
-        >
-          <IconPlus size={26} />
-        </button>
-      )}
       {creating && (
         <EventFormSheet
           onClose={() => setCreating(false)}

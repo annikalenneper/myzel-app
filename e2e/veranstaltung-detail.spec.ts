@@ -1,6 +1,6 @@
 // Phase 4 – Veranstaltung ausgebaut: S-22 mit Detailbereichen (WF-VER-07 bis -11), Deaktivieren (WF-ADM-03)
 import { expect, test, type Page } from '@playwright/test';
-import { login, undoBar } from './helpers';
+import { login, undoBar, createNew } from './helpers';
 
 const openRave = async (page: Page) => {
   await login(page);
@@ -168,7 +168,7 @@ test('WF-ADM-03: Deaktivieren nennt und trägt Hauptverantwortliche aus', async 
 test('WF-VER-07: am Tag danach schlägt die App „In Nachbereitung“ vor', async ({ page }) => {
   await login(page);
   await page.goto('/events');
-  await page.getByRole('button', { name: 'Veranstaltung anlegen' }).click();
+  await createNew(page, 'Veranstaltung');
   const sheet = page.getByRole('dialog', { name: 'Neue Veranstaltung' });
   const d = new Date(Date.now() - 3 * 86_400_000);
   const pad = (n: number) => String(n).padStart(2, '0');

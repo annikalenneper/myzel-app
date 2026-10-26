@@ -123,9 +123,9 @@ export function results(db: Db, plenumId: string): ResultGroupItems[] {
   for (const t of db.tasks) if (t.origin_plenum_id === plenumId) at(`task:${t.id}`, later(t.created_at));
   for (const q of db.questions)
     if (q.answered_in_plenum_id === plenumId) at(`question:${q.id}`, later(q.created_at));
-  const order = [...firstAt.keys()].sort(
-    (x, y) => firstAt.get(x)!.localeCompare(firstAt.get(y)!) || (x < y ? -1 : x > y ? 1 : 0),
-  );
+  // nach Zeichencode wie Postgres mit "C"-Sortierung: „~“ (später) steht hinter den Ziffern – localeCompare sähe es davor
+  const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+  const order = [...firstAt.keys()].sort((x, y) => cmp(firstAt.get(x)!, firstAt.get(y)!) || cmp(x, y));
 
   const subjects: ResultSubject[] = [];
   for (const key of order) {

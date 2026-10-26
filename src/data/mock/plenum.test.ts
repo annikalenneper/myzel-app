@@ -184,6 +184,21 @@ describe('Was während des Plenums passiert, steht im Ergebnis (16.2)', () => {
     expect((await groups()).aufgaben).toEqual(['Neu: Gehört dazu · Neu']);
   });
 
+  it('was nur über die Quelle dabei ist, steht hinter dem, was im Plenum geändert wurde', async () => {
+    const topic = await topicId();
+    const id = await runningPlenum();
+    clock = new Date(clock.getTime() - 2 * 3_600_000);
+    await api.createDecision({
+      title: 'AAA nur Quelle',
+      kind: 'fakt',
+      topic_id: topic,
+      source_plenum_id: id,
+    });
+    clock = new Date(clock.getTime() + 2 * 3_600_000);
+    await api.createDecision({ title: 'BBB im Plenum', kind: 'fakt', topic_id: topic, source_note: 'Notiz' });
+    expect((await groups()).beschluesse).toEqual(['Neuer Fakt: BBB im Plenum', 'Fakt: AAA nur Quelle']);
+  });
+
   it('die Zusammenfassung ist mehrzeilig: Überschrift, Gruppen, Aufzählung', async () => {
     const id = await runningPlenum();
     await api.createTask({ title: 'Kabeltrommel kaufen', topic_id: await topicId() });

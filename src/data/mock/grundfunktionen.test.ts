@@ -74,6 +74,19 @@ describe('Kommentare an allen Artefakten (16.3)', () => {
     });
   });
 
+  it('eine kommentierte neue Fassung lässt sich nicht mehr zurücknehmen', async () => {
+    const d = await decision('Mate am Tresen für 2,50 €');
+    const r = await api.replaceDecision(d.id, {
+      title: 'Mate am Tresen für 3 €',
+      source_note: 'Absprache',
+      version: d.version,
+    });
+    const created = r.successor_id;
+    await api.addComment('decision', created, 'Wirklich?');
+    await expectError(api.undo(r.undo_token), 'rule');
+    expect((await api.getDecision(created)).comments).toHaveLength(1);
+  });
+
   it('an Aufgaben bleibt alles wie bisher: wer kommentiert, folgt', async () => {
     const task = (await api.listTasks()).find((t) => t.title === 'Vereinshaftpflicht verlängern')!;
     await login('jule');

@@ -97,11 +97,13 @@ export function KnowledgeHistory({
   history: HistoryEntry[];
   noun: 'Entscheidung' | 'Fakt' | 'Frage';
 }) {
-  const { memberById } = useLookups();
+  const { memberById, topicName, eventById } = useLookups();
   const { data: appointments } = useData('appointments', () => api.listAppointments());
   const look = {
     memberName: (id: string) => memberById.get(id)?.display_name ?? 'Jemand',
     plenumTitle: (id: string) => appointments?.find((a) => a.id === id)?.title ?? '',
+    topicName,
+    eventTitle: (id: string) => eventById.get(id)?.title ?? 'unbekannt',
   };
   return (
     <div className="flex flex-col gap-2">

@@ -1,11 +1,11 @@
 // Phase 4 – Vorlagen: S-23 Vorlagen-Dialog (WF-VER-12), S-55 Vorlagen bearbeiten (WF-ADM-08)
 import { expect, test, type Page } from '@playwright/test';
-import { login, undoBar } from './helpers';
+import { login, undoBar, createNew } from './helpers';
 
 const createParty = async (page: Page, title: string, { signIn = true } = {}) => {
   if (signIn) await login(page);
   await page.goto('/events');
-  await page.getByRole('button', { name: 'Veranstaltung anlegen' }).click();
+  await createNew(page, 'Veranstaltung');
   const sheet = page.getByRole('dialog', { name: 'Neue Veranstaltung' });
   await sheet.getByLabel('Titel *').fill(title);
   await sheet.getByLabel('Beginn *').fill('2027-05-01T22:00');
