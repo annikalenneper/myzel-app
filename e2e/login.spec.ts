@@ -1,5 +1,5 @@
 // S-01 Anmeldung, S-02 Kein Zugriff · WF-LOG-01 bis -03
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { login } from './helpers';
 
 test('WF-LOG-01: aktives Mitglied landet auf der Agenda, Sitzung bleibt bestehen', async ({ page }) => {

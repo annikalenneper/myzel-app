@@ -9,6 +9,7 @@ import {
   appointmentSchema,
   appointmentSeriesSchema,
   appointmentTypeSchema,
+  appReportSchema,
   commentSchema,
   decisionSchema,
   decisionVoteSchema,
@@ -35,7 +36,7 @@ import {
 } from './schema';
 
 /** 2: Umbau 10/2026 – Markierungen nur an Entscheidungen, Ergebnisse einer Frage über decisions.source_question_id */
-// 4: Entscheidungen im Konsens – Status „offen“, consensus_until, decision_votes (16.4)
+// 4: Entscheidungen im Konsens – Status „offen“, consensus_until, decision_votes (16.4); Rückmeldungen (16.5)
 export const EXPORT_FORMAT_VERSION = 4;
 
 /** Felder, die nie in den Export gehören – auch nicht als alter oder neuer Wert in der Historie */
@@ -88,6 +89,7 @@ export const exportSchema = z.object({
   appointment_attendees: z.array(appointmentAttendeeSchema),
   decisions: z.array(decisionSchema),
   decision_votes: z.array(decisionVoteSchema),
+  app_reports: z.array(appReportSchema),
   questions: z.array(questionSchema),
   documents: z.array(documentSchema),
   document_links: z.array(documentLinkSchema),
@@ -141,6 +143,7 @@ export function buildExport(db: ExportSource, now: Date): MyzelExport {
     appointment_attendees: db.appointment_attendees,
     decisions: db.decisions,
     decision_votes: db.decision_votes,
+    app_reports: db.app_reports,
     questions: db.questions,
     documents: db.documents,
     document_links: db.document_links,

@@ -1,5 +1,5 @@
 // S-20 bis S-22 · WF-VER-01 bis -05
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { login, undoBar, createNew } from './helpers';
 
 const eventStatus = (page: import('@playwright/test').Page, name: string) =>

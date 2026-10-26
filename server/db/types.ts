@@ -3,6 +3,7 @@
 import type { ColumnType, Generated, Insertable, Selectable, Updateable } from 'kysely';
 import type {
   AppointmentFormat,
+  AppReportKind,
   AppointmentStatus,
   DecisionKind,
   DecisionStatus,
@@ -285,6 +286,15 @@ export interface DecisionsTable {
   version: Generated<number>;
 }
 
+export interface AppReportsTable {
+  id: Generated<string>;
+  kind: AppReportKind;
+  text: string;
+  app_version: string;
+  member_id: string;
+  created_at: CreatedAt;
+}
+
 export interface DecisionVotesTable {
   decision_id: string;
   member_id: string;
@@ -507,6 +517,7 @@ export interface Database {
   template_applications: TemplateApplicationsTable;
   drive_items: DriveItemsTable;
   drive_sync_state: DriveSyncStateTable;
+  app_reports: AppReportsTable;
 }
 
 export type MemberRow = Selectable<MembersTable>;

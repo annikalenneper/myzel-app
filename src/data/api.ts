@@ -31,6 +31,8 @@ import type {
   CommentTarget,
   DecisionUpdateInput,
   DecisionVoteKind,
+  AppReport,
+  AppReportCreateInput,
   QuestionUpdateInput,
   EventCreateInput,
   BookingCreateInput,
@@ -562,6 +564,10 @@ export interface MyzelApi {
   startTelegramLink(): Promise<{ url: string; expires_at: string }>;
   unlinkTelegram(): Promise<void>;
   getSystemStatus(): Promise<SystemStatus>;
+  /** WF-PRO-05 Rückmeldung aus der App: Bug oder Feature-Wunsch (16.5) */
+  createAppReport(input: AppReportCreateInput): Promise<{ id: string }>;
+  /** WF-ADM-10 alle Rückmeldungen, neueste zuerst – nur für Admins */
+  listAppReports(): Promise<AppReport[]>;
   // Benachrichtigungs-Einstellungen [P6] (WF-PRO-04): wirken sofort
   setNotificationPreference(
     group: NotificationGroupKey,

@@ -26,6 +26,7 @@ import * as p4events from '../p4/events';
 import * as partners from '../p4/partners';
 import * as templates from '../p4/templates';
 import * as drive from '../p5/drive';
+import * as reports from '../umbau/reports';
 
 type Args = unknown[];
 /**
@@ -76,6 +77,7 @@ export const READ_ACTIONS: Record<
       botUsername(),
     ),
   getSystemStatus: (db, _, now, actor) => notify.systemStatus({ trx: db, actor, now }),
+  listAppReports: (db, _, now, actor) => reports.listAppReports({ trx: db, actor, now }),
   listAppointmentTypes: (db, _, now, actor) => appts.listAppointmentTypes({ trx: db, actor, now }),
   listAppointments: (db, _, now, actor) => appts.listAppointments({ trx: db, actor, now }),
   getAppointment: (db, [id], _, actor) => appts.getAppointment(db, s(id), actor.id),
@@ -156,6 +158,7 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   revokeDecision: (ctx, [id, note, version]) => know.revokeDecision(ctx, s(id), note, n(version)),
   updateDecision: (ctx, [id, input]) => know.updateDecision(ctx, s(id), input),
   voteDecision: (ctx, [id, vote]) => know.voteDecision(ctx, s(id), vote),
+  createAppReport: (ctx, [input]) => reports.createAppReport(ctx, input),
   createQuestion: (ctx, [input]) => know.createQuestion(ctx, input),
   updateQuestion: (ctx, [id, input]) => know.updateQuestion(ctx, s(id), input),
   clarifyQuestion: (ctx, [id, input]) => know.clarifyQuestion(ctx, s(id), input),

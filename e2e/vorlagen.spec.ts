@@ -1,5 +1,5 @@
 // Phase 4 – Vorlagen: S-23 Vorlagen-Dialog (WF-VER-12), S-55 Vorlagen bearbeiten (WF-ADM-08)
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { login, undoBar, createNew } from './helpers';
 
 const createParty = async (page: Page, title: string, { signIn = true } = {}) => {

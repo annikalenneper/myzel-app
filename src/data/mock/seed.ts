@@ -18,6 +18,7 @@ import * as events from './events';
 import * as partners from './partners';
 import { seedTemplates } from './templates';
 import * as know from './knowledge';
+import * as reports from './reports';
 import { runJob } from './notify';
 import * as series from './series';
 import * as server from './server';
@@ -760,6 +761,18 @@ export function seedDb(now: Date): Db {
   );
   know.voteDecision(as('KI', 3), lager, 'bestaetigt');
   know.voteDecision(as('NO', 2), lager, 'widerspruch');
+
+  // Rückmeldungen aus der App (16.5) – die Liste sehen Admins im Profil
+  reports.createAppReport(as('SA', 6, '22:10'), {
+    kind: 'bug',
+    text: 'Ich habe im Termin auf „Komme“ getippt, danach stand da kurz „Komme nicht“. Nach dem Neuladen stimmte es.',
+    app_version: '0.7.0',
+  });
+  reports.createAppReport(as('JU', 1, '09:30'), {
+    kind: 'wunsch',
+    text: 'Ich möchte Aufgaben nach Frist sortieren können, damit ich vor dem Plenum sehe, was dringend ist.',
+    app_version: '0.8.0',
+  });
   addDecision('Unser Code of Conduct gilt für alle Veranstaltungen', 'fakt', 'Organisatorisches', 60, {
     document: coc,
   });

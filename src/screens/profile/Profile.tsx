@@ -1,4 +1,4 @@
-// S-50 Profil · P1 (Push/Telegram kommen in P2, die Benachrichtigungs-Matrix in P6)
+// S-50 Profil · P1 (Push/Telegram kommen in P2, die Benachrichtigungs-Matrix in P6); Rückmeldung, Version (16.5)
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BarOffset, useFeedback } from '../../app/feedback';
@@ -6,10 +6,12 @@ import { useLookups } from '../../app/lookups';
 import { useMe } from '../../app/session';
 import { DEFAULT_AGENDA_FILTER, useAgendaFilter } from '../../app/agendaFilter';
 import { useData } from '../../app/useData';
+import { allChanges, APP_COMMIT, APP_VERSION, ChangelogSheet } from '../../app/version';
 import { api } from '../../data';
 import { isJobOverdue } from '../../shared/rules/notifications';
 import { Avatar, cx, FieldError } from '../../ui/bits';
 import { IconEdit } from '../../ui/icons';
+import { ReportSheet } from './AppReports';
 import { NotificationMatrix } from './NotificationMatrix';
 import { Reachability } from './Reachability';
 import { formatSince } from './SystemStatus';
@@ -21,6 +23,7 @@ export function Profile() {
   const { setFilter } = useAgendaFilter();
   const [name, setName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<'report' | 'changes' | null>(null);
 
   const saveName = async () => {
     const next = (name ?? '').trim();
@@ -45,6 +48,9 @@ export function Profile() {
       : `OK · VOR ${formatSince(system.last_run_at!, new Date()).replace('Minuten', 'MIN').replace('Minute', 'MIN').toUpperCase()} ›`;
 
   const { data: types } = useData('appointment-types', () => api.listAppointmentTypes());
+  const { data: reports } = useData(me.is_admin ? 'app-reports' : 'app-reports:kein-admin', () =>
+    me.is_admin ? api.listAppReports() : Promise.resolve(null),
+  );
   const admin = [
     { to: '/profil/mitglieder', label: 'Mitglieder', meta: `${activeMembers.length} ›` },
     { to: '/profil/themen', label: 'Themen', meta: `${topics.filter((t) => !t.archived_at).length} ›` },
@@ -54,6 +60,7 @@ export function Profile() {
       label: 'Terminarten',
       meta: `${(types ?? []).filter((t) => !t.archived_at).length} ›`,
     },
+    { to: '/profil/rueckmeldungen', label: 'Rückmeldungen', meta: `${reports?.length ?? ''} ›`.trimStart() },
   ];
 
   return (
@@ -154,6 +161,16 @@ export function Profile() {
           <span className="flex-1">Veranstaltungsvorlagen</span>
           <span className="font-mono text-[12px] text-leise">›</span>
         </Link>
+        {/* WF-PRO-05 Rückmeldung aus der App (16.5) */}
+        <button
+          type="button"
+          data-wf="WF-PRO-05"
+          onClick={() => setSheet('report')}
+          className="flex h-[50px] items-center border-b border-erhoeht bg-flaeche px-3.5 text-left text-[14px] text-text"
+        >
+          <span className="flex-1">Rückmeldung zur App · Bug oder Wunsch</span>
+          <span className="font-mono text-[12px] text-leise">›</span>
+        </button>
         <Link
           to="/datenschutz"
           className="flex h-[50px] items-center bg-flaeche px-3.5 text-[14px] text-text no-underline"
@@ -175,6 +192,24 @@ export function Profile() {
       >
         Abmelden
       </button>
+
+      {/* 16.5 Version der App; WF-PRO-06 „Was ist neu?“ */}
+      <div className="flex flex-wrap items-center justify-center gap-x-2 font-mono text-[12px] text-leise">
+        <span>
+          Myzel {APP_VERSION} · {APP_COMMIT}
+        </span>
+        <button
+          type="button"
+          data-wf="WF-PRO-06"
+          onClick={() => setSheet('changes')}
+          className="hit h-8 text-pink uppercase"
+        >
+          Was ist neu?
+        </button>
+      </div>
+
+      {sheet === 'report' && <ReportSheet onClose={() => setSheet(null)} />}
+      {sheet === 'changes' && <ChangelogSheet entries={allChanges()} onClose={() => setSheet(null)} />}
     </div>
   );
 }

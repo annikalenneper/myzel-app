@@ -30,7 +30,7 @@ const expectError = async (promise: Promise<unknown>, code: AppError['code']) =>
 };
 const eventId = async (title: string) => (await api.listEvents()).find((e) => e.title === title)!.id;
 const rawDb = () =>
-  JSON.parse(storage.getItem('myzel:mock:db:v14')!) as {
+  JSON.parse(storage.getItem('myzel:mock:db:v15')!) as {
     drive_remote: {
       items: { file_id: string; name: string; web_url: string; trashed: boolean }[];
       changes: unknown[];
@@ -46,16 +46,16 @@ const trashRemote = (fileId: string) => {
   raw.drive_remote.items.find((i) => i.file_id === fileId)!.trashed = true;
   raw.drive_remote.seq += 1;
   raw.drive_remote.changes.push({ seq: raw.drive_remote.seq, file_id: fileId });
-  storage.setItem('myzel:mock:db:v14', JSON.stringify(raw));
+  storage.setItem('myzel:mock:db:v15', JSON.stringify(raw));
 };
 /** der gespeicherte Token taugt nicht mehr (Drive vergisst alte Token) */
 const expireToken = () => {
   if (fake) return fake.expireTokens();
-  const raw = JSON.parse(storage.getItem('myzel:mock:db:v14')!) as {
+  const raw = JSON.parse(storage.getItem('myzel:mock:db:v15')!) as {
     drive_sync_state: { changes_page_token: string | null };
   };
   raw.drive_sync_state.changes_page_token = 'abgelaufen';
-  storage.setItem('myzel:mock:db:v14', JSON.stringify(raw));
+  storage.setItem('myzel:mock:db:v15', JSON.stringify(raw));
 };
 const winterrave = async () => (await api.searchDrive('Winterrave')).find((e) => e.kind === 'ordner')!;
 

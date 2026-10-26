@@ -1,5 +1,5 @@
 // Phase 3 – Wissen: S-40 bis S-44 (WF-WIS-01 bis -04, -06, -07, -11, WF-FRA-01 bis -03, WF-AGE-03, WF-AUF-13)
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { login, openTask, undoBar, createNew } from './helpers';
 
 const open = async (page: Page) => {

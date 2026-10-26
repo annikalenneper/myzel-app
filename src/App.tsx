@@ -14,6 +14,7 @@ import { Login } from './screens/Login';
 import { NoAccess } from './screens/NoAccess';
 import { Privacy } from './screens/Privacy';
 import { AppointmentTypes } from './screens/profile/AppointmentTypes';
+import { AppReports } from './screens/profile/AppReports';
 import { Members } from './screens/profile/Members';
 import { Profile } from './screens/profile/Profile';
 import { SystemStatus } from './screens/profile/SystemStatus';
@@ -72,6 +73,7 @@ export function App() {
                   <Route path="/profil/themen" element={<Topics />} />
                   <Route path="/profil/system" element={<SystemStatus />} />
                   <Route path="/profil/terminarten" element={<AppointmentTypes />} />
+                  <Route path="/profil/rueckmeldungen" element={<AppReports />} />
                 </Route>
               </Route>
             </Route>

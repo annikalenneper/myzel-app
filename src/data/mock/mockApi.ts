@@ -15,6 +15,7 @@ import * as know from './knowledge';
 import * as comments from './comments';
 import * as notify from './notify';
 import * as plenum from './plenum';
+import * as reports from './reports';
 import * as series from './series';
 import * as telegram from './telegram';
 import { DRIVE_EVENT_FOLDER_ID, seedDb } from './seed';
@@ -34,7 +35,7 @@ export interface MockOptions {
   latency?: number;
 }
 
-const DB_KEY = 'myzel:mock:db:v14';
+const DB_KEY = 'myzel:mock:db:v15';
 const DEVICE_KEY = 'myzel:mock:geraet';
 const OUTAGE_KEY = 'myzel:mock:ausfall';
 const SESSION_KEY = 'myzel:mock:session';
@@ -380,6 +381,9 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     setReminderLeadDays: (days) => write((ctx) => notify.setReminderLeadDays(ctx, days)),
     getSystemStatus: () =>
       read((d, n) => notify.systemStatus({ db: d, actor: actor(), now: n, inverse: [] })),
+    createAppReport: (input) => write((ctx) => reports.createAppReport(ctx, input)),
+    listAppReports: () =>
+      read((d, n) => reports.listAppReports({ db: d, actor: actor(), now: n, inverse: [] })),
 
     demo: {
       accounts(): DemoAccount[] {

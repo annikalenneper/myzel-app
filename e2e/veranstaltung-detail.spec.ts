@@ -1,5 +1,5 @@
 // Phase 4 – Veranstaltung ausgebaut: S-22 mit Detailbereichen (WF-VER-07 bis -11), Deaktivieren (WF-ADM-03)
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { login, undoBar, createNew } from './helpers';
 
 const openRave = async (page: Page) => {

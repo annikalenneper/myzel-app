@@ -1,5 +1,5 @@
 // S-10 Agenda (16.1, WF-AGE-01 bis -03) · S-11 bis S-13 · WF-AUF-01 bis -15 und Querschnitt WF-ALL-01 bis -03, -05
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { card, login, openTask, statusChip, undoBar, createNew } from './helpers';
 
 test.beforeEach(async ({ page }) => {

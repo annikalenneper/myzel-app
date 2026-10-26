@@ -1,5 +1,5 @@
 // Phase 3 – Plenum: S-33 (WF-PLE-03, -19, -20) – Ergebnis und Protokoll; die Agenda ist eine eigene Ansicht (16.1)
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { login, undoBar, createNew } from './helpers';
 
 const openPlenum = async (page: Page, title = 'Plenum Oktober') => {

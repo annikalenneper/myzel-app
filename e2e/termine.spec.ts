@@ -1,5 +1,5 @@
 // Phase 3 – Termine: S-30 bis S-32 (WF-TER-01 bis -08), S-53 (WF-ADM-06)
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { login, undoBar, createNew } from './helpers';
 
 const open = async (page: Page) => {

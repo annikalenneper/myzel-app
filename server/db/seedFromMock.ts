@@ -154,6 +154,8 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
           .where('id', '=', d.id)
           .execute();
     }
+    // Umbau Phase 8: Rückmeldungen aus der App (16.5)
+    if (data.app_reports.length) await trx.insertInto('app_reports').values(data.app_reports).execute();
     // Umbau Phase 6: Stimmen zu offenen Entscheidungen (16.4)
     if (data.decision_votes.length)
       await trx.insertInto('decision_votes').values(data.decision_votes).execute();

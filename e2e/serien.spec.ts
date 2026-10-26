@@ -1,5 +1,5 @@
 // Phase 6 – Serien: anlegen, bearbeiten, einzelner Termin als Ausnahme, beenden (WF-TER-09, WF-TER-10)
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { login, undoBar, createNew } from './helpers';
 
 const open = async (page: Page) => {

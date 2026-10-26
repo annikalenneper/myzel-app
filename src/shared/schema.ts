@@ -1201,3 +1201,33 @@ export const templateSeedFileSchema = z
     'Je Veranstaltungsart höchstens eine Vorlage.',
   );
 export type TemplateSeedFile = z.infer<typeof templateSeedFileSchema>;
+
+// ── Rückmeldung aus der App (16.5): Bug oder Feature-Wunsch, Liste für Admins ──
+export const APP_REPORT_KINDS = ['bug', 'wunsch'] as const;
+export const appReportKindSchema = z.enum(APP_REPORT_KINDS);
+export type AppReportKind = z.infer<typeof appReportKindSchema>;
+
+export const APP_REPORT_TEXT_MAX = 2000;
+
+export const appReportSchema = z.object({
+  id: idSchema,
+  kind: appReportKindSchema,
+  text: z.string().min(1),
+  /** Version der App, in der die Rückmeldung geschrieben wurde */
+  app_version: z.string(),
+  member_id: idSchema,
+  created_at: timestampSchema,
+});
+export type AppReport = z.infer<typeof appReportSchema>;
+
+/** WF-PRO-05 */
+export const appReportCreateSchema = z.object({
+  kind: appReportKindSchema,
+  text: z
+    .string()
+    .trim()
+    .min(1, 'Bitte beschreib kurz, worum es geht.')
+    .max(APP_REPORT_TEXT_MAX, `Der Text darf höchstens ${APP_REPORT_TEXT_MAX} Zeichen haben.`),
+  app_version: z.string().trim().max(40).default(''),
+});
+export type AppReportCreateInput = z.input<typeof appReportCreateSchema>;

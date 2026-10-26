@@ -1,5 +1,5 @@
 // Abläufe, die eine echte Tastatur bzw. das Desktop-Layout brauchen (8.3: Liste und Detail nebeneinander)
-import { devices, expect, test } from '@playwright/test';
+import { devices, expect, test } from './fixtures';
 import { createNew, login, statusChip } from './helpers';
 
 test.use({ ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } });

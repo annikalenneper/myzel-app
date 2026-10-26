@@ -6,6 +6,7 @@ import { Avatar, cx } from '../ui/bits';
 import { IconCalendar, IconEvents, IconKnowledge, IconProfile, IconTasks } from '../ui/icons';
 import { CreateButton } from '../screens/common/CreateButton';
 import { useMe } from './session';
+import { ChangelogNotice } from './version';
 
 const NAV: { to: string; label: string; icon: (p: { size?: number }) => ReactNode }[] = [
   { to: '/agenda', label: 'Agenda', icon: IconTasks },
@@ -115,6 +116,8 @@ export function AppShell() {
       {!detail && <BottomNav />}
       {/* ein „+“ für alle Arten (Phase 5) – mobil nicht in Detailansichten, dort stehen unten eigene Leisten */}
       <CreateButton navVisible={!detail} hidden={!!detail && !partnerList} />
+      {/* 16.5: nach einem neuen Deploy einmal „Was ist neu?“ */}
+      <ChangelogNotice />
     </div>
   );
 }

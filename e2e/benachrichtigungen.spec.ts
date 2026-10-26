@@ -1,5 +1,5 @@
 // Phase 6 – Benachrichtigungs-Matrix und Vorlauf im Profil (F-PRO-02, WF-PRO-04)
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { login } from './helpers';
 
 test('WF-PRO-04: Schalter je Ereignis und Kanal, Vorlauf – gespeichert und sofort wirksam', async ({

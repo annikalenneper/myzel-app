@@ -1,5 +1,5 @@
 // Phase 2 – Erinnerungen: S-50 (WF-PRO-02, WF-PRO-03), S-54 (WF-ADM-07)
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { login } from './helpers';
 
 test('WF-PRO-02: Push für dieses Gerät an und aus, mit Erklärung davor', async ({ page }) => {

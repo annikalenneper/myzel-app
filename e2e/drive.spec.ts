@@ -1,6 +1,6 @@
 // Phase 5 – Wissen & Drive: Verzeichnis, Suche, Verknüpfen, Drive-Ordner der Veranstaltung, Abgleich
 // (WF-WIS-08 bis -11, WF-VER-14)
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { login } from './helpers';
 
 const openDrive = async (page: Page) => {

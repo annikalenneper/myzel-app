@@ -1,5 +1,5 @@
 // Phase 4 – Kooperationspartner: S-24 (WF-VER-10, WF-VER-13), Suche, Plenum
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { login, undoBar } from './helpers';
 
 const openRavePartners = async (page: Page) => {

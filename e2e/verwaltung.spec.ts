@@ -1,5 +1,5 @@
 // S-50 bis S-52 · WF-PRO-01, WF-ADM-01 bis -05
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { login, openTask } from './helpers';
 
 test('WF-PRO-01: Name ändern speichert beim Verlassen des Feldes', async ({ page }) => {
@@ -216,4 +216,51 @@ test('WF-ADM-09: weitere Adresse eintragen, damit anmelden, wieder entfernen', a
       .getByRole('dialog', { name: 'Jule bearbeiten' })
       .getByText('Keine – angemeldet wird nur mit der Mail oben.'),
   ).toBeVisible();
+});
+
+test('WF-PRO-05 / WF-ADM-10: Rückmeldung zur App senden, Admins sehen die Liste', async ({ page }) => {
+  await login(page);
+  await page.goto('/profil');
+  await page.getByRole('button', { name: /Rückmeldung zur App/ }).click();
+  const sheet = page.getByRole('dialog', { name: 'Rückmeldung zur App' });
+  await expect(sheet).toContainText('Was hast du gemacht, was ist passiert');
+  await sheet.getByRole('button', { name: 'Feature-Wunsch' }).click();
+  await expect(sheet).toContainText('Was möchtest du tun können');
+  await sheet.getByLabel('Deine Rückmeldung').fill('Termine nach Ort filtern');
+  await sheet.locator('button[type=submit]').click();
+  await expect(page.getByTestId('WF-ALL-02')).toContainText('Danke! Die Rückmeldung ist angekommen.');
+
+  await page.getByRole('link', { name: /Rückmeldungen/ }).click();
+  await expect(page.getByRole('heading', { name: 'Rückmeldungen' })).toBeVisible();
+  const newest = page.getByRole('article').first();
+  await expect(newest).toContainText('Feature-Wunsch');
+  await expect(newest).toContainText('Mo');
+  await expect(newest).toContainText('Termine nach Ort filtern');
+  await expect(page.getByRole('article')).toHaveCount(3);
+});
+
+test('WF-ADM-10: ohne Admin-Rechte keine Liste der Rückmeldungen', async ({ page }) => {
+  await login(page, 'Jule');
+  await page.goto('/profil/rueckmeldungen');
+  await expect(page.getByRole('heading', { name: 'Rückmeldungen' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Jule' })).toBeVisible();
+});
+
+test('WF-PRO-06: nach einem neuen Deploy einmal „Was ist neu?“, danach im Profil', async ({ page }) => {
+  await login(page);
+  // eine ältere Version war zuletzt gesehen
+  await page.evaluate(() => localStorage.setItem('myzel:version-gesehen', '0.7.0'));
+  await page.reload();
+  const changes = page.getByRole('dialog', { name: 'Was ist neu?' });
+  await expect(changes).toContainText(/Version \d+\.\d+\.\d+/);
+  await changes.getByRole('button', { name: 'Alles klar' }).click();
+  await expect(changes).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
+  await expect(changes).toHaveCount(0);
+
+  await page.goto('/profil');
+  await expect(page.getByText(/^Myzel \d+\.\d+\.\d+ · /)).toBeVisible();
+  await page.getByRole('button', { name: 'Was ist neu?' }).click();
+  await expect(changes).toContainText('Entscheidungen gelten erst');
 });

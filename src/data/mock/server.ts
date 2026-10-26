@@ -61,6 +61,7 @@ import {
   type AppointmentType,
   type Decision,
   type DecisionVote,
+  type AppReport,
   type DocumentLink,
   type DocumentRow,
   type DriveItem,
@@ -206,6 +207,8 @@ export interface Db {
   decisions: Decision[];
   /** [Umbau Phase 6] Stimmen zu offenen Entscheidungen (16.4) */
   decision_votes: DecisionVote[];
+  /** [Umbau Phase 8] Rückmeldungen aus der App (16.5) */
+  app_reports: AppReport[];
   questions: Question[];
   documents: DocumentRow[];
   document_links: DocumentLink[];
@@ -251,6 +254,7 @@ export function emptyDb(): Db {
     appointment_attendees: [],
     decisions: [],
     decision_votes: [],
+    app_reports: [],
     questions: [],
     documents: [],
     document_links: [],

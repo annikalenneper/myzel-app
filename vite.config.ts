@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json' with { type: 'json' };
 
 const dbTests = [
   'server/api/handle.test.ts',
@@ -14,6 +15,11 @@ const dbTests = [
 ];
 
 export default defineConfig({
+  // Version und Deploy der App (16.5): Profil und „Was ist neu?“
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version),
+    'import.meta.env.VITE_APP_COMMIT': JSON.stringify(process.env.COMMIT_REF?.slice(0, 7) ?? 'lokal'),
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -77,6 +83,7 @@ export default defineConfig({
             'src/data/mock/drive.test.ts',
             'src/data/mock/grundfunktionen.test.ts',
             'src/data/mock/konsens.test.ts',
+            'src/data/mock/rueckmeldung.test.ts',
           ],
           env: { MYZEL_API: 'server', TZ: 'Europe/Berlin' },
         },

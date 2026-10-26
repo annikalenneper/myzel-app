@@ -1,6 +1,6 @@
 // Smoke-Tests gegen das echte Backend (7.4 Nr. 6): Kernabläufe der Phase 1 durch App, HTTP-Schicht,
 // Server-Funktionen und Postgres. Die Daten bleiben über Neuladen erhalten, weil sie auf dem Server liegen.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '../fixtures';
 import { card, openTask, statusChip, undoBar, createNew } from '../helpers';
 
 /** Login-ID der Testkonten wie in server/db/seedFromMock.ts */
