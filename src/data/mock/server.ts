@@ -149,6 +149,8 @@ export type InverseOp =
       kind: 'archive_restore';
       collection: 'events' | 'appointments' | 'decisions' | 'questions' | 'documents' | 'partners';
       id: string;
+      /** Serientermin: Ausnahme-Kennzeichen vor dem Löschen */
+      is_exception?: boolean;
     };
 
 export type UndoEntity = 'task' | 'event' | 'appointment' | 'decision' | 'question' | 'document' | 'partner';
@@ -1210,6 +1212,10 @@ export function undo(ctx: Ctx, token: string): void {
           undone.archived_at = { old: row.archived_at, new: null };
           row.archived_at = null;
         }
+        if (op.is_exception !== undefined && op.collection === 'appointments') {
+          const a = db.appointments.find((x) => x.id === op.id);
+          if (a) a.is_exception = op.is_exception;
+        }
         break;
       }
       case 'vote_restore':
@@ -1285,6 +1291,12 @@ export function undo(ctx: Ctx, token: string): void {
 
 // ── Veranstaltungen ─────────────────────────────────────────────────────────
 
+/** Phase 9: Gelöschtes (archiviert) lässt sich nicht mehr bearbeiten – nur über „Rückgängig“ zurückholen */
+export function notArchived<T extends { archived_at: string | null }>(row: T): T {
+  if (row.archived_at) throw rule('Gelöscht – das lässt sich nicht mehr ändern.');
+  return row;
+}
+
 export function findEvent(db: Db, id: string): EventRow {
   const event = db.events.find((e) => e.id === id);
   if (!event) throw notFound('Diese Veranstaltung');
@@ -1319,7 +1331,7 @@ export function createEvent(ctx: Ctx, raw: unknown): { id: string } {
 
 export function updateEvent(ctx: Ctx, id: string, raw: unknown): void {
   const input = parse(eventUpdateSchema, raw);
-  const event = findEvent(ctx.db, id);
+  const event = notArchived(findEvent(ctx.db, id));
   checkVersion(ctx, 'event', event, input.version);
   const changes: HistoryChanges = {};
   for (const key of [
@@ -1346,7 +1358,7 @@ export function updateEvent(ctx: Ctx, id: string, raw: unknown): void {
 }
 
 export function setEventStatus(ctx: Ctx, id: string, status: EventStatus, version: number): Undoable {
-  const event = findEvent(ctx.db, id);
+  const event = notArchived(findEvent(ctx.db, id));
   checkVersion(ctx, 'event', event, version);
   if (!canTransitionEvent(event.status, status))
     throw rule(

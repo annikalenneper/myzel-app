@@ -17,7 +17,7 @@ import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { EventFormSheet } from './EventFormSheet';
 import { EventSections } from './EventSections';
 import { TaskLinkSheet } from './TaskLinkSheet';
-import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
+import { ArchivedNotice, DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { TemplateSheet } from './TemplateSheet';
 import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
 import { useShowEventOnAgenda } from '../agenda/EventAgendaLink';
@@ -132,14 +132,17 @@ function Loaded({ event }: { event: Detail }) {
         >
           <IconEdit size={20} />
         </button>
-        <DeleteAction
-          noun="Veranstaltung"
-          consequence="Aufgaben, Termine, Entscheidungen und Fakten bleiben erhalten."
-          onConfirm={() => void remove()}
-        />
+        {!event.archived_at && (
+          <DeleteAction
+            noun="Veranstaltung"
+            consequence="Aufgaben, Termine, Entscheidungen und Fakten bleiben erhalten."
+            onConfirm={() => void remove()}
+          />
+        )}
       </TopBar>
 
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-24">
+        {event.archived_at && <ArchivedNotice />}
         <div className="flex flex-col gap-2">
           <span className="label-mono">{EVENT_TYPE_LABEL[event.type]}</span>
           <h1 className="m-0 text-[34px] leading-[1.15] font-bold tracking-[-1px]">{event.title}</h1>

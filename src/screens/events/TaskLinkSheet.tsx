@@ -1,7 +1,7 @@
 // Phase 9: „+ Aufgabe“ im Event – eine bestehende Aufgabe mit der Veranstaltung verknüpfen (WF-VER-05). Neu anlegen
 // geht über die Schnellanlage mit vorbelegter Veranstaltung.
 import { useState } from 'react';
-import { useFeedback } from '../../app/feedback';
+import { useActions } from '../../app/useActions';
 import { useLookups } from '../../app/lookups';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
@@ -20,7 +20,7 @@ export function TaskLinkSheet({
   onCreate: () => void;
   onClose: () => void;
 }) {
-  const { run } = useFeedback();
+  const act = useActions();
   const { eventById } = useLookups();
   const event = eventById.get(eventId);
   const { data: tasks } = useData('tasks', () => api.listTasks());
@@ -61,13 +61,10 @@ export function TaskLinkSheet({
               type="button"
               data-wf="WF-VER-05"
               onClick={async () => {
-                const ok = await run(
-                  () => api.updateTaskFields(t.id, { event_id: eventId }, t.version).then(() => true),
-                  {
-                    subject: 'diese Aufgabe',
-                    success: `Verknüpft mit ${event?.title ?? 'dem Event'}: ${t.title}`,
-                  },
-                );
+                const ok = await act(() => api.updateTaskFields(t.id, { event_id: eventId }, t.version), {
+                  subject: 'diese Aufgabe',
+                  success: `Verknüpft mit ${event?.title ?? 'dem Event'}: ${t.title}`,
+                });
                 if (ok) onClose();
               }}
               className="flex min-h-12 flex-col items-start justify-center gap-0.5 rounded-xl border border-linie bg-grund px-3 py-2 text-left text-[15px] text-text"

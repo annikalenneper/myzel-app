@@ -28,6 +28,7 @@ import {
   writeHistory,
   type Ctx,
   type Db,
+  notArchived,
 } from './server';
 import { commentsOf, historyOf } from './comments';
 import { checkDriveFolder, childEntries, driveItem } from './drive';
@@ -45,7 +46,8 @@ export function getEventDetail(db: Db, id: string, now: Date): EventDetail {
     .filter((b) => b.event_id === id)
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
   const partners = db.event_partners
-    .filter((ep) => ep.event_id === id)
+    // gelöschte Partner stehen nicht mehr in der Veranstaltung (Phase 9)
+    .filter((ep) => ep.event_id === id && !db.partners.find((x) => x.id === ep.partner_id)?.archived_at)
     .map((ep) => {
       const p = db.partners.find((x) => x.id === ep.partner_id)!;
       return {
@@ -97,7 +99,7 @@ export function getEventDetail(db: Db, id: string, now: Date): EventDetail {
 /** WF-VER-08: ein Feld eines Detailbereichs; Versionsprüfung an der Veranstaltung, Historie alt → neu */
 export function updateEventDetail(ctx: Ctx, eventId: string, raw: unknown): void {
   const input = parse(eventDetailUpdateSchema, raw);
-  const event = findEvent(ctx.db, eventId);
+  const event = notArchived(findEvent(ctx.db, eventId));
   if (input.expected === undefined) checkVersion(ctx, 'event', event, input.version);
   const fieldSchema = EVENT_DETAIL_FIELDS[input.field];
   const parsed = fieldSchema.safeParse(input.value);
@@ -149,7 +151,7 @@ function findBooking(db: Db, id: string): EventBooking {
 
 export function addBooking(ctx: Ctx, eventId: string, raw: unknown): Undoable & { id: string } {
   const input = parse(bookingCreateSchema, raw);
-  const event = findEvent(ctx.db, eventId);
+  const event = notArchived(findEvent(ctx.db, eventId));
   const booking: EventBooking = {
     id: uuid(),
     event_id: eventId,
@@ -196,7 +198,7 @@ export function updateBooking(ctx: Ctx, id: string, raw: unknown): void {
 
 export function removeBooking(ctx: Ctx, id: string): Undoable {
   const booking = findBooking(ctx.db, id);
-  const event = findEvent(ctx.db, booking.event_id);
+  const event = notArchived(findEvent(ctx.db, booking.event_id));
   ctx.db.event_bookings = ctx.db.event_bookings.filter((b) => b.id !== id);
   ctx.inverse.push({ kind: 'booking_restore', row: booking });
   writeHistory(ctx, 'event', event.id, 'booking_removed', { booking: { old: booking.act_name, new: null } });
@@ -206,7 +208,7 @@ export function removeBooking(ctx: Ctx, id: string): Undoable {
 // ── Hauptverantwortliche (WF-VER-09), eintragsweise ─────────────────────────
 
 export function addLead(ctx: Ctx, eventId: string, memberId: string): Undoable {
-  const event = findEvent(ctx.db, eventId);
+  const event = notArchived(findEvent(ctx.db, eventId));
   const member = ctx.db.members.find((m) => m.id === memberId);
   if (!member || member.is_system) throw notFound('Dieses Mitglied');
   if (!member.active) throw rule(`${member.display_name} ist deaktiviert.`);
@@ -233,7 +235,7 @@ function dropLead(ctx: Ctx, eventId: string, memberId: string, action: string): 
 }
 
 export function removeLead(ctx: Ctx, eventId: string, memberId: string): Undoable {
-  const event = findEvent(ctx.db, eventId);
+  const event = notArchived(findEvent(ctx.db, eventId));
   if (!dropLead(ctx, eventId, memberId, 'lead_removed')) return { undo_token: '' };
   return registerUndo(ctx, 'event', event, 'Ausgetragen');
 }
@@ -249,7 +251,7 @@ export function dropLeads(ctx: Ctx, memberId: string): number {
 
 /** WF-VER-14: Drive-Ordner wählen oder entfernen */
 export function setDriveFolder(ctx: Ctx, eventId: string, folderId: string | null, version: number): void {
-  const event = findEvent(ctx.db, eventId);
+  const event = notArchived(findEvent(ctx.db, eventId));
   checkVersion(ctx, 'event', event, version);
   if (folderId) checkDriveFolder(ctx.db, folderId);
   if (event.drive_folder_id === folderId) return;
@@ -261,7 +263,7 @@ export function setDriveFolder(ctx: Ctx, eventId: string, folderId: string | nul
 }
 
 export function setShiftPlan(ctx: Ctx, eventId: string, documentId: string | null, version: number): void {
-  const event = findEvent(ctx.db, eventId);
+  const event = notArchived(findEvent(ctx.db, eventId));
   checkVersion(ctx, 'event', event, version);
   if (documentId && !ctx.db.documents.some((d) => d.id === documentId))
     throw new AppError('validation', 'Dieses Dokument gibt es nicht mehr.', {

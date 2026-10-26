@@ -9,7 +9,7 @@ import { linkTarget, telegramButtons, type TelegramButtonKey } from '../../share
 import type { TaskStatus } from '../../shared/schema';
 import { findAppointment, setRsvp } from './appointments';
 import { enqueue } from './notify';
-import { findTask, notFound, removeAssignee, rule, setTaskStatus, type Ctx } from './server';
+import { findTask, notArchived, notFound, removeAssignee, rule, setTaskStatus, type Ctx } from './server';
 
 export interface TelegramReply {
   /** false: nichts geändert – der Text erklärt, warum */
@@ -92,7 +92,7 @@ function taskAction(ctx: Ctx, taskId: string, key: TelegramButtonKey): TelegramR
 }
 
 function rsvpAction(ctx: Ctx, appointmentId: string, key: TelegramButtonKey): TelegramReply {
-  const a = findAppointment(ctx.db, appointmentId);
+  const a = notArchived(findAppointment(ctx.db, appointmentId));
   const answer = key === 'komme' ? 'ja' : key === 'komme_nicht' ? 'nein' : null;
   if (!answer) throw new AppError('validation', 'Diesen Button gibt es an dieser Nachricht nicht.');
   const current = ctx.db.appointment_rsvps.find(

@@ -15,6 +15,7 @@ import {
   writeHistory,
   type Ctx,
   type Db,
+  notArchived,
 } from './server';
 
 const uuid = () => crypto.randomUUID();
@@ -96,7 +97,7 @@ const hiddenChange = { old: '(nicht gespeichert)', new: '(geändert)' };
 
 export function updatePartner(ctx: Ctx, id: string, raw: unknown): void {
   const input = parse(partnerUpdateSchema, raw);
-  const partner = findPartner(ctx.db, id);
+  const partner = notArchived(findPartner(ctx.db, id));
   checkVersion(ctx, 'partner', partner, input.version);
   assertUniqueName(ctx.db, input.name, id);
   if (input.internal_contact_member_id !== partner.internal_contact_member_id)
@@ -125,8 +126,8 @@ export function updatePartner(ctx: Ctx, id: string, raw: unknown): void {
 // ── Verknüpfung mit Veranstaltungen (WF-VER-10), eintragsweise ───────────────
 
 export function linkPartner(ctx: Ctx, eventId: string, partnerId: string, roleNote: string | null): Undoable {
-  const event = findEvent(ctx.db, eventId);
-  const partner = findPartner(ctx.db, partnerId);
+  const event = notArchived(findEvent(ctx.db, eventId));
+  const partner = notArchived(findPartner(ctx.db, partnerId));
   if (partner.archived_at) throw rule('Dieser Partner ist archiviert.');
   if (ctx.db.event_partners.some((ep) => ep.event_id === eventId && ep.partner_id === partnerId))
     return { undo_token: '' };

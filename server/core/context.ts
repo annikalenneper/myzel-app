@@ -129,6 +129,8 @@ export interface PlenumAnswer {
 export const iso = (ctx: Ctx) => ctx.now.toISOString();
 export const rule = (message: string, field?: string) => new AppError('rule', message, { field });
 export const notFound = (what: string) => new AppError('not_found', `${what} gibt es nicht mehr.`);
+/** Phase 9: Gelöschtes (archiviert) lässt sich nicht mehr bearbeiten – nur über „Rückgängig“ zurückholen */
+export const ARCHIVED = 'Gelöscht – das lässt sich nicht mehr ändern.';
 
 export function parse<T>(schema: ZodType<T>, raw: unknown): T {
   const result = schema.safeParse(raw);
@@ -155,24 +157,37 @@ export async function writeHistory(
   action: string,
   changes: HistoryChanges = {},
 ): Promise<void> {
-  const id = crypto.randomUUID();
-  ctx.historyIds.push(id);
-  // während des Plenums: die Änderung gehört zu seinem Ergebnis (16.2)
-  const all: HistoryChanges = { ...changes };
-  if (ctx.plenumId && !changes.plenum_id && countsForPlenum(entity_type, entity_id, action, ctx.plenumId))
-    all.plenum_id = { old: null, new: ctx.plenumId };
-  await ctx.trx
-    .insertInto('history')
-    .values({
+  await writeHistoryMany(ctx, entity_type, entity_id, action, [changes]);
+}
+
+/** Mehrere Einträge gleicher Art in einer Abfrage (16.6) – z. B. „Alle“ eintragen: je Person ein Eintrag */
+export async function writeHistoryMany(
+  ctx: Ctx,
+  entity_type: HistoryEntity,
+  entity_id: string,
+  action: string,
+  changesList: readonly HistoryChanges[],
+): Promise<void> {
+  if (changesList.length === 0) return;
+  const at = iso(ctx);
+  const rows = changesList.map((changes) => {
+    const id = crypto.randomUUID();
+    ctx.historyIds.push(id);
+    // während des Plenums: die Änderung gehört zu seinem Ergebnis (16.2)
+    const all: HistoryChanges = { ...changes };
+    if (ctx.plenumId && !changes.plenum_id && countsForPlenum(entity_type, entity_id, action, ctx.plenumId))
+      all.plenum_id = { old: null, new: ctx.plenumId };
+    return {
       id,
       entity_type,
       entity_id,
       actor_member_id: ctx.actor.id,
       action,
       changes: JSON.stringify(all),
-      created_at: iso(ctx),
-    })
-    .execute();
+      created_at: at,
+    };
+  });
+  await ctx.trx.insertInto('history').values(rows).execute();
 }
 
 /** Kein stilles Überschreiben (WF-ALL-01): wer mit alter version speichert, bekommt einen Konflikt mit Namen. */

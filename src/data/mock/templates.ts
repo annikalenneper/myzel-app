@@ -14,7 +14,17 @@ import {
 } from '../../shared/schema';
 import type { TemplateDialog, TemplateWithItems, Undoable } from '../api';
 import * as server from './server';
-import { findEvent, notFound, parse, registerUndo, rule, writeHistory, type Ctx, type Db } from './server';
+import {
+  findEvent,
+  notArchived,
+  notFound,
+  parse,
+  registerUndo,
+  rule,
+  writeHistory,
+  type Ctx,
+  type Db,
+} from './server';
 
 const uuid = () => crypto.randomUUID();
 
@@ -107,7 +117,7 @@ export function getTemplateDialog(db: Db, eventId: string, now: Date): TemplateD
 /** WF-VER-12: nur Ausgewähltes als „neu“ anlegen, ohne Duplikate; ein Rückgängig für alles */
 export function applyTemplate(ctx: Ctx, eventId: string, raw: unknown): Undoable & { created: number } {
   const { item_ids } = parse(templateApplySchema, raw);
-  const event = findEvent(ctx.db, eventId);
+  const event = notArchived(findEvent(ctx.db, eventId));
   if (event.archived_at || event.status === 'abgesagt' || event.status === 'abgeschlossen')
     throw rule('Für abgeschlossene oder abgesagte Veranstaltungen gibt es keine Vorlagen mehr.');
   const dialog = getTemplateDialog(ctx.db, eventId, ctx.now);

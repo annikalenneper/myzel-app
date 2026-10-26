@@ -39,6 +39,7 @@ import {
   registerUndo,
   rule,
   writeHistory,
+  writeHistoryMany,
   type Ctx,
   type Undoable,
 } from '../core/context';
@@ -128,6 +129,8 @@ async function usableEvent(ctx: Ctx, id: string): Promise<void> {
     .selectFrom('events')
     .select('id')
     .where('id', '=', id)
+    // gleichzeitiges Löschen wartet (Phase 9)
+    .forShare()
     .where('archived_at', 'is', null)
     .executeTakeFirst();
   if (!event)
@@ -259,15 +262,19 @@ export async function createTask(ctx: Ctx, raw: unknown): Promise<{ id: string }
  */
 async function assignMany(ctx: Ctx, task: TaskRow, memberIds: readonly string[]): Promise<string[]> {
   const ids = [...new Set(memberIds)];
-  const members = await ctx.trx
-    .selectFrom('members')
-    .select(['id', 'active', 'is_system'])
-    .where('id', 'in', ids)
-    // gleichzeitiges Deaktivieren wartet und trägt die Person danach auch hier aus
-    .forShare()
-    .execute();
-  if (members.length !== ids.length || members.some((m) => m.is_system || !m.active))
-    throw rule('Nur aktive Mitglieder lassen sich eintragen.');
+  // die handelnde Person ist aktiv (Sitzung) – geprüft werden nur die anderen
+  const others = ids.filter((id) => id !== ctx.actor.id);
+  if (others.length) {
+    const members = await ctx.trx
+      .selectFrom('members')
+      .select(['id', 'active', 'is_system'])
+      .where('id', 'in', others)
+      // gleichzeitiges Deaktivieren wartet und trägt die Person danach auch hier aus
+      .forShare()
+      .execute();
+    if (members.length !== others.length || members.some((m) => m.is_system || !m.active))
+      throw rule('Nur aktive Mitglieder lassen sich eintragen.');
+  }
   const at = iso(ctx);
   const added = (
     await ctx.trx
@@ -290,8 +297,13 @@ async function assignMany(ctx: Ctx, task: TaskRow, memberIds: readonly string[])
     ctx.inverse.push({ kind: 'assignee_remove', task_id: task.id, member_id: memberId });
   for (const f of followed)
     ctx.inverse.push({ kind: 'follower_remove', task_id: task.id, member_id: f.member_id });
-  for (const memberId of added)
-    await writeHistory(ctx, 'task', task.id, 'assignee_added', { assignee: { old: null, new: memberId } });
+  await writeHistoryMany(
+    ctx,
+    'task',
+    task.id,
+    'assignee_added',
+    added.map((memberId) => ({ assignee: { old: null, new: memberId } })),
+  );
   await notify(
     ctx,
     added.flatMap((memberId) => assignmentMessages(task, memberId, ctx.actor.id, at)),

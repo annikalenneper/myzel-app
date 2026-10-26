@@ -100,6 +100,8 @@ export async function getEventDetail(trx: Db, id: string, now: Date): Promise<Ev
             .as('event_count'),
       ])
       .where('ep.event_id', '=', id)
+      // gelöschte Partner stehen nicht mehr in der Veranstaltung (Phase 9)
+      .where('p.archived_at', 'is', null)
       .orderBy('ep.added_at')
       .execute(),
     event.shift_plan_document_id

@@ -17,7 +17,7 @@ import { formatEventRange } from '../../shared/format';
 import { EVENT_STATUS_LABEL } from '../../shared/labels';
 import { Avatar, cx, FieldError, LightButton, ListSkeleton, LoadError, PrimaryButton } from '../../ui/bits';
 import { IconBack, IconEdit } from '../../ui/icons';
-import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
+import { ArchivedNotice, DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { Sheet } from '../../ui/Sheet';
 
 const WF_LIST = 'WF-VER-13';
@@ -179,13 +179,16 @@ function Loaded({ p }: { p: Detail }) {
         >
           <IconEdit size={20} />
         </button>
-        <DeleteAction
-          noun="Partner"
-          consequence="Die Verknüpfungen mit Veranstaltungen bleiben im Verlauf sichtbar."
-          onConfirm={() => void remove()}
-        />
+        {!p.archived_at && (
+          <DeleteAction
+            noun="Partner"
+            consequence="Die Verknüpfungen mit Veranstaltungen bleiben im Verlauf sichtbar."
+            onConfirm={() => void remove()}
+          />
+        )}
       </DetailTop>
       <div className="flex flex-col gap-4 px-5 pt-1 pb-10">
+        {p.archived_at && <ArchivedNotice />}
         <div className="flex flex-col gap-2">
           {p.kind && <span className="label-mono">{p.kind}</span>}
           <h1 className="m-0 text-[30px] leading-[1.15] font-bold tracking-[-1px]">{p.name}</h1>

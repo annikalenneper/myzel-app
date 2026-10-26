@@ -832,6 +832,37 @@ describe('Phase 9: Löschen ist Archivieren (WF-ALL-09)', () => {
     const detail = await api.getDecision(marked.id);
     expect([detail.marked, !!detail.archived_at]).toEqual([false, true]);
     expect(detail.history.some((h) => h.action === 'archived')).toBe(true);
+  });
+
+  it('Rückgängig bringt eine gelöschte Entscheidung samt Markierung zurück auf die Agenda', async () => {
+    const marked = (await api.listDecisions()).find((d) => d.marked)!;
+    const { undo_token } = await api.archiveArtifact('decision', marked.id, marked.version);
+    await api.undo(undo_token);
+    const back = await api.getDecision(marked.id);
+    expect([back.marked, back.archived_at]).toEqual([true, null]);
     await expectError(api.archiveArtifact('task' as never, marked.id, 1), 'rule');
+  });
+});
+
+describe('Phase 9, Review: Gelöschtes bleibt, wie es ist', () => {
+  it('gelöschte Veranstaltung, Termin und Partner lassen sich nicht mehr bearbeiten', async () => {
+    const [event] = await api.listEvents();
+    await api.archiveArtifact('event', event!.id, event!.version);
+    await expectError(api.setEventStatus(event!.id, 'abgesagt', event!.version + 1), 'rule');
+    const appointment = (await api.listAppointments()).find((a) => a.status === 'geplant' && !a.is_plenum)!;
+    await api.archiveArtifact('appointment', appointment.id, appointment.version);
+    await expectError(api.setRsvp(appointment.id, 'ja'), 'rule');
+    const [partner] = await api.listPartners();
+    await api.archiveArtifact('partner', partner!.id, partner!.version);
+    await expectError(api.linkPartner((await api.listEvents())[0]!.id, partner!.id, null), 'rule');
+  });
+
+  onlyMock('ein gelöschter Serientermin kommt mit dem nächsten Joblauf nicht zurück', async () => {
+    const occurrence = (await api.listAppointments()).find((a) => a.series && a.status === 'geplant')!;
+    const { undo_token } = await api.archiveArtifact('appointment', occurrence.id, occurrence.version);
+    await api.demo!.runJobNow();
+    expect((await api.listAppointments()).map((a) => a.id)).not.toContain(occurrence.id);
+    await api.undo(undo_token);
+    expect((await api.listAppointments()).map((a) => a.id)).toContain(occurrence.id);
   });
 });

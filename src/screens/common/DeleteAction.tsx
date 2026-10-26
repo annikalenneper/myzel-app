@@ -2,6 +2,7 @@
 // den Listen, bleibt aber erhalten und lässt sich gleich danach rückgängig machen (WF-ALL-09, Aufgaben WF-AUF-14).
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAgendaFilter } from '../../app/agendaFilter';
 import { useActions } from '../../app/useActions';
 import { api } from '../../data';
 import type { ArchiveTarget } from '../../shared/schema';
@@ -57,11 +58,14 @@ export function useDeleteArtifact(
 ) {
   const act = useActions();
   const navigate = useNavigate();
+  const { filter, setFilter } = useAgendaFilter();
   return async () => {
     const ok = await act(() => api.archiveArtifact(type, id, version()), {
       success: 'Gelöscht',
       undo: (r) => r.undo_token,
     });
+    // eine gelöschte Veranstaltung filtert die Agenda nicht weiter
+    if (ok && type === 'event' && filter.eventId === id) setFilter({ eventId: null });
     if (ok && backTo) navigate(backTo);
   };
 }
@@ -125,6 +129,15 @@ export function DeleteAction({
           onClose={() => setAsking(false)}
         />
       )}
+    </div>
+  );
+}
+
+/** Gelöschtes (archiviert) bleibt zum Nachlesen erreichbar, lässt sich aber nicht mehr bearbeiten */
+export function ArchivedNotice() {
+  return (
+    <div className="rounded-[14px] border border-rand bg-erhoeht px-3.5 py-3 text-[14px] leading-normal text-weich">
+      Gelöscht – nur noch zum Nachlesen. Direkt nach dem Löschen lässt es sich rückgängig machen.
     </div>
   );
 }

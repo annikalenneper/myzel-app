@@ -33,6 +33,7 @@ import {
   writeHistory,
   type Ctx,
   type Db,
+  notArchived,
 } from './server';
 
 const uuid = () => crypto.randomUUID();
@@ -256,7 +257,7 @@ function markException(a: Appointment, changes: HistoryChanges): void {
 /** WF-TER-04: bearbeiten/verschieben; bei Zeit oder Ort geändert: Nachricht an Zusagen und ohne Antwort */
 export function updateAppointment(ctx: Ctx, id: string, raw: unknown): { notified: number } {
   const input = parse(appointmentUpdateSchema, raw);
-  const a = findAppointment(ctx.db, id);
+  const a = notArchived(findAppointment(ctx.db, id));
   checkVersion(ctx, 'appointment', a, input.version);
   if (a.status === 'abgesagt') throw rule('Abgesagte Termine lassen sich nicht mehr bearbeiten.');
   if (input.type_id !== a.type_id) throw rule('Die Terminart lässt sich nachträglich nicht ändern.');
@@ -302,7 +303,7 @@ export function updateAppointment(ctx: Ctx, id: string, raw: unknown): { notifie
 
 /** WF-TER-03: Zu- oder Absage setzen, ändern oder zurücknehmen */
 export function setRsvp(ctx: Ctx, id: string, answer: RsvpAnswer | null): Undoable {
-  const a = findAppointment(ctx.db, id);
+  const a = notArchived(findAppointment(ctx.db, id));
   if (!canRsvp(a, ctx.now))
     throw rule(
       a.status === 'geplant'
@@ -332,7 +333,7 @@ export function setRsvp(ctx: Ctx, id: string, answer: RsvpAnswer | null): Undoab
 
 /** WF-TER-05: absagen – Nachricht an Zusagen und ohne Antwort */
 export function cancelAppointment(ctx: Ctx, id: string, version: number): { notified: number } {
-  const a = findAppointment(ctx.db, id);
+  const a = notArchived(findAppointment(ctx.db, id));
   checkVersion(ctx, 'appointment', a, version);
   if (a.status !== 'geplant') throw rule('Nur geplante Termine lassen sich absagen.');
   const changes: HistoryChanges = { status: { old: a.status, new: 'abgesagt' } };
@@ -370,7 +371,7 @@ export function markHappened(
   attendeeIds: readonly string[],
   version: number,
 ): Undoable {
-  const a = findAppointment(ctx.db, id);
+  const a = notArchived(findAppointment(ctx.db, id));
   checkVersion(ctx, 'appointment', a, version);
   if (!canMarkHappened(a, ctx.now))
     throw rule(
@@ -397,7 +398,7 @@ export function markHappened(
 
 /** Vergangene Termine bleiben korrigierbar (4.3): Teilnahme nachträglich ändern */
 export function setAttendee(ctx: Ctx, id: string, memberId: string, present: boolean): void {
-  const a = findAppointment(ctx.db, id);
+  const a = notArchived(findAppointment(ctx.db, id));
   if (a.status !== 'stattgefunden' && a.status !== 'abgeschlossen')
     throw rule('Die Teilnahme lässt sich erst festhalten, wenn der Termin stattgefunden hat.');
   const db = ctx.db;

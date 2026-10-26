@@ -52,10 +52,11 @@ export async function archiveArtifact(
   if (!row) throw notFound(NOUN[type]);
   await checkVersion(ctx, type, row, version);
   if (row.archived_at) return { undo_token: '' };
+  // erst wiederherstellen, dann die Markierung – das Rückgängig arbeitet die Gegenschritte der Reihe nach ab
+  ctx.inverse.push({ kind: 'archive_restore', table, id });
   // Entscheidungen und Fakten gehen dabei von der Agenda (mit Gegenschritt)
   if (type === 'decision') await dropMark(ctx, id);
   const at = iso(ctx);
-  ctx.inverse.push({ kind: 'archive_restore', table, id });
   await ctx.trx
     .updateTable(table)
     .set({ archived_at: at, version: row.version + 1, updated_at: at } as never)

@@ -12,7 +12,7 @@ import { api } from '../../data';
 import type { PlenumDetail as Detail } from '../../data/api';
 import { formatEventRange } from '../../shared/format';
 import { CalendarLinks, CallButton } from './CalendarLinks';
-import { DeleteDialog, useDeleteArtifact } from '../common/DeleteAction';
+import { ArchivedNotice, DeleteDialog, useDeleteArtifact } from '../common/DeleteAction';
 import {
   APPOINTMENT_STATUS_COLOR,
   APPOINTMENT_STATUS_LABEL,
@@ -129,18 +129,20 @@ function Loaded({ p }: { p: Detail }) {
                     </button>
                   </>
                 )}
-                {/* WF-ALL-09 Löschen (Phase 9) */}
-                <button
-                  type="button"
-                  data-wf="WF-ALL-09"
-                  onClick={() => {
-                    setMenu(false);
-                    setSheet('delete');
-                  }}
-                  className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-rot-hell"
-                >
-                  Löschen …
-                </button>
+                {/* WF-ALL-09 Löschen (Phase 9) – nicht, wenn schon gelöscht */}
+                {!p.archived_at && (
+                  <button
+                    type="button"
+                    data-wf="WF-ALL-09"
+                    onClick={() => {
+                      setMenu(false);
+                      setSheet('delete');
+                    }}
+                    className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-rot-hell"
+                  >
+                    Löschen …
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -156,6 +158,7 @@ function Loaded({ p }: { p: Detail }) {
       )}
 
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
+        {p.archived_at && <ArchivedNotice />}
         <div className="flex flex-col gap-2">
           <span className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-pink uppercase">
             <span className="size-2 flex-none rounded-full" style={{ background: p.type_color }} />

@@ -28,7 +28,7 @@ import { entityHistorySentence } from '../../shared/entityHistory';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
 import { CalendarLinks, CallButton } from './CalendarLinks';
-import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
+import { ArchivedNotice, DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { rsvpButton, useRsvp } from './AppointmentsScreen';
 import { PlenumDetail } from './PlenumDetail';
 import { SeriesSheet } from './SeriesSheet';
@@ -110,14 +110,17 @@ function Loaded({ a }: { a: Detail }) {
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={cancelled ? 24 : 92} />
       <TopBar>
-        <DeleteAction
-          noun="Termin"
-          consequence="Aufgaben zum Termin bleiben erhalten."
-          onConfirm={() => void remove()}
-        />
+        {!a.archived_at && (
+          <DeleteAction
+            noun="Termin"
+            consequence="Aufgaben zum Termin bleiben erhalten."
+            onConfirm={() => void remove()}
+          />
+        )}
       </TopBar>
 
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
+        {a.archived_at && <ArchivedNotice />}
         <div className="flex flex-col gap-2">
           <span className="label-mono flex flex-wrap items-center gap-2">
             <span className="size-2 flex-none rounded-full" style={{ background: a.type_color }} />

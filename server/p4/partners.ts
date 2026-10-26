@@ -4,6 +4,7 @@ import type { PartnerDetail, PartnerListItem, Undoable } from '../../src/data/ap
 import { AppError } from '../../src/shared/errors';
 import { partnerCreateSchema, partnerUpdateSchema, type HistoryChanges } from '../../src/shared/schema';
 import {
+  ARCHIVED,
   checkVersion,
   iso,
   notFound,
@@ -28,6 +29,8 @@ export async function findPartner(trx: Db, id: string, lock = true): Promise<Par
     .$if(lock, (q) => q.forUpdate())
     .executeTakeFirst();
   if (!partner) throw notFound('Diesen Partner');
+  // gesperrt heißt schreiben: Gelöschtes bleibt, wie es ist
+  if (lock && partner.archived_at) throw rule(ARCHIVED);
   return partner;
 }
 

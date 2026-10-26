@@ -26,6 +26,7 @@ import {
   type RsvpAnswer,
 } from '../../src/shared/schema';
 import {
+  ARCHIVED,
   checkVersion,
   iso,
   notFound,
@@ -213,6 +214,8 @@ export async function findAppointment(trx: Db, id: string, lock = true): Promise
     .$if(lock, (q) => q.forUpdate())
     .executeTakeFirst();
   if (!appointment) throw notFound('Diesen Termin');
+  // gesperrt heißt schreiben: Gelöschtes bleibt, wie es ist
+  if (lock && appointment.archived_at) throw rule(ARCHIVED);
   return appointment;
 }
 

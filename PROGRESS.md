@@ -142,6 +142,11 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Entscheidungen/Fakten: Text höchstens 200 Zeichen (vorher 300)
   - [x] Agenda: Reiter Aktuell/Abgeschlossen statt Filter „Abgeschlossene“; Art-Filter entfällt
   - [x] Events: Status mit Farbpunkt wie bei Aufgaben – in der Status-Leiste des Details und auf der Karte
+  - [x] Review Phase 9 (Subagent): kein hoher Befund; M1 (Rückgängig nach Löschen einer markierten Entscheidung setzt
+        sie wieder auf die Agenda), M2 (Gelöschte Veranstaltungen, Termine und Partner lassen sich nicht mehr bearbeiten;
+        Hinweis „Gelöscht“ im Detail; gelöschte Partner nicht mehr im Event), M3 (gelöschter Serientermin bleibt gelöscht,
+        Testdaten-Schicht), M4 (Historie für „Alle“ in einer Abfrage), N1 (Agenda-Filter auf gelöschtes Event wird
+        zurückgesetzt), N2–N5 behoben; offen: Rückgängig von „Alle“ löscht weiter eintragsweise (selten)
 
 ## Messungen
 

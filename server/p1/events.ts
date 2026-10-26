@@ -8,6 +8,7 @@ import {
   type HistoryChanges,
 } from '../../src/shared/schema';
 import {
+  ARCHIVED,
   checkVersion,
   updatedOne,
   iso,
@@ -28,6 +29,7 @@ export async function findEvent(ctx: Ctx, id: string) {
     .forUpdate()
     .executeTakeFirst();
   if (!event) throw notFound('Diese Veranstaltung');
+  if (event.archived_at) throw rule(ARCHIVED);
   return event;
 }
 
