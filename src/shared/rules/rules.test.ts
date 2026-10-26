@@ -315,6 +315,7 @@ describe('Plenum-Ergebnis: offene Entscheidung (16.4)', () => {
           kind: 'entscheidung',
           status: 'offen',
           consensus_until: '2026-11-04',
+          source_question_id: null,
         },
         created: true,
         question_title: null,
@@ -324,5 +325,43 @@ describe('Plenum-Ergebnis: offene Entscheidung (16.4)', () => {
     expect(group!.items[0]!.text).toBe(
       'Neue Entscheidung: Kasse zu zweit – gilt erst nach Bestätigung, bis 04.11.',
     );
+  });
+
+  it('F2: eine Frage steht mit Antwort oder mit dem, was aus ihr entstanden ist', () => {
+    const question = (id: string, title: string, answer: string | null) =>
+      ({ type: 'question', row: { id, title, status: 'geklaert', answer }, created: false }) as const;
+    const result = (id: string, title: string, q: string, kind: 'fakt' | 'entscheidung') =>
+      ({
+        type: 'decision',
+        row: {
+          id,
+          title,
+          kind,
+          status: kind === 'fakt' ? 'gueltig' : 'offen',
+          consensus_until: '2026-11-04',
+          source_question_id: q,
+        },
+        created: true,
+        question_title: 'Wer hat den Schlüssel?',
+        successor_title: null,
+      }) as const;
+    const groups = buildResults([
+      result('d1', 'Schlüssel bei Kim', 'q1', 'fakt'),
+      question('q2', 'Machen wir Silvester?', 'Ja, im Lager'),
+      question('q1', 'Wer hat den Schlüssel?', null),
+      result('d2', 'Zweitschlüssel nachmachen', 'q1', 'entscheidung'),
+    ]);
+    expect(groups).toEqual([
+      {
+        group: 'fragen',
+        items: [
+          {
+            text: 'Frage: Wer hat den Schlüssel? – daraus entstanden: Fakt „Schlüssel bei Kim“, Entscheidung „Zweitschlüssel nachmachen“ (zu bestätigen bis 04.11.)',
+            link: '/agenda/frage/q1',
+          },
+          { text: 'Frage: Machen wir Silvester? – Antwort: Ja, im Lager', link: '/agenda/frage/q2' },
+        ],
+      },
+    ]);
   });
 });

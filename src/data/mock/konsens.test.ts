@@ -220,3 +220,41 @@ describe('Entscheidungen im Konsens (16.4)', () => {
     expect((await api.getDecision(id)).status).toBe('gueltig');
   });
 });
+
+describe('Benachrichtigungen zu Entscheidungen (F3)', () => {
+  const inbox = async (name: string, event: string) => {
+    await login(name);
+    const list = (await api.demo!.myMessages()).filter((m) => m.event_type === event);
+    await login('mo');
+    return list;
+  };
+
+  it('neue Entscheidung an alle außer der Person, die sie festhält; Fakten nicht', async () => {
+    const id = await create();
+    await create({ kind: 'fakt' });
+    const paula = await inbox('paula', 'entscheidung_bestaetigen');
+    expect(paula.map((m) => m.text)).toEqual([
+      'Neue Entscheidung: „Kasse zählt immer zu zweit“ – bitte bis 18.10. bestätigen oder widersprechen.',
+    ]);
+    expect(paula[0]!.link).toBe(`/wissen/beschluesse/${id}`);
+    expect(await inbox('mo', 'entscheidung_bestaetigen')).toEqual([]);
+  });
+
+  it('am letzten Tag ab 9 Uhr nur an die, die noch nicht abgestimmt haben – einmal', async () => {
+    const id = await create();
+    await login('jule');
+    await api.voteDecision(id, 'bestaetigt');
+    await login('mo');
+    clock = new Date(2026, 9, 18, 8, 0, 0);
+    await api.demo!.runJobNow();
+    expect(await inbox('paula', 'entscheidung_frist')).toEqual([]);
+    clock = new Date(2026, 9, 18, 9, 30, 0);
+    await api.demo!.runJobNow();
+    clock = new Date(2026, 9, 18, 10, 0, 0);
+    await api.demo!.runJobNow();
+    expect((await inbox('paula', 'entscheidung_frist')).map((m) => m.text)).toEqual([
+      'Heute ist der letzte Tag für „Kasse zählt immer zu zweit“ – ohne Widerspruch gilt die Entscheidung ab morgen.',
+    ]);
+    expect(await inbox('jule', 'entscheidung_frist')).toEqual([]);
+  });
+});

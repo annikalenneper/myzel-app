@@ -249,6 +249,8 @@ export async function inTransaction<T>(
   now: Date,
   fn: (ctx: Ctx) => Promise<T>,
   answer: PlenumAnswer | null = null,
+  /** Profil und Verwaltung: gehört nie zum Plenum (F1) */
+  outsidePlenum = false,
 ): Promise<T> {
   // Deadlock oder Serialisierungsfehler bei gleichzeitigen Aktionen: die Transaktion ist zurückgerollt, einmal neu
   for (let attempt = 1; ; attempt++) {
@@ -258,7 +260,7 @@ export async function inTransaction<T>(
         // läuft ein Plenum, gehört die Änderung dazu: auf der Teilnehmerliste immer, sonst nach Antwort (16.2)
         const belongs =
           !!plenum && (plenum.participant || (answer?.plenumId === plenum.id && answer.belongs));
-        const plenumId = belongs ? plenum.id : null;
+        const plenumId = belongs && !outsidePlenum ? plenum.id : null;
         return fn({ trx, actor, now, inverse: [], historyIds: [], outbox: [], plenumId });
       });
     } catch (e) {

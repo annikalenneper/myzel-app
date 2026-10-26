@@ -18,6 +18,7 @@ import { EVENT_STATUS_LABEL, PRIORITY_LABEL, TASK_STATUS_LABEL } from '../../src
 import { APPOINTMENT_STATUS_LABEL, FORMAT_LABEL } from '../../src/shared/rules/appointments';
 import { driveFileIdFromUrl } from '../../src/shared/rules/drive';
 import { berlinDate } from '../../src/shared/rules/due';
+import { consensusInviteMessages } from '../../src/shared/rules/notifications';
 import {
   canSupersede,
   consensusReached,
@@ -61,6 +62,7 @@ import { addMark, dropMark, isMarked } from '../core/marks';
 import type { Database, DecisionRow, DocumentRow, MemberRow, QuestionRow } from '../db/types';
 import { commentsOf } from '../p1/comments';
 import { historyOf } from '../p1/reads';
+import { notify } from '../p2/notify';
 import { documentForFile, missingDriveDocuments, visibleDriveFile, type DriveIndex } from '../p5/drive';
 import { isPlenum } from './appointments';
 
@@ -336,6 +338,16 @@ export async function insertDecision(
     ...(question ? { source_question_id: { old: null, new: question.id } } : {}),
     ...(consensusUntil ? { consensus_until: { old: null, new: consensusUntil } } : {}),
   });
+  // alle anderen erfahren, dass sie bestätigen oder widersprechen können (F3)
+  if (consensusUntil)
+    await notify(
+      ctx,
+      consensusInviteMessages(
+        { id: decision.id, title: decision.title, consensus_until: consensusUntil },
+        await activeMemberIds(ctx.trx),
+        ctx.actor.id,
+      ),
+    );
   // die Frage bleibt offen – als beantwortet markiert sie die Person selbst (16.3)
   if (question && action === 'created')
     await writeHistory(ctx, 'question', question.id, 'result_added', {

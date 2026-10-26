@@ -7,6 +7,7 @@ import { EVENT_STATUS_LABEL, PRIORITY_LABEL, TASK_STATUS_LABEL } from '../../sha
 import { APPOINTMENT_STATUS_LABEL, FORMAT_LABEL } from '../../shared/rules/appointments';
 import { driveFileIdFromUrl } from '../../shared/rules/drive';
 import { toIsoDate } from '../../shared/rules/due';
+import { consensusInviteMessages } from '../../shared/rules/notifications';
 import {
   canSupersede,
   consensusReached,
@@ -51,6 +52,7 @@ import type {
 import { isPlenum } from './appointments';
 import { commentsOf, historyOf } from './comments';
 import { documentFor, driveFileMissing, driveItem } from './drive';
+import { enqueue } from './notify';
 import {
   addMark,
   checkVersion,
@@ -222,6 +224,18 @@ export function insertDecision(
     ...(question ? { source_question_id: { old: null, new: question.id } } : {}),
     ...(consensusUntil ? { consensus_until: { old: null, new: consensusUntil } } : {}),
   });
+  // alle anderen erfahren, dass sie bestätigen oder widersprechen können (F3)
+  if (consensusUntil)
+    enqueue(
+      ctx.db,
+      ctx.now,
+      consensusInviteMessages(
+        { id: decision.id, title: decision.title, consensus_until: consensusUntil },
+        activeMemberIds(ctx.db),
+        ctx.actor.id,
+      ),
+      (ctx.outbox ??= []),
+    );
   // die Frage bleibt offen – als beantwortet markiert sie die Person selbst (16.3)
   if (question && action === 'created')
     writeHistory(ctx, 'question', question.id, 'result_added', {

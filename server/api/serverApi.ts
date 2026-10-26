@@ -5,6 +5,7 @@ import { Kysely } from 'kysely';
 import type { DemoAccount, MyzelApi, Session } from '../../src/data/api';
 import { AppError } from '../../src/shared/errors';
 import { emailInputSchema } from '../../src/shared/schema';
+import { OUTSIDE_PLENUM_ACTIONS } from '../../src/shared/rules/plenum';
 import { inTransaction, resolveActor, type PlenumAnswer } from '../core/context';
 import { createLocalDb, type LocalDb } from '../db/localDb';
 import { PGliteDialect } from '../db/pgliteDialect';
@@ -116,6 +117,7 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
       now(),
       (ctx) => WRITE_ACTIONS[name]!(ctx, args),
       plenumAnswer,
+      OUTSIDE_PLENUM_ACTIONS.has(name),
     );
     emit();
     return structuredClone(result);

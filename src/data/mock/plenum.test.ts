@@ -150,9 +150,10 @@ describe('Was während des Plenums passiert, steht im Ergebnis (16.2)', () => {
     const q = await api.getQuestion(questionId);
     await api.clarifyQuestion(questionId, { answer: 'Kim', version: q.version });
     expect(await groups()).toEqual({
-      beschluesse: ['Neuer Fakt: Zweitschlüssel liegt bei Kim (aus der Frage „Wer hat den Zweitschlüssel?“)'],
       aufgaben: ['Neu: Kabeltrommel kaufen · Geplant'],
-      fragen: ['Beantwortet: Wer hat den Zweitschlüssel? – Kim'],
+      fragen: [
+        'Frage: Wer hat den Zweitschlüssel? – Antwort: Kim – daraus entstanden: Fakt „Zweitschlüssel liegt bei Kim“',
+      ],
     });
     // im Plenum angelegte Aufgaben haben es als Herkunft
     expect((await api.getTask(taskId)).origin_plenum_id).toBe(plenumId);
@@ -167,6 +168,15 @@ describe('Was während des Plenums passiert, steht im Ergebnis (16.2)', () => {
     ]);
     await api.undo(undo_token);
     expect((await groups()).aufgaben).toBeUndefined();
+  });
+
+  it('F1: Profil und Verwaltung zählen nie zum Plenum – auch nicht mit Zusage', async () => {
+    await runningPlenum();
+    const lea = (await api.listMembers()).find((m) => m.display_name === 'Lea')!;
+    // Lea bearbeitet Aufgaben; das Austragen beim Deaktivieren gehört nicht ins Ergebnis
+    await api.deactivateMember(lea.id);
+    await api.updateOwnName('Mo K.');
+    expect(await groups()).toEqual({});
   });
 
   it('ohne Zusage nur nach „gehört dazu“; nach dem Ende zählt nichts mehr', async () => {

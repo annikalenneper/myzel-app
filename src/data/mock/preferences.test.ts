@@ -44,6 +44,7 @@ describe('Schalter-Matrix (F-PRO-02)', () => {
       'frist',
       'termine',
       'zusammenfassung',
+      'entscheidungen',
     ]);
     expect(s.matrix.every((r) => r.push && r.telegram)).toBe(true);
     expect(s).toMatchObject({ reminder_lead_days: 3 });

@@ -5,6 +5,7 @@ import { appointmentReminderMessages, yesAndOpen } from '../../shared/rules/appo
 import { toIsoDate } from '../../shared/rules/due';
 import {
   channelEnabled,
+  consensusDeadlineMessages,
   DAILY_REMINDER_HOUR,
   dueReminderMessages,
   MAX_SEND_ATTEMPTS,
@@ -108,6 +109,25 @@ export function runJob(db: Db, now: Date): JobRun {
       now,
     ),
   );
+  // F3: letzter Tag der Frist – an alle, die über eine offene Entscheidung noch nicht abgestimmt haben
+  if (now.getHours() >= DAILY_REMINDER_HOUR) {
+    const today = toIsoDate(now);
+    enqueue(
+      db,
+      now,
+      consensusDeadlineMessages(
+        db.decisions
+          .filter((d) => d.status === 'offen' && !d.archived_at && d.consensus_until === today)
+          .map((d) => ({
+            decision: { id: d.id, title: d.title, consensus_until: today },
+            pendingIds: people.filter(
+              (id) => !db.decision_votes.some((v) => v.decision_id === d.id && v.member_id === id),
+            ),
+          })),
+        today,
+      ),
+    );
+  }
   const sent: Record<NotificationChannel, number> = { push: 0, telegram: 0 };
   // Nachrichten einer Aktion, die noch per „Rückgängig“ zurückgenommen werden kann, warten bis zum
   // nächsten Lauf; Erinnerungen des Joblaufs selbst gehen sofort raus

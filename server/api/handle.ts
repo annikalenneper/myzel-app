@@ -2,6 +2,7 @@
 // Die handelnde Person kommt allein aus dem Login (7.2); mitgeschickte IDs in den Argumenten ändern daran nichts.
 import type { Kysely } from 'kysely';
 import { AppError } from '../../src/shared/errors';
+import { OUTSIDE_PLENUM_ACTIONS } from '../../src/shared/rules/plenum';
 import { inTransaction, resolveActor, type PlenumAnswer } from '../core/context';
 import type { Database } from '../db/types';
 import { sessionFor } from '../p1/session';
@@ -31,7 +32,14 @@ export async function handleAction(
   }
   const write = Object.hasOwn(WRITE_ACTIONS, action) ? WRITE_ACTIONS[action] : undefined;
   if (write)
-    return inTransaction(db, login?.authUserId ?? null, now, (ctx) => write(ctx, args), plenumAnswer);
+    return inTransaction(
+      db,
+      login?.authUserId ?? null,
+      now,
+      (ctx) => write(ctx, args),
+      plenumAnswer,
+      OUTSIDE_PLENUM_ACTIONS.has(action),
+    );
   throw new AppError('rule', 'Das kommt mit einer späteren Phase.');
 }
 

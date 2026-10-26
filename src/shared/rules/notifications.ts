@@ -35,6 +35,12 @@ export const NOTIFICATION_GROUPS = [
     events: ['termin_einladung', 'termin_erinnerung', 'termin_geaendert'],
   },
   { key: 'zusammenfassung', label: 'Plenum-Zusammenfassung', hint: null, events: ['plenum_zusammenfassung'] },
+  {
+    key: 'entscheidungen',
+    label: 'Entscheidungen zum Bestätigen',
+    hint: 'Neu · letzter Tag der Frist',
+    events: ['entscheidung_bestaetigen', 'entscheidung_frist'],
+  },
 ] as const satisfies readonly {
   key: string;
   label: string;
@@ -233,4 +239,44 @@ export const MAX_SEND_ATTEMPTS = 3;
 export function isJobOverdue(lastRunAt: string | null, now: Date): boolean {
   if (!lastRunAt) return true;
   return now.getTime() - new Date(lastRunAt).getTime() > JOB_WARNING_MINUTES * 60_000;
+}
+
+// ── Entscheidungen im Konsens (16.4, F3) ─────────────────────────────────────
+
+type DecisionRef = { id: string; title: string; consensus_until: string };
+const decisionLink = (id: string) => `/wissen/beschluesse/${id}`;
+
+/** Neue Entscheidung zum Bestätigen: an alle aktiven Mitglieder außer der Person, die sie festgehalten hat */
+export function consensusInviteMessages(
+  d: DecisionRef,
+  memberIds: readonly string[],
+  actorId: string,
+): Message[] {
+  return memberIds
+    .filter((id) => id !== actorId)
+    .map((member_id) => ({
+      member_id,
+      event_type: 'entscheidung_bestaetigen' as const,
+      text: `Neue Entscheidung: „${d.title}“ – bitte bis ${day(d.consensus_until)} bestätigen oder widersprechen.`,
+      link: decisionLink(d.id),
+      dedupe_key: `entscheidung_bestaetigen:${d.id}:${member_id}`,
+    }));
+}
+
+/** Letzter Tag der Frist (ab 9 Uhr im Joblauf): an alle, die noch nicht abgestimmt haben */
+export function consensusDeadlineMessages(
+  items: readonly { decision: DecisionRef; pendingIds: readonly string[] }[],
+  today: string,
+): Message[] {
+  return items
+    .filter((i) => i.decision.consensus_until === today)
+    .flatMap(({ decision, pendingIds }) =>
+      pendingIds.map((member_id) => ({
+        member_id,
+        event_type: 'entscheidung_frist' as const,
+        text: `Heute ist der letzte Tag für „${decision.title}“ – ohne Widerspruch gilt die Entscheidung ab morgen.`,
+        link: decisionLink(decision.id),
+        dedupe_key: `entscheidung_frist:${decision.id}:${member_id}:${decision.consensus_until}`,
+      })),
+    );
 }

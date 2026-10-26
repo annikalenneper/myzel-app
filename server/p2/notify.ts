@@ -8,6 +8,7 @@ import type { NotificationSettings, SystemStatus } from '../../src/data/api';
 import { appointmentReminderMessages, yesAndOpen } from '../../src/shared/rules/appointments';
 import { berlinDate, berlinHour } from '../../src/shared/rules/due';
 import {
+  consensusDeadlineMessages,
   DAILY_REMINDER_HOUR,
   dueReminderMessages,
   MAX_SEND_ATTEMPTS,
@@ -222,6 +223,49 @@ async function enqueueAppointmentReminders(db: Db, now: Date): Promise<number> {
 }
 
 /**
+ * F3: Am letzten Tag der Frist (ab 9 Uhr in Köln) erinnert der Joblauf alle, die über eine offene Entscheidung noch
+ * nicht abgestimmt haben; der dedupe_key (Entscheidung, Person, Frist) macht wiederholte Läufe harmlos.
+ */
+async function enqueueConsensusReminders(db: Db, now: Date): Promise<number> {
+  if (berlinHour(now) < DAILY_REMINDER_HOUR) return 0;
+  const today = berlinDate(now);
+  return db.transaction().execute(async (trx) => {
+    const open = await trx
+      .selectFrom('decisions')
+      .select(['id', 'title', 'consensus_until'])
+      .where('status', '=', 'offen')
+      .where('archived_at', 'is', null)
+      .where('consensus_until', '=', today)
+      .execute();
+    if (open.length === 0) return 0;
+    const [people, votes] = await Promise.all([
+      trx
+        .selectFrom('members')
+        .select('id')
+        .where('active', '=', true)
+        .where('is_system', '=', false)
+        .execute(),
+      trx
+        .selectFrom('decision_votes')
+        .select(['decision_id', 'member_id'])
+        .where(
+          'decision_id',
+          'in',
+          open.map((d) => d.id),
+        )
+        .execute(),
+    ]);
+    const items = open.map((d) => ({
+      decision: { id: d.id, title: d.title, consensus_until: today },
+      pendingIds: people
+        .map((p) => p.id)
+        .filter((id) => !votes.some((v) => v.decision_id === d.id && v.member_id === id)),
+    }));
+    return enqueue(trx, now, consensusDeadlineMessages(items, today));
+  });
+}
+
+/**
  * Nachrichten für diesen Lauf beanspruchen – ohne das, was eine Aktion noch per „Rückgängig“ zurücknehmen kann.
  * Gezählt wird ein Versuch erst beim Versand; was nach drei Versuchen noch wartet, gilt als fehlgeschlagen.
  */
@@ -381,6 +425,12 @@ export async function runJob(db: Db, now: Date, senders: Senders): Promise<JobRu
   } catch (e) {
     console.error(e);
     errors.push(`Termin-Erinnerungen: ${reason(e)}`);
+  }
+  try {
+    reminders += await enqueueConsensusReminders(db, now);
+  } catch (e) {
+    console.error(e);
+    errors.push(`Entscheidungen: ${reason(e)}`);
   }
   // [Umbau Phase 6] Entscheidungen, deren Frist ohne Widerspruch abgelaufen ist, werden gültig (16.4)
   let settled = 0;

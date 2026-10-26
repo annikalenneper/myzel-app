@@ -48,6 +48,41 @@ export interface SessionPlenum {
 /** So weit im Voraus kennt die Sitzung das nächste Plenum */
 export const SESSION_PLENUM_LOOKAHEAD_MS = 24 * 3_600_000;
 
+/**
+ * Profil und Verwaltung gehören nie zum Plenum – auch nicht bei Personen auf der Teilnehmerliste (F1, Nutzerin
+ * 30.10.2026). Sonst landete z. B. das Austragen einer deaktivierten Person aus ihren Aufgaben im Ergebnis.
+ */
+export const OUTSIDE_PLENUM_ACTIONS: ReadonlySet<string> = new Set([
+  'updateOwnName',
+  'createMember',
+  'updateMember',
+  'deactivateMember',
+  'reactivateMember',
+  'addMemberEmail',
+  'removeMemberEmail',
+  'createTopic',
+  'updateTopic',
+  'archiveTopic',
+  'restoreTopic',
+  'deleteTopic',
+  'savePushSubscription',
+  'removePushSubscription',
+  'setPush',
+  'startTelegramLink',
+  'unlinkTelegram',
+  'setNotificationPreference',
+  'setReminderLeadDays',
+  'createAppointmentType',
+  'updateAppointmentType',
+  'archiveAppointmentType',
+  'restoreAppointmentType',
+  'deleteAppointmentType',
+  'createTemplateItem',
+  'updateTemplateItem',
+  'removeTemplateItem',
+  'createAppReport',
+]);
+
 /** Welche Historie zum Plenum gehört: Änderungen an Artefakten, keine Zu- und Absagen, nicht das Plenum selbst. */
 export const PLENUM_ENTITY_TYPES: readonly HistoryEntityType[] = [
   'task',
@@ -95,7 +130,7 @@ const RESULT_ORDER: readonly ResultGroup[] = ['beschluesse', 'aufgaben', 'fragen
 export type ResultSubject =
   | {
       type: 'decision';
-      row: Pick<Decision, 'id' | 'title' | 'kind' | 'status' | 'consensus_until'>;
+      row: Pick<Decision, 'id' | 'title' | 'kind' | 'status' | 'consensus_until' | 'source_question_id'>;
       created: boolean;
       question_title: string | null;
       successor_title: string | null;
@@ -127,7 +162,6 @@ function line(s: ResultSubject): { group: ResultGroup; item: ResultItem } {
   switch (s.type) {
     case 'decision': {
       const noun = s.row.kind === 'fakt' ? 'Fakt' : 'Entscheidung';
-      const from = s.question_title ? ` (aus der Frage „${s.question_title}“)` : '';
       // 16.4: eine offene Entscheidung gilt erst nach Bestätigung
       const pending =
         s.row.status === 'offen' && s.row.consensus_until
@@ -139,8 +173,8 @@ function line(s: ResultSubject): { group: ResultGroup; item: ResultItem } {
           : s.row.status === 'ersetzt'
             ? `${noun} ersetzt: ${s.row.title}${s.successor_title ? ` → ${s.successor_title}` : ''}`
             : s.created
-              ? `${s.row.kind === 'fakt' ? 'Neuer Fakt' : 'Neue Entscheidung'}: ${s.row.title}${from}${pending}`
-              : `${noun}: ${s.row.title}${from}${pending}`;
+              ? `${s.row.kind === 'fakt' ? 'Neuer Fakt' : 'Neue Entscheidung'}: ${s.row.title}${pending}`
+              : `${noun}: ${s.row.title}${pending}`;
       return { group: 'beschluesse', item: { text, link: `/agenda/eintrag/${s.row.id}` } };
     }
     case 'task': {
@@ -155,15 +189,8 @@ function line(s: ResultSubject): { group: ResultGroup; item: ResultItem } {
         item: { text: parts.filter(Boolean).join(' · '), link: `/agenda/${s.row.id}` },
       };
     }
-    case 'question': {
-      const text =
-        s.row.status === 'geklaert'
-          ? `Beantwortet: ${s.row.title}${s.row.answer ? ` – ${oneLine(s.row.answer, 120)}` : ''}`
-          : s.row.status === 'verworfen'
-            ? `Verworfen: ${s.row.title}`
-            : `${s.created ? 'Neue Frage' : 'Offen'}: ${s.row.title}`;
-      return { group: 'fragen', item: { text, link: `/agenda/frage/${s.row.id}` } };
-    }
+    case 'question':
+      return { group: 'fragen', item: { text: questionText(s), link: `/agenda/frage/${s.row.id}` } };
     case 'event':
       return {
         group: 'termine',
@@ -187,9 +214,74 @@ function line(s: ResultSubject): { group: ResultGroup; item: ResultItem } {
   }
 }
 
-/** Ergebnis in fester Reihenfolge der Gruppen; innerhalb einer Gruppe in der Reihenfolge der Änderungen */
+type QuestionSubject = Extract<ResultSubject, { type: 'question' }>;
+type DecisionSubject = Extract<ResultSubject, { type: 'decision' }>;
+
+/** „Entscheidung „A“ (zu bestätigen bis 04.11.)“ – ein Ergebnis in der Zeile seiner Frage */
+function resultText(d: DecisionSubject): string {
+  const note =
+    d.row.status === 'offen' && d.row.consensus_until
+      ? ` (zu bestätigen bis ${dueText(d.row.consensus_until)})`
+      : d.row.status === 'ersetzt' || d.row.status === 'aufgehoben'
+        ? ` (${d.row.status})`
+        : '';
+  return `${d.row.kind === 'fakt' ? 'Fakt' : 'Entscheidung'} „${d.row.title}“${note}`;
+}
+
+/**
+ * Eine Frage mit dem, was aus ihr wurde (F2, Nutzerin 30.10.2026): „Frage: X – Antwort: Y“ bei einer Antwort als
+ * Notiz, „Frage: X – daraus entstanden: Entscheidung „A“, Fakt „B““ bei Ergebnissen; beides, wenn es beides gibt.
+ */
+function questionText(s: QuestionSubject, results: readonly DecisionSubject[] = []): string {
+  const parts = [
+    s.row.answer ? `Antwort: ${oneLine(s.row.answer, 120)}` : null,
+    results.length ? `daraus entstanden: ${results.map(resultText).join(', ')}` : null,
+  ].filter(Boolean);
+  if (parts.length) return [`Frage: ${s.row.title}`, ...parts].join(' – ');
+  if (s.row.status === 'verworfen') return `Verworfen: ${s.row.title}`;
+  return `${s.created ? 'Neue Frage' : 'Offen'}: ${s.row.title}`;
+}
+
+/**
+ * Ergebnis in fester Reihenfolge der Gruppen; innerhalb einer Gruppe in der Reihenfolge der Änderungen. Entscheidungen
+ * und Fakten aus einer Frage stehen in der Zeile ihrer Frage, an der Stelle, an der die Frage zuerst vorkommt.
+ */
 export function buildResults(subjects: readonly ResultSubject[]): ResultGroupItems[] {
-  const lines = subjects.map(line);
+  const questions = new Map<string, { subject: QuestionSubject; results: DecisionSubject[] }>();
+  const ordered: (ResultSubject | { type: 'question-line'; id: string })[] = [];
+  const questionEntry = (id: string, fallback: () => QuestionSubject) => {
+    let entry = questions.get(id);
+    if (!entry) {
+      entry = { subject: fallback(), results: [] };
+      questions.set(id, entry);
+      ordered.push({ type: 'question-line', id });
+    }
+    return entry;
+  };
+  for (const s of subjects) {
+    if (s.type === 'question') questionEntry(s.row.id, () => s).subject = s;
+    else if (s.type === 'decision' && s.row.source_question_id)
+      questionEntry(s.row.source_question_id, () => ({
+        type: 'question',
+        // die Frage selbst wurde im Plenum nicht geändert: nur Titel und ihre Ergebnisse
+        row: {
+          id: s.row.source_question_id!,
+          title: s.question_title ?? 'Frage',
+          status: 'offen',
+          answer: null,
+        },
+        created: false,
+      })).results.push(s);
+    else ordered.push(s);
+  }
+  const lines = ordered.map((s) => {
+    if (s.type !== 'question-line') return line(s);
+    const { subject, results } = questions.get(s.id)!;
+    return {
+      group: 'fragen' as const,
+      item: { text: questionText(subject, results), link: `/agenda/frage/${s.id}` },
+    };
+  });
   return RESULT_ORDER.map((group) => ({
     group,
     items: lines.filter((l) => l.group === group).map((l) => l.item),

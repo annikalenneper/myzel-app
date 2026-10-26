@@ -178,6 +178,14 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     return transact(actor(), fn);
   }
 
+  /** Profil und Verwaltung: gehört nie zum Plenum (F1) */
+  async function writeOutside<T>(fn: (ctx: Ctx) => T): Promise<T> {
+    return write((ctx) => {
+      ctx.plenumId = null;
+      return fn(ctx);
+    });
+  }
+
   const signInAs = async (email: string): Promise<Session> => {
     await wait();
     setSessionEmail(email);
@@ -266,13 +274,13 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
       write((ctx) => templates.applyTemplate(ctx, eventId, { item_ids: itemIds })),
     listTemplates: () => read((d) => templates.listTemplates(d)),
     createTemplateItem: (templateId, input) =>
-      write((ctx) => templates.createTemplateItem(ctx, templateId, input)),
-    updateTemplateItem: (id, input) => write((ctx) => templates.updateTemplateItem(ctx, id, input)),
-    removeTemplateItem: (id) => write((ctx) => templates.removeTemplateItem(ctx, id)),
+      writeOutside((ctx) => templates.createTemplateItem(ctx, templateId, input)),
+    updateTemplateItem: (id, input) => writeOutside((ctx) => templates.updateTemplateItem(ctx, id, input)),
+    removeTemplateItem: (id) => writeOutside((ctx) => templates.removeTemplateItem(ctx, id)),
 
-    updateOwnName: (name) => write((ctx) => server.updateOwnName(ctx, name)),
-    createMember: (input) => write((ctx) => server.createMember(ctx, input)),
-    updateMember: (id, input) => write((ctx) => server.updateMember(ctx, id, input)),
+    updateOwnName: (name) => writeOutside((ctx) => server.updateOwnName(ctx, name)),
+    createMember: (input) => writeOutside((ctx) => server.createMember(ctx, input)),
+    updateMember: (id, input) => writeOutside((ctx) => server.updateMember(ctx, id, input)),
     getDeactivationImpact: (memberId) =>
       read((d, n) => ({
         ...server.getDeactivationImpact({ db: d, actor: actor(), now: n, inverse: [] }, memberId),
@@ -282,7 +290,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
       })),
     // Aufräumen in derselben Transaktion: Aufgaben, Folgen und künftige Zusagen (F-LOG-03)
     deactivateMember: (memberId) =>
-      write((ctx) => {
+      writeOutside((ctx) => {
         const future_rsvp_count = appts.futureRsvpCount(ctx.db, memberId, ctx.now);
         const impact = server.deactivateMember(ctx, memberId);
         appts.dropFutureRsvps(ctx, memberId);
@@ -291,25 +299,25 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
         notify.dropChannels(ctx.db, memberId);
         return { ...impact, future_rsvp_count, lead_count, partner_contact_count };
       }),
-    reactivateMember: (memberId) => write((ctx) => server.reactivateMember(ctx, memberId)),
+    reactivateMember: (memberId) => writeOutside((ctx) => server.reactivateMember(ctx, memberId)),
     listMemberEmails: (memberId) =>
       read((d, n) => server.listMemberEmails({ db: d, actor: actor(), now: n, inverse: [] }, memberId)),
-    addMemberEmail: (memberId, email) => write((ctx) => server.addMemberEmail(ctx, memberId, email)),
-    removeMemberEmail: (id) => write((ctx) => server.removeMemberEmail(ctx, id)),
-    createTopic: (input) => write((ctx) => server.createTopic(ctx, input)),
-    updateTopic: (id, input) => write((ctx) => server.updateTopic(ctx, id, input)),
-    archiveTopic: (id, version) => write((ctx) => server.archiveTopic(ctx, id, version)),
-    restoreTopic: (id, version) => write((ctx) => server.restoreTopic(ctx, id, version)),
-    deleteTopic: (id) => write((ctx) => server.deleteTopic(ctx, id)),
+    addMemberEmail: (memberId, email) => writeOutside((ctx) => server.addMemberEmail(ctx, memberId, email)),
+    removeMemberEmail: (id) => writeOutside((ctx) => server.removeMemberEmail(ctx, id)),
+    createTopic: (input) => writeOutside((ctx) => server.createTopic(ctx, input)),
+    updateTopic: (id, input) => writeOutside((ctx) => server.updateTopic(ctx, id, input)),
+    archiveTopic: (id, version) => writeOutside((ctx) => server.archiveTopic(ctx, id, version)),
+    restoreTopic: (id, version) => writeOutside((ctx) => server.restoreTopic(ctx, id, version)),
+    deleteTopic: (id) => writeOutside((ctx) => server.deleteTopic(ctx, id)),
 
     listAppointmentTypes: () => read((d) => appts.listAppointmentTypes(d)),
-    createAppointmentType: (input) => write((ctx) => appts.createAppointmentType(ctx, input)),
-    updateAppointmentType: (id, input) => write((ctx) => appts.updateAppointmentType(ctx, id, input)),
+    createAppointmentType: (input) => writeOutside((ctx) => appts.createAppointmentType(ctx, input)),
+    updateAppointmentType: (id, input) => writeOutside((ctx) => appts.updateAppointmentType(ctx, id, input)),
     archiveAppointmentType: (id, version) =>
-      write((ctx) => appts.archiveAppointmentType(ctx, id, version, true)),
+      writeOutside((ctx) => appts.archiveAppointmentType(ctx, id, version, true)),
     restoreAppointmentType: (id, version) =>
-      write((ctx) => appts.archiveAppointmentType(ctx, id, version, false)),
-    deleteAppointmentType: (id) => write((ctx) => appts.deleteAppointmentType(ctx, id)),
+      writeOutside((ctx) => appts.archiveAppointmentType(ctx, id, version, false)),
+    deleteAppointmentType: (id) => writeOutside((ctx) => appts.deleteAppointmentType(ctx, id)),
     listAppointments: () => read((d) => appts.listAppointments(d, actor().id)),
     getAppointment: (id) => read((d) => appts.getAppointment(d, id, actor().id)),
     createAppointment: (input) => write((ctx) => appts.createAppointment(ctx, input)),
@@ -373,15 +381,15 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
 
     getNotificationSettings: () =>
       read((d, n) => notify.notificationSettings({ db: d, actor: actor(), now: n, inverse: [] }, deviceId())),
-    setPush: (on) => write((ctx) => notify.setPush(ctx, deviceId(), on)),
-    startTelegramLink: () => write((ctx) => notify.startTelegramLink(ctx)),
-    unlinkTelegram: () => write((ctx) => notify.unlinkTelegram(ctx)),
+    setPush: (on) => writeOutside((ctx) => notify.setPush(ctx, deviceId(), on)),
+    startTelegramLink: () => writeOutside((ctx) => notify.startTelegramLink(ctx)),
+    unlinkTelegram: () => writeOutside((ctx) => notify.unlinkTelegram(ctx)),
     setNotificationPreference: (group, channel, enabled) =>
-      write((ctx) => notify.setNotificationPreference(ctx, group, channel, enabled)),
-    setReminderLeadDays: (days) => write((ctx) => notify.setReminderLeadDays(ctx, days)),
+      writeOutside((ctx) => notify.setNotificationPreference(ctx, group, channel, enabled)),
+    setReminderLeadDays: (days) => writeOutside((ctx) => notify.setReminderLeadDays(ctx, days)),
     getSystemStatus: () =>
       read((d, n) => notify.systemStatus({ db: d, actor: actor(), now: n, inverse: [] })),
-    createAppReport: (input) => write((ctx) => reports.createAppReport(ctx, input)),
+    createAppReport: (input) => writeOutside((ctx) => reports.createAppReport(ctx, input)),
     listAppReports: () =>
       read((d, n) => reports.listAppReports({ db: d, actor: actor(), now: n, inverse: [] })),
 

@@ -214,6 +214,9 @@ export const NOTIFICATION_EVENTS = [
   'plenum_zusammenfassung',
   // [P6] Telegram-Button „Passt nicht“: an die Person, die zugewiesen hat (6.4)
   'zuweisung_abgelehnt',
+  // Umbau Phase 6 (F3): Entscheidung zum Bestätigen, letzter Tag der Frist
+  'entscheidung_bestaetigen',
+  'entscheidung_frist',
 ] as const;
 export const notificationEventSchema = z.enum(NOTIFICATION_EVENTS);
 export type NotificationEvent = z.infer<typeof notificationEventSchema>;
