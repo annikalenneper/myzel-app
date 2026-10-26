@@ -121,3 +121,13 @@ test('WF-TER-11: auch das Plenum lässt sich in den Kalender übernehmen', async
   ]);
   expect(download.suggestedFilename()).toBe('Plenum-Oktober.ics');
 });
+
+test('WF-TER-01: das letzte Plenum steht oben in den Terminen – mit Ergebnis', async ({ page }) => {
+  await login(page);
+  await page.goto('/termine');
+  const last = page.getByRole('region', { name: 'Letztes Plenum' });
+  await expect(last).toContainText('Plenum September');
+  await last.getByRole('link').click();
+  await expect(page.getByRole('heading', { name: 'Plenum September' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Ergebnis/ })).toBeVisible();
+});

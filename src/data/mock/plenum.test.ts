@@ -170,6 +170,15 @@ describe('Was während des Plenums passiert, steht im Ergebnis (16.2)', () => {
     expect((await groups()).aufgaben).toBeUndefined();
   });
 
+  it('später Archiviertes bleibt im Ergebnis – es hält fest, was im Plenum passiert ist', async () => {
+    await runningPlenum();
+    const { id } = await api.createTask({ title: 'Spenden', topic_id: await topicId() });
+    await api.setTaskStatus(id, { status: 'verworfen', discard_reason: 'erledigt sich', version: 1 });
+    clock = new Date(clock.getTime() + 6 * 3_600_000);
+    await api.archiveTask(id, (await api.getTask(id)).version);
+    expect((await groups()).aufgaben).toEqual(['Neu: Spenden · Verworfen']);
+  });
+
   it('F1: Profil und Verwaltung zählen nie zum Plenum – auch nicht mit Zusage', async () => {
     await runningPlenum();
     const lea = (await api.listMembers()).find((m) => m.display_name === 'Lea')!;

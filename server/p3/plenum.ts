@@ -71,20 +71,11 @@ export async function results(trx: Db, plenumId: string): Promise<ResultGroupIte
     const list = touched.rows.filter((r) => r.type === type).map((r) => r.id);
     return list.length ? list : ['00000000-0000-0000-0000-000000000000'];
   };
+  // auch später Archiviertes bleibt im Ergebnis – es hält fest, was im Plenum passiert ist
   const [decisions, tasks, assignees, questions, events, appointments, documents, partners] =
     await Promise.all([
-      trx
-        .selectFrom('decisions')
-        .selectAll()
-        .where('id', 'in', ids('decision'))
-        .where('archived_at', 'is', null)
-        .execute(),
-      trx
-        .selectFrom('tasks')
-        .selectAll()
-        .where('id', 'in', ids('task'))
-        .where('archived_at', 'is', null)
-        .execute(),
+      trx.selectFrom('decisions').selectAll().where('id', 'in', ids('decision')).execute(),
+      trx.selectFrom('tasks').selectAll().where('id', 'in', ids('task')).execute(),
       trx
         .selectFrom('task_assignees as a')
         .innerJoin('members as m', 'm.id', 'a.member_id')
@@ -92,36 +83,11 @@ export async function results(trx: Db, plenumId: string): Promise<ResultGroupIte
         .where('a.task_id', 'in', ids('task'))
         .orderBy('a.assigned_at')
         .execute(),
-      trx
-        .selectFrom('questions')
-        .selectAll()
-        .where('id', 'in', ids('question'))
-        .where('archived_at', 'is', null)
-        .execute(),
-      trx
-        .selectFrom('events')
-        .selectAll()
-        .where('id', 'in', ids('event'))
-        .where('archived_at', 'is', null)
-        .execute(),
-      trx
-        .selectFrom('appointments')
-        .selectAll()
-        .where('id', 'in', ids('appointment'))
-        .where('archived_at', 'is', null)
-        .execute(),
-      trx
-        .selectFrom('documents')
-        .selectAll()
-        .where('id', 'in', ids('document'))
-        .where('archived_at', 'is', null)
-        .execute(),
-      trx
-        .selectFrom('partners')
-        .selectAll()
-        .where('id', 'in', ids('partner'))
-        .where('archived_at', 'is', null)
-        .execute(),
+      trx.selectFrom('questions').selectAll().where('id', 'in', ids('question')).execute(),
+      trx.selectFrom('events').selectAll().where('id', 'in', ids('event')).execute(),
+      trx.selectFrom('appointments').selectAll().where('id', 'in', ids('appointment')).execute(),
+      trx.selectFrom('documents').selectAll().where('id', 'in', ids('document')).execute(),
+      trx.selectFrom('partners').selectAll().where('id', 'in', ids('partner')).execute(),
     ]);
   // Titel der Fragen und Nachfolgerinnen, auf die Entscheidungen verweisen
   const refIds = decisions.flatMap((d) =>

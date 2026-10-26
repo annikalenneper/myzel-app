@@ -7,8 +7,13 @@ import { useMe } from '../../app/session';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { AppointmentListItem } from '../../data/api';
-import { formatTime } from '../../shared/format';
-import { appointmentEnd, canRsvp, FORMAT_LABEL } from '../../shared/rules/appointments';
+import { formatDayMonth, formatTime } from '../../shared/format';
+import {
+  APPOINTMENT_STATUS_LABEL,
+  appointmentEnd,
+  canRsvp,
+  FORMAT_LABEL,
+} from '../../shared/rules/appointments';
 import type { RsvpAnswer } from '../../shared/schema';
 import { Avatar, cx, ListSkeleton, LoadError, Pill } from '../../ui/bits';
 import { SearchButton } from '../../ui/SearchOverlay';
@@ -100,6 +105,11 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
     .filter((a) => !typeId || a.type_id === typeId)
     .sort((a, b) => (new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()) * (past ? -1 : 1));
   const open = upcoming.filter((a) => canRsvp(a, now) && !a.my_answer).length;
+  // das letzte Plenum mit seinem Ergebnis bleibt oben stehen, auch wenn es schon vorbei ist (16.2)
+  const lastPlenum = (appointments ?? [])
+    .filter((a) => a.is_plenum && a.status !== 'abgesagt' && appointmentEnd(a) < now.getTime())
+    .sort((a, b) => b.starts_at.localeCompare(a.starts_at))[0];
+  const showLastPlenum = !!lastPlenum && !past && (!typeId || typeId === lastPlenum.type_id);
 
   // WF-TER-01: nach Monat gruppiert
   const months: { name: string; items: AppointmentListItem[] }[] = [];
@@ -154,6 +164,28 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
       <div className="flex flex-1 flex-col gap-3 px-5 pt-3.5 pb-[180px] lg:pb-28">
         {!appointments && !error && <ListSkeleton />}
         {!appointments && error && <LoadError message={error.message} onRetry={reload} />}
+        {showLastPlenum && (
+          <section className="flex flex-col gap-3" aria-label="Letztes Plenum">
+            <h2 className="label-mono m-0 pt-1 font-normal">Letztes Plenum</h2>
+            <Link
+              to={`/termine/${lastPlenum.id}`}
+              data-wf="WF-TER-01"
+              className={cx(
+                'flex items-center gap-3 rounded-2xl border border-linie px-4 py-3.5 text-text no-underline',
+                lastPlenum.id === selectedId ? 'bg-erhoeht' : 'bg-flaeche',
+              )}
+            >
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-[17px] leading-[1.3] font-semibold">{lastPlenum.title}</span>
+                <span className="font-mono text-[12px] text-leise uppercase">
+                  {formatDayMonth(new Date(lastPlenum.starts_at))} ·{' '}
+                  {APPOINTMENT_STATUS_LABEL[lastPlenum.status]}
+                </span>
+              </span>
+              <span className="flex-none text-[14px] text-pink">Ergebnis ›</span>
+            </Link>
+          </section>
+        )}
         {months.map((m) => (
           <section key={m.name} className="flex flex-col gap-3" aria-label={m.name}>
             <h2 className="label-mono m-0 pt-1 font-normal">{m.name}</h2>

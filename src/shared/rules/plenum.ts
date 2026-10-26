@@ -50,7 +50,7 @@ export const SESSION_PLENUM_LOOKAHEAD_MS = 24 * 3_600_000;
 
 /**
  * Profil und Verwaltung gehören nie zum Plenum – auch nicht bei Personen auf der Teilnehmerliste (F1, Nutzerin
- * 30.10.2026). Sonst landete z. B. das Austragen einer deaktivierten Person aus ihren Aufgaben im Ergebnis.
+ * 26.10.2026). Sonst landete z. B. das Austragen einer deaktivierten Person aus ihren Aufgaben im Ergebnis.
  */
 export const OUTSIDE_PLENUM_ACTIONS: ReadonlySet<string> = new Set([
   'updateOwnName',
@@ -229,7 +229,7 @@ function resultText(d: DecisionSubject): string {
 }
 
 /**
- * Eine Frage mit dem, was aus ihr wurde (F2, Nutzerin 30.10.2026): „Frage: X – Antwort: Y“ bei einer Antwort als
+ * Eine Frage mit dem, was aus ihr wurde (F2, Nutzerin 26.10.2026): „Frage: X – Antwort: Y“ bei einer Antwort als
  * Notiz, „Frage: X – daraus entstanden: Entscheidung „A“, Fakt „B““ bei Ergebnissen; beides, wenn es beides gibt.
  */
 function questionText(s: QuestionSubject, results: readonly DecisionSubject[] = []): string {

@@ -11,7 +11,7 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.8.0',
-    date: '2026-10-29',
+    date: '2026-10-26',
     items: [
       'Agenda statt „Aufgaben“: Aufgaben und offene Fragen an einem Ort, Filter nach Art und Veranstaltung.',
       'Plenum: Das Ergebnis sammelt alles, was während des Plenums angelegt oder geändert wurde.',

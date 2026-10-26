@@ -127,13 +127,14 @@ export function results(db: Db, plenumId: string): ResultGroupItems[] {
   const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
   const order = [...firstAt.keys()].sort((x, y) => cmp(firstAt.get(x)!, firstAt.get(y)!) || cmp(x, y));
 
+  // auch später Archiviertes bleibt im Ergebnis – es hält fest, was im Plenum passiert ist
   const subjects: ResultSubject[] = [];
   for (const key of order) {
     const [type, id] = key.split(':') as [string, string];
     const isNew = created.has(key);
     if (type === 'decision') {
       const row = db.decisions.find((x) => x.id === id);
-      if (!row || row.archived_at) continue;
+      if (!row) continue;
       subjects.push({
         type,
         row,
@@ -143,7 +144,7 @@ export function results(db: Db, plenumId: string): ResultGroupItems[] {
       });
     } else if (type === 'task') {
       const row = db.tasks.find((x) => x.id === id);
-      if (!row || row.archived_at) continue;
+      if (!row) continue;
       const names = db.task_assignees
         .filter((a) => a.task_id === id)
         .sort((a, b) => a.assigned_at.localeCompare(b.assigned_at))
@@ -152,19 +153,19 @@ export function results(db: Db, plenumId: string): ResultGroupItems[] {
       subjects.push({ type, row, created: isNew, assignee_names: names });
     } else if (type === 'question') {
       const row = db.questions.find((x) => x.id === id);
-      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+      if (row) subjects.push({ type, row, created: isNew });
     } else if (type === 'event') {
       const row = db.events.find((x) => x.id === id);
-      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+      if (row) subjects.push({ type, row, created: isNew });
     } else if (type === 'appointment') {
       const row = db.appointments.find((x) => x.id === id);
-      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+      if (row) subjects.push({ type, row, created: isNew });
     } else if (type === 'document') {
       const row = db.documents.find((x) => x.id === id);
-      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+      if (row) subjects.push({ type, row, created: isNew });
     } else if (type === 'partner') {
       const row = db.partners.find((x) => x.id === id);
-      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+      if (row) subjects.push({ type, row, created: isNew });
     }
   }
   return buildResults(subjects);
