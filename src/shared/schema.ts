@@ -550,8 +550,14 @@ export const taskCreateSchema = z.object({
   event_id: idSchema.nullable().default(null),
   appointment_id: idSchema.nullable().default(null),
   assign_self: z.boolean().default(false),
+  /** Phase 9: gleich mit Beschreibung und Bearbeitenden anlegen */
+  description: longTextSchema.transform(emptyToNull).default(null),
+  assignee_ids: z.array(idSchema).max(200).default([]),
 });
 export type TaskCreateInput = z.input<typeof taskCreateSchema>;
+
+/** WF-AUF-10 „Alle“: mehrere Personen auf einmal eintragen (Phase 9) */
+export const memberIdsSchema = z.array(idSchema).min(1, 'Bitte mindestens eine Person wählen.').max(200);
 
 export const taskFieldsSchema = z
   .object({

@@ -420,8 +420,10 @@ export interface MyzelApi {
   createTask(input: TaskCreateInput): Promise<{ id: string }>;
   updateTaskFields(id: string, fields: TaskFieldsInput, version: number): Promise<void>;
   updateTaskDescription(id: string, description: string, version: number): Promise<void>;
-  setTaskStatus(id: string, input: TaskStatusChangeInput): Promise<Undoable & { self_assigned: boolean }>;
+  setTaskStatus(id: string, input: TaskStatusChangeInput): Promise<Undoable>;
   addAssignee(taskId: string, memberId: string): Promise<Undoable>;
+  /** WF-AUF-10 „Alle“: mehrere auf einmal eintragen – ein Rückgängig für alle (Phase 9) */
+  addAssignees(taskId: string, memberIds: string[]): Promise<Undoable>;
   removeAssignee(taskId: string, memberId: string): Promise<Undoable & { status_reset: boolean }>;
   addFollower(taskId: string, memberId: string): Promise<Undoable>;
   removeFollower(taskId: string, memberId: string): Promise<Undoable>;

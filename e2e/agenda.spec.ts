@@ -129,12 +129,13 @@ test('alte Adressen führen zur Agenda (Links in schon verschickten Nachrichten)
   await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
 });
 
-test('WF-AUF-06: „In Arbeit“ trägt ein und lässt sich zurücknehmen', async ({ page }) => {
+test('WF-AUF-06: „In Arbeit“ trägt niemanden ein und lässt sich zurücknehmen', async ({ page }) => {
   await openTask(page, 'Vereinshaftpflicht verlängern');
   await expect(statusChip(page, 'Neu')).toHaveAttribute('aria-pressed', 'true');
   await statusChip(page, 'In Arbeit').click();
-  await expect(undoBar(page)).toContainText('Status: In Arbeit · du bist eingetragen');
-  await expect(page.getByRole('button', { name: 'Bearbeitende entfernen: Mo' })).toBeVisible();
+  await expect(undoBar(page)).toContainText('Status: In Arbeit');
+  await expect(undoBar(page)).not.toContainText('eingetragen');
+  await expect(page.getByRole('button', { name: 'Bearbeitende entfernen: Mo' })).toHaveCount(0);
   // kein Übergang führt zurück zu „neu“
   await expect(statusChip(page, 'Neu')).toHaveAttribute('aria-disabled', 'true');
 
@@ -512,4 +513,35 @@ test('WF-ALL-08: ein „+“ für alle Arten – Frage aus der Agenda, Partner a
   await partner.locator('button[type=submit]').click();
   await expect(page).toHaveURL(/\/partner\/.+/);
   await expect(page.getByRole('heading', { name: 'Kulturkollektiv Nord' })).toBeVisible();
+});
+
+test('WF-AUF-03 / -10: Aufgabe mit Beschreibung und „Alle“ anlegen – die Karte zeigt „Alle“', async ({
+  page,
+}) => {
+  await createNew(page, 'Aufgabe');
+  const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
+  await sheet.getByLabel('Titel *').fill('Lager gemeinsam aufräumen');
+  await sheet.getByRole('button', { name: 'Lager & Material' }).click();
+  await sheet.getByLabel('Beschreibung').fill('Samstag ab 11 Uhr, Handschuhe mitbringen');
+  await sheet.getByRole('group', { name: 'Bearbeitet von' }).getByRole('button', { name: 'Alle' }).click();
+  await expect(sheet.getByRole('checkbox', { name: 'Ich übernehme das' })).toBeChecked();
+  await sheet.locator('button[type=submit]').click();
+  await expect(sheet).toBeHidden();
+  const created = card(page, 'Lager gemeinsam aufräumen');
+  await expect(created).toContainText('ALLE');
+  await created.getByRole('link').click();
+  await expect(page.getByText('Samstag ab 11 Uhr, Handschuhe mitbringen')).toBeVisible();
+});
+
+test('WF-AUF-10: „Alle“ in der Aufgabe trägt alle Fehlenden ein, mit Rückgängig', async ({ page }) => {
+  await openTask(page, 'Vereinshaftpflicht verlängern');
+  await page.getByRole('button', { name: 'Bearbeitende hinzufügen' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Wer bearbeitet?' });
+  await sheet.getByRole('button', { name: /^Alle/ }).click();
+  await expect(undoBar(page)).toContainText('Alle eingetragen');
+  await expect(sheet.getByRole('button', { name: /^Alle/ })).toBeDisabled();
+  await sheet.getByRole('button', { name: 'Fertig' }).click();
+  await expect(page.getByRole('button', { name: 'Bearbeitende entfernen: Paula' })).toBeVisible();
+  await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByRole('button', { name: 'Bearbeitende entfernen: Paula' })).toHaveCount(0);
 });

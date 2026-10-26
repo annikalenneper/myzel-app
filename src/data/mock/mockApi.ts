@@ -239,6 +239,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
       write((ctx) => server.updateTaskDescription(ctx, id, description, version)),
     setTaskStatus: (id, input) => write((ctx) => server.setTaskStatus(ctx, id, input)),
     addAssignee: (taskId, memberId) => write((ctx) => server.addAssignee(ctx, taskId, memberId)),
+    addAssignees: (taskId, memberIds) => write((ctx) => server.addAssignees(ctx, taskId, memberIds)),
     removeAssignee: (taskId, memberId) => write((ctx) => server.removeAssignee(ctx, taskId, memberId)),
     addFollower: (taskId, memberId) => write((ctx) => server.addFollower(ctx, taskId, memberId)),
     removeFollower: (taskId, memberId) => write((ctx) => server.removeFollower(ctx, taskId, memberId)),

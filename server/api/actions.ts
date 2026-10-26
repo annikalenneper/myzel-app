@@ -102,6 +102,7 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   updateTaskDescription: (ctx, [id, d, version]) => tasks.updateTaskDescription(ctx, s(id), d, n(version)),
   setTaskStatus: (ctx, [id, input]) => tasks.setTaskStatus(ctx, s(id), input),
   addAssignee: (ctx, [taskId, memberId]) => tasks.addAssignee(ctx, s(taskId), s(memberId)),
+  addAssignees: (ctx, [taskId, memberIds]) => tasks.addAssignees(ctx, s(taskId), memberIds),
   removeAssignee: (ctx, [taskId, memberId]) => tasks.removeAssignee(ctx, s(taskId), s(memberId)),
   addFollower: (ctx, [taskId, memberId]) => tasks.addFollower(ctx, s(taskId), s(memberId)),
   removeFollower: (ctx, [taskId, memberId]) => tasks.removeFollower(ctx, s(taskId), s(memberId)),

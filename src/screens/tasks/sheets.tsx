@@ -154,6 +154,7 @@ export function PeopleSheet({
   members,
   selectedIds,
   onToggle,
+  onAll,
   onClose,
 }: {
   title: string;
@@ -161,11 +162,28 @@ export function PeopleSheet({
   members: Member[];
   selectedIds: string[];
   onToggle: (member: Member, selected: boolean) => void;
+  /** Phase 9: „Alle“ trägt alle ein, die noch fehlen */
+  onAll?: (missing: Member[]) => void;
   onClose: () => void;
 }) {
+  const missing = members.filter((m) => !selectedIds.includes(m.id));
   return (
     <Sheet title={title} onClose={onClose} wf={wf}>
       <div className="flex flex-col gap-1.5">
+        {onAll && (
+          <button
+            type="button"
+            data-wf={wf}
+            disabled={missing.length === 0}
+            onClick={() => onAll(missing)}
+            className="flex h-12 flex-none items-center gap-3 rounded-xl border border-rand-stark bg-grund px-3 text-left text-[15px] font-semibold text-text disabled:opacity-50"
+          >
+            <span className="flex-1">Alle</span>
+            <span className="font-mono text-[12px] font-normal text-leise">
+              {missing.length === 0 ? 'alle eingetragen' : `${missing.length} dazu`}
+            </span>
+          </button>
+        )}
         {members.map((m) => {
           const on = selectedIds.includes(m.id);
           return (

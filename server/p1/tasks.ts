@@ -22,6 +22,7 @@ import {
 } from '../../src/shared/rules/taskStatus';
 import {
   commentBodySchema,
+  memberIdsSchema,
   taskCreateSchema,
   taskDescriptionSchema,
   taskFieldsSchema,
@@ -235,24 +236,77 @@ export async function createTask(ctx: Ctx, raw: unknown): Promise<{ id: string }
       origin_plenum_id: ctx.plenumId,
       priority: input.priority,
       due_date: input.due_date,
+      description: input.description,
       created_at: now,
       updated_at: now,
       created_by: ctx.actor.id,
     })
-    .returning(['id'])
+    .returningAll()
     .executeTakeFirstOrThrow();
   const changes: HistoryChanges = { title: { old: null, new: input.title } };
+  if (input.description) changes.description = { old: null, new: input.description };
   await follow(ctx, task.id, ctx.actor.id);
-  if (input.assign_self) {
-    // trägt nur ein – der Status bleibt „neu“ (F-AUF-04)
+  await writeHistory(ctx, 'task', task.id, 'created', changes);
+  // trägt nur ein – der Status bleibt „neu“ (F-AUF-04)
+  const people = [...(input.assign_self ? [ctx.actor.id] : []), ...input.assignee_ids];
+  if (people.length) await assignMany(ctx, task, people);
+  return { id: task.id };
+}
+
+/**
+ * Mehrere eintragen (Phase 9: „Alle“, Zuordnung beim Anlegen) – eintragsweise, je Person Historie und Nachricht.
+ * Prüfen und Einfügen mengenweise, damit „Alle“ nicht für jede Person einzeln zur Datenbank muss (16.6).
+ */
+async function assignMany(ctx: Ctx, task: TaskRow, memberIds: readonly string[]): Promise<string[]> {
+  const ids = [...new Set(memberIds)];
+  const members = await ctx.trx
+    .selectFrom('members')
+    .select(['id', 'active', 'is_system'])
+    .where('id', 'in', ids)
+    // gleichzeitiges Deaktivieren wartet und trägt die Person danach auch hier aus
+    .forShare()
+    .execute();
+  if (members.length !== ids.length || members.some((m) => m.is_system || !m.active))
+    throw rule('Nur aktive Mitglieder lassen sich eintragen.');
+  const at = iso(ctx);
+  const added = (
     await ctx.trx
       .insertInto('task_assignees')
-      .values({ task_id: task.id, member_id: ctx.actor.id, assigned_by: ctx.actor.id, assigned_at: now })
-      .execute();
-    changes.assignee = { old: null, new: ctx.actor.id };
-  }
-  await writeHistory(ctx, 'task', task.id, 'created', changes);
-  return { id: task.id };
+      .values(
+        ids.map((member_id) => ({ task_id: task.id, member_id, assigned_by: ctx.actor.id, assigned_at: at })),
+      )
+      .onConflict((oc) => oc.doNothing())
+      .returning('member_id')
+      .execute()
+  ).map((r) => r.member_id);
+  if (added.length === 0) return [];
+  const followed = await ctx.trx
+    .insertInto('task_followers')
+    .values(added.map((member_id) => ({ task_id: task.id, member_id })))
+    .onConflict((oc) => oc.doNothing())
+    .returning('member_id')
+    .execute();
+  for (const memberId of added)
+    ctx.inverse.push({ kind: 'assignee_remove', task_id: task.id, member_id: memberId });
+  for (const f of followed)
+    ctx.inverse.push({ kind: 'follower_remove', task_id: task.id, member_id: f.member_id });
+  for (const memberId of added)
+    await writeHistory(ctx, 'task', task.id, 'assignee_added', { assignee: { old: null, new: memberId } });
+  await notify(
+    ctx,
+    added.flatMap((memberId) => assignmentMessages(task, memberId, ctx.actor.id, at)),
+  );
+  return added;
+}
+
+/** WF-AUF-10 „Alle“: alle genannten Personen auf einmal eintragen, ein Rückgängig für alles */
+export async function addAssignees(ctx: Ctx, taskId: string, raw: unknown): Promise<Undoable> {
+  const memberIds = parse(memberIdsSchema, raw);
+  const task = await editableTask(ctx, taskId);
+  const added = await assignMany(ctx, task, memberIds);
+  if (added.length === 0) return { undo_token: '' };
+  await touchTask(ctx, task);
+  return registerUndo(ctx, 'task', task, `${added.length} eingetragen`);
 }
 
 export async function updateTaskFields(ctx: Ctx, id: string, raw: unknown, version: number): Promise<void> {
@@ -330,12 +384,7 @@ async function insertBlocker(ctx: Ctx, task: TaskRow, blockerId: string): Promis
   return true;
 }
 
-export async function setTaskStatus(
-  ctx: Ctx,
-  id: string,
-  raw: unknown,
-  { selfAssign = true }: { selfAssign?: boolean } = {},
-): Promise<Undoable & { self_assigned: boolean }> {
+export async function setTaskStatus(ctx: Ctx, id: string, raw: unknown): Promise<Undoable> {
   const input = parse(taskStatusChangeSchema, raw);
   const { task, assignees, followers, hasBlockers: blocked } = await editableTaskWithPeople(ctx, id);
   await checkVersion(ctx, 'task', task, input.version);
@@ -378,19 +427,7 @@ export async function setTaskStatus(
   if (to === 'blockiert')
     for (const blockerId of input.blocker_ids ?? []) await insertBlocker(ctx, task, blockerId);
 
-  let self_assigned = false;
-  const isAssignee = assignees.includes(ctx.actor.id);
-  if (to === 'in_arbeit' && !isAssignee && selfAssign) {
-    // wer loslegt und nicht eingetragen ist, wird automatisch Bearbeitende*r (4.1)
-    await ctx.trx
-      .insertInto('task_assignees')
-      .values({ task_id: id, member_id: ctx.actor.id, assigned_by: ctx.actor.id, assigned_at: iso(ctx) })
-      .execute();
-    ctx.inverse.push({ kind: 'assignee_remove', task_id: id, member_id: ctx.actor.id });
-    changes.assignee = { old: null, new: ctx.actor.id };
-    self_assigned = true;
-    assignees.push(ctx.actor.id);
-  }
+  // „In Arbeit“ trägt niemanden automatisch ein (Phase 9, Nutzerin 26.10.2026) – Zuordnen geht nur ausdrücklich
   await follow(ctx, id, ctx.actor.id);
   if (!followers.includes(ctx.actor.id)) followers.push(ctx.actor.id);
   await writeHistory(ctx, 'task', id, 'status', changes);
@@ -409,7 +446,7 @@ export async function setTaskStatus(
     for (const w of waiting)
       await notify(ctx, unblockedMessages(task, w, await assigneeIds(ctx, w.id), ctx.actor.id, iso(ctx)));
   }
-  return { ...(await registerUndo(ctx, 'task', task, `Status: ${TASK_STATUS_LABEL[to]}`)), self_assigned };
+  return registerUndo(ctx, 'task', task, `Status: ${TASK_STATUS_LABEL[to]}`);
 }
 
 export async function addAssignee(ctx: Ctx, taskId: string, memberId: string): Promise<Undoable> {

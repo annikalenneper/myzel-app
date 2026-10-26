@@ -1,7 +1,10 @@
-// S-11 Schnellanlage · WF-AUF-03 (und WF-VER-05 mit vorbelegter Veranstaltung)
+// S-11 Schnellanlage · WF-AUF-03 (und WF-VER-05 mit vorbelegter Veranstaltung); Phase 9: gleich mit Beschreibung
+// und Bearbeitenden, „Alle“ trägt alle aktiven Mitglieder ein
 import { useState } from 'react';
+import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
 import { useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
+import { useMe } from '../../app/session';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
 import { isFinalEventStatus } from '../../shared/rules/eventStatus';
@@ -10,6 +13,10 @@ import { CheckRow, cx, FieldError, Pill, PrimaryButton, PriorityBars } from '../
 import { PRIORITY_LABEL } from '../../shared/labels';
 import { DateTile } from '../../ui/DateTile';
 import { Sheet } from '../../ui/Sheet';
+import { TextField } from '../knowledge/KnowledgeSheets';
+
+/** lokaler Entwurf der Beschreibung (7.3) */
+const DESCRIPTION_DRAFT = 'neue-aufgabe:beschreibung';
 
 export function TaskCreateSheet({
   onClose,
@@ -25,14 +32,19 @@ export function TaskCreateSheet({
   wf?: string;
 }) {
   const { run } = useFeedback();
-  const { topics, topicName, events, eventById } = useLookups();
+  const { topics, topicName, events, eventById, activeMembers } = useLookups();
+  const me = useMe();
+  const [description, setDescription] = useState(() => readDraft(DESCRIPTION_DRAFT) ?? '');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [title, setTitle] = useState('');
+  const [mine, setMine] = useState(false);
+  const others = activeMembers.filter((m) => m.id !== me.id);
+  const everyone = mine && others.every((m) => assigneeIds.includes(m.id));
   const [topicId, setTopicId] = useState<string | null>(null);
   /** beim Thema „Veranstaltungen“ vorgeschlagen, wenn keine Veranstaltung vorbelegt ist */
   const [pickedEventId, setPickedEventId] = useState<string | null>(null);
   const [priority, setPriority] = useState<Priority>('mittel');
   const [dueDate, setDueDate] = useState('');
-  const [mine, setMine] = useState(false);
   const [error, setError] = useState<{ field: string | null; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const event = eventId ? eventById.get(eventId) : undefined;
@@ -72,6 +84,8 @@ export function TaskCreateSheet({
           event_id: linkedEventId,
           appointment_id: appointmentId,
           assign_self: mine,
+          description,
+          assignee_ids: assigneeIds,
         }),
       {
         success: linkedEvent
@@ -83,7 +97,10 @@ export function TaskCreateSheet({
       },
     );
     setSaving(false);
-    if (created) onClose();
+    if (created) {
+      clearDraft(DESCRIPTION_DRAFT);
+      onClose();
+    }
   };
 
   return (
@@ -194,9 +211,51 @@ export function TaskCreateSheet({
             <DateTile label="Frist" wf={wf} value={dueDate} onChange={setDueDate} surface="bg-grund" />
           </div>
           <FieldError>{error?.field === 'due_date' && error.message}</FieldError>
+          <TextField
+            label="Beschreibung"
+            wf={wf}
+            value={description}
+            placeholder="Was genau ist zu tun?"
+            onChange={(value) => {
+              setDescription(value);
+              writeDraft(DESCRIPTION_DRAFT, value);
+            }}
+          />
           <CheckRow data-wf={wf} checked={mine} onChange={setMine}>
             Ich übernehme das
           </CheckRow>
+          <div className="flex flex-col gap-2">
+            <span id="neu-bearbeitet" className="label-mono">
+              Bearbeitet von
+            </span>
+            <div role="group" aria-labelledby="neu-bearbeitet" className="flex flex-wrap gap-2">
+              <Pill
+                data-wf="WF-AUF-10"
+                on={everyone}
+                onClick={() => {
+                  setMine(!everyone);
+                  setAssigneeIds(everyone ? [] : others.map((m) => m.id));
+                }}
+                className="font-medium"
+              >
+                Alle
+              </Pill>
+              {others.map((m) => (
+                <Pill
+                  key={m.id}
+                  data-wf="WF-AUF-10"
+                  on={assigneeIds.includes(m.id)}
+                  onClick={() =>
+                    setAssigneeIds((ids) =>
+                      ids.includes(m.id) ? ids.filter((id) => id !== m.id) : [...ids, m.id],
+                    )
+                  }
+                >
+                  {m.display_name}
+                </Pill>
+              ))}
+            </div>
+          </div>
         </div>
 
         <FieldError>

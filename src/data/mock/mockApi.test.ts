@@ -172,14 +172,13 @@ describe('Status (WF-AUF-06 bis -09)', () => {
     await expectError(api.setTaskStatus(task.id, { status: 'verworfen', version: 3 }), 'rule');
   });
 
-  it('trägt bei „In Arbeit“ die handelnde Person ein', async () => {
+  it('„In Arbeit“ trägt niemanden von selbst ein (Phase 9)', async () => {
     const me = (await ids()).member('Mo');
     const task = await newTask();
-    const result = await api.setTaskStatus(task.id, { status: 'in_arbeit', version: 1 });
-    expect(result.self_assigned).toBe(true);
+    await api.setTaskStatus(task.id, { status: 'in_arbeit', version: 1 });
     const after = await api.getTask(task.id);
-    expect(after.assignee_ids).toEqual([me.id]);
-    expect(after.version).toBe(2);
+    expect([after.status, after.assignee_ids, after.version]).toEqual(['in_arbeit', [], 2]);
+    expect(after.follower_ids).toContain(me.id);
   });
 
   it('speichert den Blockade-Grund und leert ihn beim Lösen', async () => {
@@ -286,7 +285,8 @@ describe('Bearbeitende und Folgende (WF-AUF-10, -11)', () => {
   it('setzt „In Arbeit“ auf „Geplant“ zurück, wenn die letzte Person geht', async () => {
     const me = (await ids()).member('Mo');
     const task = await newTask();
-    await api.setTaskStatus(task.id, { status: 'in_arbeit', version: 1 });
+    await api.addAssignee(task.id, me.id);
+    await api.setTaskStatus(task.id, { status: 'in_arbeit', version: 2 });
     const result = await api.removeAssignee(task.id, me.id);
     expect(result.status_reset).toBe(true);
     expect((await api.getTask(task.id)).status).toBe('geplant');
@@ -767,5 +767,36 @@ describe('Profil (WF-PRO-01)', () => {
     const session = await api.getSession();
     expect(session.state === 'member' && session.member.display_name).toBe('Mo K.');
     await expectError(api.updateOwnName(''), 'validation');
+  });
+});
+
+describe('Phase 9: Anlegen mit Beschreibung und Bearbeitenden, „Alle“', () => {
+  it('legt mit Beschreibung und mehreren Bearbeitenden an – je Person Historie, Status bleibt neu', async () => {
+    const { member } = await ids();
+    const task = await newTask({
+      description: '  Kisten zählen  ',
+      assignee_ids: [member('Lea').id, member('Kim').id, member('Lea').id],
+    });
+    expect([task.status, task.description]).toEqual(['neu', 'Kisten zählen']);
+    expect([...task.assignee_ids].sort()).toEqual([member('Lea').id, member('Kim').id].sort());
+    expect(task.follower_ids).toEqual(expect.arrayContaining([member('Lea').id, member('Kim').id]));
+    expect(task.history.filter((h) => h.action === 'assignee_added')).toHaveLength(2);
+    await expectError(newTask({ assignee_ids: [member('Tarek').id] }), 'rule');
+  });
+
+  it('„Alle“ trägt alle fehlenden auf einmal ein – ein Rückgängig für alle', async () => {
+    const members = await api.listMembers();
+    const active = members.filter((m) => m.active && !m.is_system);
+    const task = await newTask({ assign_self: true });
+    const { undo_token } = await api.addAssignees(
+      task.id,
+      active.map((m) => m.id),
+    );
+    const after = await api.getTask(task.id);
+    expect(after.assignee_ids).toHaveLength(active.length);
+    expect(after.version).toBe(task.version + 1);
+    await api.undo(undo_token);
+    expect((await api.getTask(task.id)).assignee_ids).toEqual(task.assignee_ids);
+    expect((await api.addAssignees(task.id, task.assignee_ids)).undo_token).toBe('');
   });
 });

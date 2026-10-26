@@ -122,14 +122,10 @@ function Loaded({ task }: { task: TaskDetailData }) {
   const setStatus = (status: TaskStatus) =>
     act(() => api.setTaskStatus(task.id, { status, version: latest.current }), {
       subject: SUBJECT,
-      // wer ändert, folgt; wer loslegt, wird Bearbeitende*r (4.1)
-      optimistic: onTask((t) => ({
-        status,
-        follower_ids: withId(t.follower_ids, me.id),
-        ...(status === 'in_arbeit' && { assignee_ids: withId(t.assignee_ids, me.id) }),
-      })),
-      success: (r) =>
-        `${task.status === 'blockiert' && isActiveTaskStatus(status) ? 'Blockade gelöst · ' : 'Status: '}${TASK_STATUS_LABEL[status]}${r.self_assigned ? ' · du bist eingetragen' : ''}`,
+      // wer ändert, folgt – eingetragen wird niemand von selbst (Phase 9)
+      optimistic: onTask((t) => ({ status, follower_ids: withId(t.follower_ids, me.id) })),
+      success: () =>
+        `${task.status === 'blockiert' && isActiveTaskStatus(status) ? 'Blockade gelöst · ' : 'Status: '}${TASK_STATUS_LABEL[status]}`,
       undo: (r) => r.undo_token,
     });
 
@@ -174,6 +170,22 @@ function Loaded({ task }: { task: TaskDetailData }) {
       success: `${m.display_name} eingetragen`,
       undo: (r) => r.undo_token,
     });
+
+  /** WF-AUF-10 „Alle“ (Phase 9): alle, die noch fehlen, in einem Schritt */
+  const addAll = (missing: Member[]) =>
+    void act(
+      () =>
+        api.addAssignees(
+          task.id,
+          missing.map((m) => m.id),
+        ),
+      {
+        subject: SUBJECT,
+        optimistic: onTask((t) => ({ assignee_ids: [...t.assignee_ids, ...missing.map((m) => m.id)] })),
+        success: `Alle eingetragen · ${missing.length} dazu`,
+        undo: (r) => r.undo_token,
+      },
+    );
 
   const removePerson = (kind: 'assign' | 'followers', m: Pick<Member, 'id' | 'display_name'>) =>
     void act<{ undo_token: string; status_reset?: boolean }>(
@@ -649,6 +661,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
           selectedIds={sheet === 'assign' ? task.assignee_ids : task.follower_ids}
           onClose={() => setSheet(null)}
           onToggle={(m, selected) => (selected ? removePerson(sheet, m) : addPerson(sheet, m))}
+          onAll={sheet === 'assign' ? addAll : undefined}
         />
       )}
       {sheet === 'archive' && (

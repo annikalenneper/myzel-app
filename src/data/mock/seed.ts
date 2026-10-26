@@ -273,7 +273,15 @@ export function seedDb(now: Date): Db {
     daysAgo: number,
     status: 'in_arbeit' | 'erledigt',
     time = '18:04',
-  ) => server.setTaskStatus(as(by, daysAgo, time), id, { status, version: version(id) });
+  ) => {
+    // wer loslegt, trägt sich in den Testdaten selbst ein – automatisch passiert das nicht mehr (Phase 9)
+    if (
+      status === 'in_arbeit' &&
+      !db.task_assignees.some((x) => x.task_id === id && x.member_id === member[by]!.id)
+    )
+      server.addAssignee(as(by, daysAgo, time), id, member[by]!.id);
+    return server.setTaskStatus(as(by, daysAgo, time), id, { status, version: version(id) });
+  };
   const done = (s: TaskSeed, assignee: string) => {
     const id = addTask(s);
     plan(id, s.by, s.daysAgo, [assignee]);

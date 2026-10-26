@@ -128,10 +128,10 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [ ] Event-Detail: „+ Aufgabe“ fragt: bestehende Aufgabe verknüpfen oder neue anlegen
   - [ ] Event-Detail: Fakten und Entscheidungen auch dort anlegen, wo Aufgabe, Frage und „Aus Vorlage …“ stehen
   - [ ] Event- und Entscheidungs-Detail: Kommentare und Verlauf in zwei Reitern wie bei Aufgaben
-  - [ ] „In Arbeit“ trägt die Person nicht mehr automatisch ein
-  - [ ] Aufgabe anlegen: gleich mit Beschreibung und Zuordnung
-  - [ ] Zuordnung: Option „Alle“
-  - [ ] Aufgabenkarte: kein Überlauf bei vielen Zugeordneten
+  - [x] „In Arbeit“ trägt die Person nicht mehr automatisch ein
+  - [x] Aufgabe anlegen: gleich mit Beschreibung und Zuordnung
+  - [x] Zuordnung: Option „Alle“
+  - [x] Aufgabenkarte: kein Überlauf bei vielen Zugeordneten
   - [ ] Alle Artefakte löschen (archivieren), mit Rückfrage
 
 ## Messungen

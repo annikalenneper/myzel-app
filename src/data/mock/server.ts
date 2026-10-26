@@ -33,6 +33,7 @@ import {
   memberCreateSchema,
   memberUpdateSchema,
   profileNameSchema,
+  memberIdsSchema,
   taskCreateSchema,
   taskDescriptionSchema,
   taskFieldsSchema,
@@ -569,7 +570,7 @@ export function createTask(ctx: Ctx, raw: unknown): { id: string } {
     id: uuid(),
     number: ++ctx.db.task_number_seq,
     title: input.title,
-    description: null,
+    description: input.description,
     topic_id: input.topic_id,
     event_id: input.event_id,
     appointment_id: input.appointment_id,
@@ -588,19 +589,45 @@ export function createTask(ctx: Ctx, raw: unknown): { id: string } {
   };
   ctx.db.tasks.push(task);
   const changes: HistoryChanges = { title: { old: null, new: task.title } };
+  if (task.description) changes.description = { old: null, new: task.description };
   follow(ctx, task.id, ctx.actor.id);
-  if (input.assign_self) {
-    // trägt nur ein – der Status bleibt „neu“ (F-AUF-04)
+  writeHistory(ctx, 'task', task.id, 'created', changes);
+  // trägt nur ein – der Status bleibt „neu“ (F-AUF-04)
+  const people = [...(input.assign_self ? [ctx.actor.id] : []), ...input.assignee_ids];
+  if (people.length) assignMany(ctx, task, people);
+  return { id: task.id };
+}
+
+/** Mehrere eintragen (Phase 9: „Alle“, Zuordnung beim Anlegen) – eintragsweise, je Person Historie und Nachricht */
+function assignMany(ctx: Ctx, task: Task, memberIds: readonly string[]): string[] {
+  const ids = [...new Set(memberIds)];
+  for (const id of ids) selectableMember(ctx, id);
+  const added = ids.filter(
+    (id) => !ctx.db.task_assignees.some((a) => a.task_id === task.id && a.member_id === id),
+  );
+  for (const memberId of added) {
     ctx.db.task_assignees.push({
       task_id: task.id,
-      member_id: ctx.actor.id,
+      member_id: memberId,
       assigned_by: ctx.actor.id,
-      assigned_at: now,
+      assigned_at: iso(ctx),
     });
-    changes.assignee = { old: null, new: ctx.actor.id };
+    ctx.inverse.push({ kind: 'assignee_remove', task_id: task.id, member_id: memberId });
+    follow(ctx, task.id, memberId);
+    writeHistory(ctx, 'task', task.id, 'assignee_added', { assignee: { old: null, new: memberId } });
+    enqueue(ctx.db, ctx.now, assignmentMessages(task, memberId, ctx.actor.id, iso(ctx)), (ctx.outbox ??= []));
   }
-  writeHistory(ctx, 'task', task.id, 'created', changes);
-  return { id: task.id };
+  return added;
+}
+
+/** WF-AUF-10 „Alle“: alle genannten Personen auf einmal eintragen, ein Rückgängig für alles */
+export function addAssignees(ctx: Ctx, taskId: string, raw: unknown): Undoable {
+  const memberIds = parse(memberIdsSchema, raw);
+  const task = editableTask(ctx, taskId);
+  const added = assignMany(ctx, task, memberIds);
+  if (added.length === 0) return { undo_token: '' };
+  touch(ctx, task);
+  return registerUndo(ctx, 'task', task, `${added.length} eingetragen`);
 }
 
 export function updateTaskFields(ctx: Ctx, id: string, raw: unknown, version: number): void {
@@ -669,13 +696,7 @@ function insertBlocker(ctx: Ctx, task: Task, blockerId: string): boolean {
   return true;
 }
 
-/** `selfAssign: false`: im Plenum legt nicht los, wer die Agenda bedient (WF-PLE-09) */
-export function setTaskStatus(
-  ctx: Ctx,
-  id: string,
-  raw: unknown,
-  { selfAssign = true }: { selfAssign?: boolean } = {},
-): Undoable & { self_assigned: boolean } {
+export function setTaskStatus(ctx: Ctx, id: string, raw: unknown): Undoable {
   const input = parse(taskStatusChangeSchema, raw);
   const task = editableTask(ctx, id);
   checkVersion(ctx, 'task', task, input.version);
@@ -716,20 +737,7 @@ export function setTaskStatus(
   }
   task.status = to;
 
-  let self_assigned = false;
-  const isAssignee = ctx.db.task_assignees.some((a) => a.task_id === id && a.member_id === ctx.actor.id);
-  if (to === 'in_arbeit' && !isAssignee && selfAssign) {
-    // wer loslegt und nicht eingetragen ist, wird automatisch Bearbeitende*r (4.1)
-    ctx.db.task_assignees.push({
-      task_id: id,
-      member_id: ctx.actor.id,
-      assigned_by: ctx.actor.id,
-      assigned_at: iso(ctx),
-    });
-    ctx.inverse.push({ kind: 'assignee_remove', task_id: id, member_id: ctx.actor.id });
-    changes.assignee = { old: null, new: ctx.actor.id };
-    self_assigned = true;
-  }
+  // „In Arbeit“ trägt niemanden automatisch ein (Phase 9, Nutzerin 26.10.2026) – Zuordnen geht nur ausdrücklich
   follow(ctx, id, ctx.actor.id);
   touch(ctx, task);
   writeHistory(ctx, 'task', id, 'status', changes);
@@ -751,7 +759,7 @@ export function setTaskStatus(
           (ctx.outbox ??= []),
         );
     }
-  return { ...registerUndo(ctx, 'task', task, `Status: ${TASK_STATUS_LABEL[to]}`), self_assigned };
+  return registerUndo(ctx, 'task', task, `Status: ${TASK_STATUS_LABEL[to]}`);
 }
 
 export function addAssignee(ctx: Ctx, taskId: string, memberId: string): Undoable {

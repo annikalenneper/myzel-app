@@ -19,7 +19,11 @@ export function TaskCard({
   today: string;
   selected: boolean;
 }) {
-  const { topicName, eventById, memberById } = useLookups();
+  const { topicName, eventById, memberById, activeMembers } = useLookups();
+  // Phase 9: viele Bearbeitende sprengen die Karte nicht – höchstens drei Köpfe, dann „+n“ bzw. „Alle“
+  const everyone = activeMembers.length > 1 && activeMembers.every((m) => task.assignee_ids.includes(m.id));
+  const shownIds = task.assignee_ids.slice(0, task.assignee_ids.length > 4 ? 3 : 4);
+  const more = task.assignee_ids.length - shownIds.length;
   const due = dueState(task.due_date, task.status, today);
   const event = task.event_id ? eventById.get(task.event_id) : undefined;
   const blocked = task.status === 'blockiert';
@@ -54,7 +58,7 @@ export function TaskCard({
             </span>
           </div>
         )}
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <span className="flex flex-none items-center gap-1.5 text-[13px] font-medium whitespace-nowrap">
             <span className="size-2 rounded-full" style={{ background: TASK_STATUS_COLOR[task.status] }} />
             {TASK_STATUS_LABEL[task.status]}
@@ -72,17 +76,25 @@ export function TaskCard({
               {task.comment_count}
             </span>
           )}
-          {task.assignee_ids.length > 0 && (
-            <span className="flex pl-1.5">
-              {task.assignee_ids.map((id) => (
-                <Avatar
-                  key={id}
-                  member={memberById.get(id)}
-                  size={26}
-                  className={cx('-ml-1.5 border-2', selected ? 'border-erhoeht' : 'border-flaeche')}
-                />
-              ))}
-            </span>
+          {everyone ? (
+            <span className="flex-none font-mono text-[12px] text-weich">ALLE</span>
+          ) : (
+            task.assignee_ids.length > 0 && (
+              <span
+                className="flex flex-none items-center pl-1.5"
+                aria-label={`${task.assignee_ids.length} ${task.assignee_ids.length === 1 ? 'Person' : 'Personen'}`}
+              >
+                {shownIds.map((id) => (
+                  <Avatar
+                    key={id}
+                    member={memberById.get(id)}
+                    size={26}
+                    className={cx('-ml-1.5 border-2', selected ? 'border-erhoeht' : 'border-flaeche')}
+                  />
+                ))}
+                {more > 0 && <span className="pl-1 font-mono text-[12px] text-leise">+{more}</span>}
+              </span>
+            )
           )}
         </div>
       </Link>
