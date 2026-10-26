@@ -76,8 +76,9 @@ test('WF-TER-02: Terminart belegt vor; Ort bzw. Link sind je nach Format Pflicht
   await sheet.getByLabel('Titel *').fill('Bautag Dezember');
   await sheet.getByLabel('Beginn *').fill(localInput(60, '10:00'));
   await sheet.getByRole('button', { name: 'Hybrid' }).click();
-  await expect(submit).toHaveText('Link zum Call angeben, dann anlegen');
-  await sheet.getByLabel('Link zum Call *').fill('kein-link');
+  // der Link zum Call darf noch fehlen (Phase 9)
+  await expect(submit).toHaveText('Anlegen und einladen');
+  await sheet.getByLabel(/^Link zum Call/).fill('kein-link');
   await submit.click();
   await expect(sheet.getByRole('alert')).toHaveText('Der Link muss mit https:// beginnen.');
   await sheet.getByRole('button', { name: 'Vor Ort' }).click();
@@ -217,4 +218,19 @@ test('WF-TER-11: Termin in Google Kalender eintragen oder als .ics herunterladen
   expect(ics).toContain('BEGIN:VEVENT');
   expect(ics).toContain('SUMMARY:Vorbesprechung Winterrave');
   expect(ics).toMatch(/DTSTART:\d{8}T\d{6}Z/);
+});
+
+test('WF-TER-03: ohne Link zum Call ein Hinweis unter dem Knopf', async ({ page }) => {
+  await open(page);
+  await createNew(page, 'Termin');
+  const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
+  await sheet.getByRole('button', { name: 'Bautag' }).click();
+  await sheet.getByLabel('Titel *').fill('Online-Absprache');
+  await sheet.getByLabel('Beginn *').fill(localInput(5, '19:00'));
+  await sheet.getByRole('button', { name: 'Online' }).click();
+  await sheet.locator('button[type=submit]').click();
+  await expect(sheet).toBeHidden();
+  await card(page, 'Online-Absprache').getByRole('link').first().click();
+  await expect(page.getByRole('button', { name: 'Zum Call' })).toBeDisabled();
+  await expect(page.getByText('Noch kein Link zur Besprechung hinterlegt')).toBeVisible();
 });

@@ -60,11 +60,9 @@ describe('Termin anlegen (WF-TER-02, WF-PLE-01)', () => {
     const bautag = await type('Bautag');
     const base = { type_id: bautag.id, title: 'Bautag Dezember', starts_at: inDays(60, 10) };
     await expectError(api.createAppointment({ ...base, format: 'vor_ort' }), 'validation', 'location');
-    await expectError(
-      api.createAppointment({ ...base, format: 'online', location: 'Lager' }),
-      'validation',
-      'online_url',
-    );
+    // der Link zum Call darf noch fehlen (Phase 9) – ist einer da, muss er stimmen
+    const withoutLink = await api.createAppointment({ ...base, format: 'online' });
+    expect((await api.getAppointment(withoutLink.id)).online_url).toBeNull();
     await expectError(
       api.createAppointment({ ...base, format: 'hybrid', location: 'Lager', online_url: 'kein-link' }),
       'validation',

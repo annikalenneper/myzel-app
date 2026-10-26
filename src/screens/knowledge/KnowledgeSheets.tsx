@@ -397,7 +397,7 @@ export function EventSelect({
   );
 }
 
-/** Mehrzeiliger Text; mit max zählt das Feld mit („x/300“, 16.4) */
+/** Mehrzeiliger Text; mit max zählt das Feld mit („x/200“, 16.4) */
 export function TextField({
   label,
   value,

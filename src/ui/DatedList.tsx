@@ -32,13 +32,33 @@ export function TimeTabs({
   wf: string;
 }) {
   return (
+    <TabBar
+      value={value}
+      onChange={onChange}
+      wf={wf}
+      options={[
+        ['kommend', 'KOMMEND'],
+        ['vergangen', 'VERGANGEN'],
+      ]}
+    />
+  );
+}
+
+/** Reiterleiste unter den Filtern (Termine, Events, Agenda) */
+export function TabBar<T extends string>({
+  value,
+  onChange,
+  wf,
+  options,
+}: {
+  value: T;
+  onChange: (t: T) => void;
+  wf: string;
+  options: readonly (readonly [T, string])[];
+}) {
+  return (
     <div role="tablist" className="flex gap-[22px] border-b border-linie">
-      {(
-        [
-          ['kommend', 'KOMMEND'],
-          ['vergangen', 'VERGANGEN'],
-        ] as const
-      ).map(([key, label]) => (
+      {options.map(([key, label]) => (
         <button
           key={key}
           type="button"

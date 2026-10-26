@@ -83,9 +83,7 @@ export function AppointmentFormSheet({
         ? `Beginn wählen, dann ${verb}`
         : needsPlace && !location.trim()
           ? `Ort angeben, dann ${verb}`
-          : needsLink && !onlineUrl.trim()
-            ? `Link zum Call angeben, dann ${verb}`
-            : null;
+          : null;
 
   // Zeit oder Ort geändert: Zusagen und alle ohne Antwort bekommen eine Nachricht (WF-TER-04)
   const moved =
@@ -362,7 +360,7 @@ export function AppointmentFormSheet({
         <FieldError>{fieldError('location')}</FieldError>
         {needsLink && (
           <label className="label-mono flex flex-col gap-1.5">
-            Link zum Call *
+            Link zum Call · optional, geht auch später
             <input
               type="url"
               data-wf={wf}

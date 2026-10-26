@@ -27,7 +27,7 @@ import { HistoryList } from '../../ui/HistoryList';
 import { entityHistorySentence } from '../../shared/entityHistory';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
-import { CalendarLinks } from './CalendarLinks';
+import { CalendarLinks, CallButton } from './CalendarLinks';
 import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { rsvpButton, useRsvp } from './AppointmentsScreen';
 import { PlenumDetail } from './PlenumDetail';
@@ -157,18 +157,9 @@ function Loaded({ a }: { a: Detail }) {
               {a.series.active ? (a.is_exception ? ' · einzeln geändert' : ' ›') : ' · beendet'}
             </button>
           )}
-          {a.online_url && !cancelled && (
-            <a
-              href={a.online_url}
-              target="_blank"
-              rel="noreferrer"
-              className="hit self-start text-[14px] break-all"
-            >
-              Zum Call ↗
-            </a>
-          )}
           {!cancelled && <CalendarLinks a={a} />}
         </div>
+        {!cancelled && a.format !== 'vor_ort' && <CallButton url={a.online_url} />}
 
         {cancelled && (
           <div className="rounded-[14px] border border-rot-rand bg-rot-flaeche px-3.5 py-3 text-[14px] leading-normal">

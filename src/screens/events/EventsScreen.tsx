@@ -80,12 +80,17 @@ function EventList({ selectedId }: { selectedId: string | null }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="label-mono">{EVENT_TYPE_LABEL[e.type]}</span>
                       <span
-                        className="rounded-full border px-2 py-px font-mono text-[10px] uppercase"
+                        className="flex items-center gap-1.5 rounded-full border px-2 py-px font-mono text-[10px] uppercase"
                         style={{
                           borderColor: EVENT_STATUS_COLOR[e.status],
                           color: EVENT_STATUS_COLOR[e.status],
                         }}
                       >
+                        {/* Farbpunkt wie bei den Aufgaben (Phase 9) */}
+                        <span
+                          className="size-1.5 rounded-full"
+                          style={{ background: EVENT_STATUS_COLOR[e.status] }}
+                        />
                         {EVENT_STATUS_LABEL[e.status]}
                       </span>
                     </div>

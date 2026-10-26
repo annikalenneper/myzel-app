@@ -7,7 +7,6 @@ import {
   applyTaskFilter,
   DEFAULT_AGENDA_FILTER,
   useAgendaFilter,
-  type AgendaKind,
   type AgendaScope,
 } from '../../app/agendaFilter';
 import { ListDetailLayout } from '../../app/AppShell';
@@ -31,6 +30,7 @@ import { topicFilterIds } from '../../shared/rules/topics';
 import type { TaskStatus } from '../../shared/schema';
 import { Avatar, cx, ListSkeleton, LoadError, Pill } from '../../ui/bits';
 import { Menu, type MenuOption } from '../../ui/Menu';
+import { TabBar } from '../../ui/DatedList';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { DecisionDetail } from '../knowledge/DecisionDetail';
 import { BACK_TO_AGENDA } from '../knowledge/DetailParts';
@@ -40,11 +40,6 @@ import { TaskCard } from '../tasks/TaskCard';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
 import { TaskDetail } from '../tasks/TaskDetail';
 
-const KINDS: [AgendaKind, string][] = [
-  ['alles', 'Alles'],
-  ['aufgaben', 'Aufgaben'],
-  ['fragen', 'Fragen'],
-];
 const SCOPES: [AgendaScope, string][] = [
   ['alle', 'Alle'],
   ['meine', 'Meine'],
@@ -52,7 +47,7 @@ const SCOPES: [AgendaScope, string][] = [
 ];
 const ALL = '__alle__';
 
-type OpenMenu = 'art' | 'scope' | 'thema' | 'status' | 'event' | null;
+type OpenMenu = 'scope' | 'thema' | 'status' | 'event' | null;
 
 /** Was rechts offen ist: Aufgabe, Frage oder ein Eintrag „Stimmt das noch?“ */
 export type AgendaDetail = 'task' | 'question' | 'decision';
@@ -104,8 +99,7 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
   }, [questions, filter, me.id, topics]);
   // „Stimmt das noch?“: nur in der offenen Agenda, ohne Einschränkung auf Personen, Status oder Veranstaltung
   const toReview = useMemo(() => {
-    if (filter.kind !== 'alles' || filter.done || filter.scope !== 'alle' || filter.status || filter.eventId)
-      return [];
+    if (filter.done || filter.scope !== 'alle' || filter.status || filter.eventId) return [];
     const topicIds = filter.topicId ? topicFilterIds(filter.topicId, topics) : null;
     return (decisions ?? []).filter(
       (d) => d.marked && decisionActive(d.status) && (!topicIds || topicIds.has(d.topic_id)),
@@ -126,16 +120,6 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
     Exclude<OpenMenu, null>,
     { label: string; options: MenuOption[]; pick: (key: string) => void }
   > = {
-    art: {
-      label: 'Art',
-      options: KINDS.map(([key, label]) => ({ key, label, selected: filter.kind === key })),
-      pick: (key) =>
-        setFilter(
-          key === 'fragen'
-            ? { kind: 'fragen', status: null, scope: filter.scope === 'folge' ? 'alle' : filter.scope }
-            : { kind: key as AgendaKind },
-        ),
-    },
     scope: {
       label: 'Grundmenge',
       options: SCOPES.map(([key, label]) => ({ key, label, selected: filter.scope === key })),
@@ -180,32 +164,19 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
     },
   };
   const pills: [Exclude<OpenMenu, null>, string, boolean][] = [
-    [
-      'art',
-      filter.kind === 'alles' ? 'Art' : KINDS.find(([k]) => k === filter.kind)![1],
-      filter.kind !== 'alles',
-    ],
     ['scope', SCOPES.find(([k]) => k === filter.scope)![1], filter.scope !== 'alle'],
     ['thema', filter.topicId ? topicName(filter.topicId) : 'Thema', !!filter.topicId],
     ['status', filter.status ? TASK_STATUS_LABEL[filter.status] : 'Status', !!filter.status],
     ['event', (filter.eventId && eventById.get(filter.eventId)?.title) || 'Veranstaltung', !!filter.eventId],
   ];
 
-  const filtered =
-    filter.kind !== 'alles' ||
-    filter.scope !== 'alle' ||
-    filter.done ||
-    !!filter.topicId ||
-    !!filter.status ||
-    !!filter.eventId;
+  const filtered = filter.scope !== 'alle' || !!filter.topicId || !!filter.status || !!filter.eventId;
   const loaded = !!tasks && !!questions;
   const nothing = loaded && visibleTasks.length + visibleQuestions.length + toReview.length === 0;
   const empty: [title: string, text: string] = filtered
     ? ['Nichts gefunden', 'Mit diesen Filtern steht gerade nichts auf der Agenda.']
     : ['Die Agenda ist leer', 'Keine offenen Aufgaben und Fragen. Leg etwas Neues an.'];
-  const showTasks = filter.kind !== 'fragen';
-  const showQuestions = filter.kind !== 'aufgaben' && !filter.status && filter.scope !== 'folge';
-  const sections = filter.kind === 'alles';
+  const showQuestions = !filter.status && filter.scope !== 'folge';
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
@@ -229,7 +200,7 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
             {pills.map(([key, label, on]) => (
               <Pill
                 key={key}
-                data-wf={key === 'art' ? 'WF-AGE-01' : 'WF-AUF-01'}
+                data-wf="WF-AUF-01"
                 on={on}
                 aria-expanded={menu === key}
                 aria-haspopup="true"
@@ -238,20 +209,10 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
                 {label} ▾
               </Pill>
             ))}
-            <Pill
-              data-wf="WF-AUF-01"
-              on={filter.done}
-              onClick={() => {
-                setMenu(null);
-                setFilter({ done: !filter.done });
-              }}
-            >
-              Abgeschlossene
-            </Pill>
           </div>
           {menu && (
             <Menu
-              wf={menu === 'art' ? 'WF-AGE-01' : 'WF-AUF-01'}
+              wf="WF-AUF-01"
               label={menus[menu].label}
               options={menus[menu].options}
               onClose={() => setMenu(null)}
@@ -262,6 +223,19 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
             />
           )}
         </div>
+        {/* Phase 9: Aktuell / Abgeschlossen als Reiter wie bei Terminen und Events */}
+        <TabBar
+          wf="WF-AUF-01"
+          value={filter.done ? 'abgeschlossen' : 'aktuell'}
+          onChange={(tab) => {
+            setMenu(null);
+            setFilter({ done: tab === 'abgeschlossen' });
+          }}
+          options={[
+            ['aktuell', 'AKTUELL'],
+            ['abgeschlossen', 'ABGESCHLOSSEN'],
+          ]}
+        />
       </div>
 
       <div className="flex flex-1 flex-col gap-3 px-5 pt-3.5 pb-[180px] lg:pb-28">
@@ -287,9 +261,9 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
           </>
         )}
 
-        {loaded && showTasks && (
+        {loaded && (
           <>
-            {sections && visibleTasks.length > 0 && (toReview.length > 0 || visibleQuestions.length > 0) && (
+            {visibleTasks.length > 0 && (toReview.length > 0 || visibleQuestions.length > 0) && (
               <span className="label-mono pt-1">{filter.done ? 'Abgeschlossene Aufgaben' : 'Aufgaben'}</span>
             )}
             {visibleTasks.map((t) => (
@@ -298,7 +272,7 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
           </>
         )}
 
-        {loaded && showQuestions && (visibleQuestions.length > 0 || filter.kind === 'fragen') && (
+        {loaded && showQuestions && visibleQuestions.length > 0 && (
           <>
             <div className="flex min-h-8 items-center justify-between pt-1">
               <span className="label-mono">

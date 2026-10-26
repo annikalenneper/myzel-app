@@ -7,14 +7,11 @@ import { topicFilterIds } from '../shared/rules/topics';
 import type { TaskStatus, Topic } from '../shared/schema';
 
 export type AgendaScope = 'alle' | 'meine' | 'folge';
-/** Was die Agenda zeigt (16.1) */
-export type AgendaKind = 'alles' | 'aufgaben' | 'fragen';
 
 export interface AgendaFilter {
-  kind: AgendaKind;
   /** Grundmenge: bei Fragen heißt „Meine“ selbst gestellt; Fragen haben keine Folgenden */
   scope: AgendaScope;
-  /** zeigt nur erledigte und verworfene Aufgaben bzw. geklärte und verworfene Fragen */
+  /** Reiter „Abgeschlossen“ (Phase 9): erledigte und verworfene Aufgaben, geklärte und verworfene Fragen */
   done: boolean;
   topicId: string | null;
   /** Status einer Aufgabe – dann ohne Fragen */
@@ -23,7 +20,6 @@ export interface AgendaFilter {
 }
 
 export const DEFAULT_AGENDA_FILTER: AgendaFilter = {
-  kind: 'alles',
   scope: 'alle',
   done: false,
   topicId: null,
@@ -39,7 +35,6 @@ export function applyTaskFilter(
   meId: string,
   topics: readonly TopicRef[],
 ): TaskListItem[] {
-  if (filter.kind === 'fragen') return [];
   const topicIds = filter.topicId ? topicFilterIds(filter.topicId, topics) : null;
   return tasks.filter((t) => {
     if (filter.done === isActiveTaskStatus(t.status)) return false;
@@ -58,7 +53,7 @@ export function applyQuestionFilter(
   meId: string,
   topics: readonly TopicRef[],
 ): QuestionListItem[] {
-  if (filter.kind === 'aufgaben' || filter.status || filter.scope === 'folge') return [];
+  if (filter.status || filter.scope === 'folge') return [];
   const topicIds = filter.topicId ? topicFilterIds(filter.topicId, topics) : null;
   return questions.filter((q) => {
     if (filter.done === (q.status === 'offen')) return false;
@@ -84,7 +79,7 @@ export function AgendaFilterProvider({ children }: { children: ReactNode }) {
       setFilter: (patch) =>
         setState((prev) => {
           const next = { ...prev, ...patch };
-          // „Abgeschlossene“ umschalten: ein Statusfilter der anderen Gruppe passt nicht mehr
+          // Reiter wechseln: ein Statusfilter der anderen Gruppe passt nicht mehr
           if (next.status && next.done === isActiveTaskStatus(next.status)) next.status = null;
           return next;
         }),

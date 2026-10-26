@@ -165,7 +165,7 @@ export function Profile() {
           onClick={() => setSheet('report')}
           className="flex h-[50px] items-center border-b border-erhoeht bg-flaeche px-3.5 text-left text-[14px] text-text"
         >
-          <span className="flex-1">Rückmeldung zur App · Bug oder Wunsch</span>
+          <span className="flex-1">Rückmeldung zur App</span>
           <span className="font-mono text-[12px] text-leise">›</span>
         </button>
         <Link

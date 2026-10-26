@@ -228,7 +228,7 @@ test('WF-WIS-12 / WF-ALL-07: Entscheidung bearbeiten mit Zähler, Text auf der K
   await page.getByRole('button', { name: 'Bearbeiten', exact: true }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Bearbeiten' });
   await sheet.getByLabel(/^Text/).fill('Gilt für alle Sorten.');
-  await expect(sheet).toContainText('21/300');
+  await expect(sheet).toContainText('21/200');
   await sheet.locator('button[type=submit]').click();
   await expect(sheet).toBeHidden();
   await expect(

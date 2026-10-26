@@ -7,7 +7,7 @@ import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { EventDetail as Detail } from '../../data/api';
 import { formatDayMonth, formatEventRange, formatTime } from '../../shared/format';
-import { EVENT_STATUS_LABEL, EVENT_TYPE_LABEL } from '../../shared/labels';
+import { EVENT_STATUS_COLOR, EVENT_STATUS_LABEL, EVENT_TYPE_LABEL } from '../../shared/labels';
 import { canTransitionEvent, isFinalEventStatus } from '../../shared/rules/eventStatus';
 import { EVENT_STATUSES, type EventStatus } from '../../shared/schema';
 import { Avatar, cx, GhostButton, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
@@ -174,14 +174,13 @@ function Loaded({ event }: { event: Detail }) {
                   aria-pressed={on}
                   aria-disabled={!ok}
                   className={cx(
-                    'hit h-8 rounded-2xl border px-[11px] text-[13px]',
-                    on
-                      ? 'border-text bg-text font-semibold text-grund'
-                      : ok
-                        ? 'border-rand text-weich'
-                        : 'cursor-default border-erhoeht text-matt',
+                    // wie die Status-Leiste der Aufgaben: Farbpunkt je Status (Phase 9)
+                    'hit flex h-[34px] items-center gap-1.5 rounded-[17px] border px-3 text-[13px] font-medium',
+                    on ? 'border-text bg-text text-grund' : 'border-rand text-weich',
+                    !ok && 'cursor-default opacity-35',
                   )}
                 >
+                  <span className="size-[7px] rounded-full" style={{ background: EVENT_STATUS_COLOR[s] }} />
                   {EVENT_STATUS_LABEL[s]}
                 </button>
               );

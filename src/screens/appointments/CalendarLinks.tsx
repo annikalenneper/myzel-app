@@ -35,13 +35,13 @@ async function saveIcs(file: File): Promise<void> {
 export function CalendarLinks({ a }: { a: AppointmentDetail }) {
   const appLink = `${window.location.origin}/termine/${a.id}`;
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-x-5">
       <a
         href={googleCalendarUrl(a, appLink)}
         target="_blank"
         rel="noreferrer"
         data-wf="WF-TER-11"
-        className="hit flex h-10 items-center rounded-[20px] border border-rand-stark px-4 text-[14px] text-text no-underline"
+        className="hit flex min-h-8 items-center text-[14px] text-text"
       >
         In Google Kalender eintragen ↗
       </a>
@@ -53,10 +53,41 @@ export function CalendarLinks({ a }: { a: AppointmentDetail }) {
             new File([icsFile(a, appLink, new Date())], icsFileName(a.title), { type: 'text/calendar' }),
           )
         }
-        className="hit h-10 rounded-[20px] border border-rand-stark px-4 text-[14px] text-text"
+        className="hit flex min-h-8 items-center text-left text-[14px] text-text underline"
       >
         .ics herunterladen
       </button>
+    </div>
+  );
+}
+
+/** „Zum Call ↗“ als Knopf (Phase 9); fehlt der Link noch, steht darunter ein Hinweis */
+export function CallButton({ url }: { url: string | null }) {
+  if (url)
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        data-wf="WF-TER-03"
+        className="flex h-11 items-center justify-center gap-2 rounded-[22px] bg-text text-[14px] font-semibold text-grund no-underline"
+      >
+        Zum Call ↗
+      </a>
+    );
+  return (
+    <div className="flex flex-col gap-1.5">
+      <button
+        type="button"
+        data-wf="WF-TER-03"
+        disabled
+        className="flex h-11 items-center justify-center rounded-[22px] border border-rand text-[14px] text-leise"
+      >
+        Zum Call
+      </button>
+      <span className="text-center text-[13px] leading-[1.4] text-leise">
+        Noch kein Link zur Besprechung hinterlegt – über „Bearbeiten“ ergänzen.
+      </span>
     </div>
   );
 }

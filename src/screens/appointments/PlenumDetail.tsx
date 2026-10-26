@@ -11,7 +11,7 @@ import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { PlenumDetail as Detail } from '../../data/api';
 import { formatEventRange } from '../../shared/format';
-import { CalendarLinks } from './CalendarLinks';
+import { CalendarLinks, CallButton } from './CalendarLinks';
 import { DeleteDialog, useDeleteArtifact } from '../common/DeleteAction';
 import {
   APPOINTMENT_STATUS_COLOR,
@@ -184,16 +184,7 @@ function Loaded({ p }: { p: Detail }) {
           {!cancelled && <CalendarLinks a={p} />}
         </div>
 
-        {p.online_url && open && (
-          <a
-            href={p.online_url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex h-11 items-center justify-center gap-2 rounded-[22px] bg-text text-[14px] font-semibold text-grund no-underline"
-          >
-            Zum Call ↗
-          </a>
-        )}
+        {open && p.format !== 'vor_ort' && <CallButton url={p.online_url} />}
 
         {cancelled && (
           <div className="rounded-[14px] border border-rot-rand bg-rot-flaeche px-3.5 py-3 text-[14px] leading-normal">

@@ -687,12 +687,10 @@ const appointmentFields = {
   description: optionalText(10000, 'Der Text ist zu lang.'),
 };
 type AppointmentPlace = { format: AppointmentFormat; location: string | null; online_url: string | null };
-/** Ort bei vor Ort/hybrid, Link bei online/hybrid (3.6) */
+/** Ort bei vor Ort/hybrid (3.6); der Link zum Call darf noch fehlen (Phase 9) – kommt einer, muss er stimmen */
 const placeIssues = (v: AppointmentPlace, ctx: z.RefinementCtx) => {
   if (v.format !== 'online' && !v.location)
     ctx.addIssue({ code: 'custom', path: ['location'], message: 'Bitte einen Ort angeben.' });
-  if (v.format !== 'vor_ort' && !v.online_url)
-    ctx.addIssue({ code: 'custom', path: ['online_url'], message: 'Bitte den Link zum Call angeben.' });
   if (v.format !== 'vor_ort' && v.online_url && !/^https?:\/\/\S+$/.test(v.online_url))
     ctx.addIssue({ code: 'custom', path: ['online_url'], message: 'Der Link muss mit https:// beginnen.' });
 };
@@ -780,7 +778,7 @@ const oneSource = (v: SourceInput) => !!(v.source_plenum_id || v.source_document
 const oneSourceIssue = { path: ['source'], message: 'Ohne Quelle lässt sich nichts festhalten.' };
 
 /** Text von Entscheidungen und Fakten: kurz, damit er auf die Karte passt (16.4) */
-export const DECISION_TEXT_MAX = 300;
+export const DECISION_TEXT_MAX = 200;
 const decisionText = optionalText(
   DECISION_TEXT_MAX,
   `Der Text darf höchstens ${DECISION_TEXT_MAX} Zeichen haben.`,

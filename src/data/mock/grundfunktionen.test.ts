@@ -129,13 +129,13 @@ describe('Bearbeiten mit Verlauf alt → neu (16.3)', () => {
     );
   });
 
-  it('Entscheidung: Text höchstens 300 Zeichen; nur gültige; Veranstaltung zeigt sie direkt', async () => {
+  it('Entscheidung: Text höchstens 200 Zeichen; nur gültige; Veranstaltung zeigt sie direkt', async () => {
     const d = await decision('Mate am Tresen für 2,50 €');
     const rave = await eventId('Winterrave');
     await expectError(
       api.updateDecision(d.id, {
         title: d.title,
-        description: 'x'.repeat(301),
+        description: 'x'.repeat(201),
         topic_id: d.topic_id,
         version: d.version,
       }),
@@ -174,7 +174,7 @@ describe('Bearbeiten mit Verlauf alt → neu (16.3)', () => {
         title: 'Zu lang',
         kind: 'fakt',
         topic_id: topic,
-        description: 'y'.repeat(301),
+        description: 'y'.repeat(201),
         source_note: 'Notiz',
       }),
       'validation',

@@ -46,7 +46,7 @@ test('WF-PLE-20: Plenum abschließen – Teilnahme, Vorschau, Zusammenfassung an
   await sheet
     .getByLabel('Beginn *')
     .fill(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:01`);
-  await sheet.getByLabel('Link zum Call *').fill('https://meet.example.org/myzel');
+  await sheet.getByLabel(/^Link zum Call/).fill('https://meet.example.org/myzel');
   await sheet.locator('button[type=submit]').click();
   await expect(undoBar(page)).toContainText('Termin nachgetragen');
   await page
@@ -83,7 +83,7 @@ test('WF-PLE-21: während des Plenums fragt die App einmal nach – die Änderun
     .fill(
       `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
     );
-  await sheet.getByLabel('Link zum Call *').fill('https://meet.example.org/myzel');
+  await sheet.getByLabel(/^Link zum Call/).fill('https://meet.example.org/myzel');
   await sheet.locator('button[type=submit]').click();
   await expect(undoBar(page)).toBeVisible();
 

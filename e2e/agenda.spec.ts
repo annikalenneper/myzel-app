@@ -48,7 +48,7 @@ test('WF-AUF-01: Sortierung und Filter, kombinierbar und wieder ausschaltbar', a
   await page.getByRole('button', { name: 'Verein ▾' }).click();
   await page.getByRole('group', { name: 'Thema' }).getByRole('button', { name: 'Alle Themen' }).click();
 
-  await page.getByRole('button', { name: 'Abgeschlossene' }).click();
+  await page.getByRole('tab', { name: 'ABGESCHLOSSEN' }).click();
   await expect(card(page, 'Insta-Post Bautag')).toBeVisible();
   await expect(card(page, 'Flyer drucken lassen')).toHaveCount(0);
 });
@@ -62,7 +62,7 @@ test('WF-ALL-05: leere Liste erklärt, was man tun kann', async ({ page }) => {
   await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
 });
 
-test('WF-AGE-01: Agenda mit Aufgaben, offenen Fragen und „Stimmt das noch?“; Filter nach Art', async ({
+test('WF-AGE-01: Agenda mit Aufgaben, offenen Fragen und „Stimmt das noch?“, ohne Art-Filter', async ({
   page,
 }) => {
   const review = page.getByRole('link', { name: /Awareness-Team mit mindestens 4 Personen/ });
@@ -72,17 +72,12 @@ test('WF-AGE-01: Agenda mit Aufgaben, offenen Fragen und „Stimmt das noch?“;
   await expect(question).toBeVisible();
   await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Art ▾' }).click();
-  await page.getByRole('group', { name: 'Art' }).getByRole('button', { name: 'Fragen' }).click();
-  await expect(page.getByRole('article')).toHaveCount(0);
-  await expect(question).toBeVisible();
-  await expect(review).toHaveCount(0);
-  await page.getByRole('button', { name: 'Fragen ▾' }).click();
-  await page.getByRole('group', { name: 'Art' }).getByRole('button', { name: 'Aufgaben' }).click();
+  await expect(page.getByRole('button', { name: 'Art ▾' })).toHaveCount(0);
+  // Reiter „Abgeschlossen“: geklärte Fragen statt offener
+  await page.getByRole('tab', { name: 'ABGESCHLOSSEN' }).click();
   await expect(question).toHaveCount(0);
-  await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
-  await page.getByRole('button', { name: 'Aufgaben ▾' }).click();
-  await page.getByRole('group', { name: 'Art' }).getByRole('button', { name: 'Alles' }).click();
+  await expect(page.getByText('Geklärte und verworfene Fragen')).toBeVisible();
+  await page.getByRole('tab', { name: 'AKTUELL' }).click();
 
   // die Frage öffnet sich in der Agenda, „Zurück“ führt zur Agenda
   await question.click();
