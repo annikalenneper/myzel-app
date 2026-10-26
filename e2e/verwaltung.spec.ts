@@ -264,3 +264,14 @@ test('WF-PRO-06: nach einem neuen Deploy einmal „Was ist neu?“, danach im Pr
   await page.getByRole('button', { name: 'Was ist neu?' }).click();
   await expect(changes).toContainText('Entscheidungen gelten erst');
 });
+
+test('kein „+“ im Profil und in der Verwaltung', async ({ page }) => {
+  await login(page);
+  await expect(page.getByRole('button', { name: 'Neu anlegen' })).toBeVisible();
+  await page.goto('/profil');
+  await expect(page.getByRole('heading', { name: 'Mo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Neu anlegen' })).toHaveCount(0);
+  await page.goto('/profil/mitglieder');
+  await expect(page.getByRole('heading', { name: 'Mitglieder' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Neu anlegen' })).toHaveCount(0);
+});

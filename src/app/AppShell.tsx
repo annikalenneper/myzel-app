@@ -98,6 +98,8 @@ export function AppShell() {
   const appointmentDetail = useMatch('/termine/:id');
   const knowledgeDetail = useMatch('/wissen/:kind/:id');
   const subPage = useMatch('/profil/:page');
+  // im Profil gibt es nichts anzulegen – dort kein „+“ (auch nicht am Desktop)
+  const profile = useMatch('/profil/*');
   // Partner (S-24) erreicht man aus der Veranstaltung – mit Zurück-Pfeil statt Navigation
   const partners = useMatch('/partner/*');
   const partnerList = useMatch('/partner');
@@ -115,7 +117,7 @@ export function AppShell() {
       <Outlet />
       {!detail && <BottomNav />}
       {/* ein „+“ für alle Arten (Phase 5) – mobil nicht in Detailansichten, dort stehen unten eigene Leisten */}
-      <CreateButton navVisible={!detail} hidden={!!detail && !partnerList} />
+      {!profile && <CreateButton navVisible={!detail} hidden={!!detail && !partnerList} />}
       {/* 16.5: nach einem neuen Deploy einmal „Was ist neu?“ */}
       <ChangelogNotice />
     </div>
