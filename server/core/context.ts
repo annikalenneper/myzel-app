@@ -4,6 +4,7 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { ZodType } from 'zod';
 import { AppError, validationErrorFromZod } from '../../src/shared/errors';
+import { countsForPlenum, PLENUM_DEFAULT_HOURS } from '../../src/shared/rules/plenum';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
 import type { HistoryChanges } from '../../src/shared/schema';
 import type { Selectable } from 'kysely';
@@ -77,7 +78,6 @@ export type InverseOp =
       status: string;
       answer: string | null;
       answered_in_plenum_id: string | null;
-      resulting_decision_id: string | null;
     };
 
 type AppointmentRsvp = {
@@ -98,6 +98,14 @@ export interface Ctx {
   outbox: string[];
   /** [P3] Teilschritte einer zusammengesetzten Aktion legen keinen eigenen Rückgängig-Eintrag an */
   deferUndo?: boolean;
+  /** laufendes Plenum, zu dem diese Änderung gehört (16.2) – sonst null */
+  plenumId: string | null;
+}
+
+/** Antwort aus der App auf „Gehört das zum Plenum?“ (16.2) – der Server prüft selbst, ob dieses Plenum läuft */
+export interface PlenumAnswer {
+  plenumId: string;
+  belongs: boolean;
 }
 
 export const iso = (ctx: Ctx) => ctx.now.toISOString();
@@ -131,6 +139,10 @@ export async function writeHistory(
 ): Promise<void> {
   const id = crypto.randomUUID();
   ctx.historyIds.push(id);
+  // während des Plenums: die Änderung gehört zu seinem Ergebnis (16.2)
+  const all: HistoryChanges = { ...changes };
+  if (ctx.plenumId && !changes.plenum_id && countsForPlenum(entity_type, entity_id, action, ctx.plenumId))
+    all.plenum_id = { old: null, new: ctx.plenumId };
   await ctx.trx
     .insertInto('history')
     .values({
@@ -139,7 +151,7 @@ export async function writeHistory(
       entity_id,
       actor_member_id: ctx.actor.id,
       action,
-      changes: JSON.stringify(changes),
+      changes: JSON.stringify(all),
       created_at: iso(ctx),
     })
     .execute();
@@ -224,13 +236,18 @@ export async function inTransaction<T>(
   authUserId: string | null,
   now: Date,
   fn: (ctx: Ctx) => Promise<T>,
+  answer: PlenumAnswer | null = null,
 ): Promise<T> {
   // Deadlock oder Serialisierungsfehler bei gleichzeitigen Aktionen: die Transaktion ist zurückgerollt, einmal neu
   for (let attempt = 1; ; attempt++) {
     try {
       return await db.transaction().execute(async (trx) => {
-        const actor = await resolveActor(trx, authUserId, { lock: true });
-        return fn({ trx, actor, now, inverse: [], historyIds: [], outbox: [] });
+        const { actor, plenum } = await actorAndPlenum(trx, authUserId, now);
+        // läuft ein Plenum, gehört die Änderung dazu: auf der Teilnehmerliste immer, sonst nach Antwort (16.2)
+        const belongs =
+          !!plenum && (plenum.participant || (answer?.plenumId === plenum.id && answer.belongs));
+        const plenumId = belongs ? plenum.id : null;
+        return fn({ trx, actor, now, inverse: [], historyIds: [], outbox: [], plenumId });
       });
     } catch (e) {
       const code = (e as { code?: string }).code;
@@ -252,6 +269,10 @@ export async function memberForLogin(
   authUserId: string,
   lock = false,
 ): Promise<MemberRow | undefined> {
+  return memberQuery(trx, authUserId, lock).executeTakeFirst();
+}
+
+function memberQuery(trx: Trx | Kysely<Database>, authUserId: string, lock: boolean) {
   return trx
     .selectFrom('members')
     .selectAll()
@@ -266,8 +287,45 @@ export async function memberForLogin(
       ]),
     )
     .where('is_system', '=', false)
-    .$if(lock, (q) => q.forShare())
+    .$if(lock, (q) => q.forShare());
+}
+
+/**
+ * Laufendes Plenum (16.2) als Unterabfrage zur Person: id und ob sie auf der Teilnehmerliste steht (Zusage „ja“
+ * oder anwesend). Ohne Ende gilt Beginn + 3 Stunden; abgeschlossene und abgesagte laufen nicht.
+ */
+const runningPlenumSql = (now: Date) => sql<{ id: string; participant: boolean } | null>`(
+  select json_build_object(
+    'id', a.id,
+    'participant',
+      exists (select 1 from appointment_rsvps r
+              where r.appointment_id = a.id and r.member_id = members.id and r.answer = 'ja')
+      or exists (select 1 from appointment_attendees x
+                 where x.appointment_id = a.id and x.member_id = members.id))
+  from appointments a join appointment_types t on t.id = a.type_id
+  where t.has_plenum_features and a.archived_at is null and a.status in ('geplant', 'stattgefunden')
+    and a.starts_at <= ${now.toISOString()}::timestamptz
+    and coalesce(a.ends_at, a.starts_at + make_interval(hours => ${PLENUM_DEFAULT_HOURS}))
+        >= ${now.toISOString()}::timestamptz
+  order by a.starts_at desc
+  limit 1)`;
+
+/** Handelnde Person für eine Schreibaktion samt laufendem Plenum – in einer Rundreise (16.6) */
+async function actorAndPlenum(
+  trx: Trx,
+  authUserId: string | null,
+  now: Date,
+): Promise<{ actor: MemberRow; plenum: { id: string; participant: boolean } | null }> {
+  if (!authUserId)
+    throw new AppError('unauthenticated', 'Du bist nicht mehr angemeldet. Bitte melde dich neu an.');
+  // eine gleichzeitige Deaktivierung wartet, bis diese Aktion fertig ist (und räumt danach auf)
+  const row = await memberQuery(trx, authUserId, true)
+    .select(runningPlenumSql(now).as('running_plenum'))
     .executeTakeFirst();
+  if (!row || !row.active)
+    throw new AppError('unauthenticated', 'Du bist nicht mehr angemeldet. Bitte melde dich neu an.');
+  const { running_plenum, ...actor } = row;
+  return { actor, plenum: running_plenum };
 }
 
 export async function resolveActor(

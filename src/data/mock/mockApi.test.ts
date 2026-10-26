@@ -191,7 +191,6 @@ describe('Status (WF-AUF-06 bis -09)', () => {
     expect(after.block_reason).toBeNull();
     const look = { memberName: () => 'Mo', topicName: () => '', eventTitle: () => '', taskTitle: () => '' };
     expect(after.history.map((h) => taskHistorySentence(h, look))).toContain(
-      // die Markierung fällt weg, steht aber nicht in der Historie
       'Mo hat den Status von Neu auf Blockiert geändert. Grund: Adresse fehlt',
     );
   });
@@ -251,7 +250,7 @@ describe('Status (WF-AUF-06 bis -09)', () => {
   });
 });
 
-describe('Bearbeitende, Folgende, Markierung (WF-AUF-02, -10, -11)', () => {
+describe('Bearbeitende und Folgende (WF-AUF-10, -11)', () => {
   it('trägt zwei gleichzeitige Einträge beide ein', async () => {
     const { member } = await ids();
     const task = await newTask();

@@ -1,4 +1,5 @@
-// S-41 Frage – Detail · P3 (WF-FRA-02, WF-FRA-03); steht seit dem Umbau 10/2026 in der Agenda (16.1)
+// S-41 Frage – Detail · P3 (WF-FRA-02 bis -05); steht seit dem Umbau 10/2026 in der Agenda (16.1). Aus einer Frage
+// können mehrere Entscheidungen und Fakten entstehen; als beantwortet markiert sie die Person selbst (16.3).
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
@@ -10,7 +11,11 @@ import { api } from '../../data';
 import type { QuestionDetail as Detail } from '../../data/api';
 import { formatDayMonth } from '../../shared/format';
 import { PRIORITY_LABEL } from '../../shared/labels';
-import { DECISION_KIND_LABEL, QUESTION_STATUS_LABEL } from '../../shared/rules/knowledge';
+import {
+  DECISION_KIND_LABEL,
+  DECISION_STATUS_LABEL,
+  QUESTION_STATUS_LABEL,
+} from '../../shared/rules/knowledge';
 import { cx, FieldError, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
 import { Sheet } from '../../ui/Sheet';
 import { EventAgendaLink } from '../agenda/EventAgendaLink';
@@ -22,8 +27,7 @@ import {
   NotFound,
   StatusPill,
 } from './DetailParts';
-import { Segmented } from './KnowledgeSheets';
-import { EMPTY_SOURCE, SourceFields, sourceReady, type SourceValue } from './SourceFields';
+import { DecisionSheet } from './KnowledgeSheets';
 
 export function QuestionDetail({ questionId }: { questionId: string }) {
   const { data, error, reload } = useData(`question:${questionId}`, () => api.getQuestion(questionId));
@@ -45,19 +49,17 @@ export function QuestionDetail({ questionId }: { questionId: string }) {
   return <Loaded q={data} />;
 }
 
-type Result = 'antwort' | 'entscheidung' | 'fakt';
-
 function Loaded({ q }: { q: Detail }) {
   const act = useActions();
   const latest = useLatest(q.version);
   const { topicName, memberById, eventById } = useLookups();
-  const [clarifying, setClarifying] = useState(false);
+  const [sheet, setSheet] = useState<'result' | 'answer' | null>(null);
   const open = q.status === 'offen';
   const event = q.event_id ? eventById.get(q.event_id) : undefined;
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
-      <BarOffset px={open ? 128 : 24} />
+      <BarOffset px={128} />
       <DetailTopBar label="Frage" back={BACK_TO_AGENDA} />
       <div className="flex flex-1 flex-col gap-4 px-5 pt-1 pb-10">
         <div className="flex flex-col gap-2">
@@ -89,18 +91,10 @@ function Loaded({ q }: { q: Detail }) {
         {q.description && (
           <div className="text-[15px] leading-normal whitespace-pre-wrap text-weich">{q.description}</div>
         )}
-        {q.status === 'geklaert' && (
+        {q.status === 'geklaert' && q.answer && (
           <div className="flex flex-col gap-2 rounded-[14px] border border-linie bg-flaeche px-3.5 py-3">
             <span className="font-mono text-[11px] text-gruen">ANTWORT</span>
             <span className="text-[15px] leading-normal whitespace-pre-wrap">{q.answer}</span>
-            {q.resulting_decision && (
-              <Link
-                to={`/wissen/beschluesse/${q.resulting_decision.id}`}
-                className="hit self-start text-[14px]"
-              >
-                → {DECISION_KIND_LABEL[q.resulting_decision.kind]}: {q.resulting_decision.title} ↗
-              </Link>
-            )}
           </div>
         )}
         {q.status === 'verworfen' && (
@@ -108,19 +102,53 @@ function Loaded({ q }: { q: Detail }) {
             Verworfen. Steht weiter in der Historie.
           </div>
         )}
+
+        {/* 16.3: alles, was aus der Frage festgehalten wurde */}
+        <section aria-label="Ergebnisse" className="flex flex-col gap-2">
+          <span className="label-mono">Ergebnisse · {q.results.length}</span>
+          {q.results.map((r) => (
+            <Link
+              key={r.id}
+              to={`/agenda/eintrag/${r.id}`}
+              className={cx(
+                'flex flex-col gap-1 rounded-[14px] border border-linie bg-flaeche px-3.5 py-2.5 text-text no-underline',
+                r.status !== 'gueltig' && 'opacity-60',
+              )}
+            >
+              <span className="label-mono">
+                {DECISION_KIND_LABEL[r.kind]} · {DECISION_STATUS_LABEL[r.status]}
+              </span>
+              <span className="text-[15px] leading-[1.35] font-medium">{r.title}</span>
+            </Link>
+          ))}
+          {q.results.length === 0 && (
+            <span className="text-[14px] leading-[1.45] text-leise">
+              Noch nichts festgehalten.{open && ' Jede Entscheidung und jeder Fakt dazu kommt hierher.'}
+            </span>
+          )}
+        </section>
         <KnowledgeHistory history={q.history} noun="Frage" />
       </div>
 
-      {open && (
-        <ActionBar hint="Klären geht jederzeit hier, nicht nur im Plenum. Wird daraus eine Entscheidung oder ein Fakt, reicht eine Notiz als Quelle.">
-          {/* WF-FRA-02 Klären außerhalb des Plenums */}
+      {open ? (
+        <ActionBar hint="Die Frage bleibt offen, bis du sie als beantwortet markierst – auch mit mehreren Ergebnissen.">
+          {/* WF-FRA-05 Ergebnis festhalten – beliebig oft */}
+          <button
+            type="button"
+            data-wf="WF-FRA-05"
+            onClick={() => setSheet('result')}
+            className="h-11 flex-[1.4] rounded-[22px] bg-geplant text-[15px] font-semibold text-grund"
+          >
+            Ergebnis festhalten
+          </button>
+          {/* WF-FRA-02 Als beantwortet markieren */}
           <button
             type="button"
             data-wf="WF-FRA-02"
-            onClick={() => setClarifying(true)}
-            className="h-11 flex-1 rounded-[22px] bg-geplant text-[15px] font-semibold text-grund"
+            onClick={() => setSheet('answer')}
+            className="h-11 flex-1 rounded-[22px] border border-rand-stark text-[15px] text-text"
           >
-            Klären
+            Beantwortet
           </button>
           {/* WF-FRA-03 Verwerfen */}
           <button
@@ -138,35 +166,50 @@ function Loaded({ q }: { q: Detail }) {
             Verwerfen
           </button>
         </ActionBar>
+      ) : (
+        <ActionBar>
+          {/* WF-FRA-04 Wieder öffnen – Antwort bleibt in der Historie, Ergebnisse bleiben */}
+          <button
+            type="button"
+            data-wf="WF-FRA-04"
+            onClick={() =>
+              void act(() => api.reopenQuestion(q.id, latest.current), {
+                subject: 'diese Frage',
+                success: 'Wieder geöffnet',
+                undo: (r) => r.undo_token,
+              })
+            }
+            className="h-11 flex-1 rounded-[22px] border border-rand-stark text-[15px] text-text"
+          >
+            Wieder öffnen
+          </button>
+        </ActionBar>
       )}
 
-      {clarifying && (
-        <ClarifySheet
+      {sheet === 'result' && (
+        <DecisionSheet
+          question={{ id: q.id, title: q.title, topic_id: q.topic_id }}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet === 'answer' && (
+        <AnswerSheet
           title={q.title}
+          hasResults={q.results.length > 0}
           draftKey={`frage:${q.id}:antwort`}
-          onClose={() => setClarifying(false)}
-          onConfirm={async (answer, result, source) => {
+          onClose={() => setSheet(null)}
+          onConfirm={async (answer) => {
             let message: string | null = null;
-            const ok = await act(
-              () =>
-                api.clarifyQuestion(q.id, {
-                  answer,
-                  result,
-                  source_document_id: source.documentId,
-                  source_note: source.note,
-                  version: latest.current,
-                }),
-              {
-                subject: 'diese Frage',
-                ownInput: answer,
-                success: 'Als geklärt gespeichert',
-                undo: (r) => r.undo_token,
-                onInvalid: (e) => (message = e.message),
-              },
-            );
+            const ok = await act(() => api.clarifyQuestion(q.id, { answer, version: latest.current }), {
+              subject: 'diese Frage',
+              ownInput: answer || undefined,
+              success: 'Als beantwortet markiert',
+              undo: (r) => r.undo_token,
+              onInvalid: (e) => (message = e.message),
+            });
             if (ok) {
               clearDraft(`frage:${q.id}:antwort`);
-              setClarifying(false);
+              setSheet(null);
             }
             return message;
           }}
@@ -176,50 +219,40 @@ function Loaded({ q }: { q: Detail }) {
   );
 }
 
-/** WF-FRA-02 Dialog Klären: Antwort Pflicht, Ergebnis, Quelle Notiz oder Dokument */
-export function ClarifySheet({
+/** WF-FRA-02 „Als beantwortet markieren“: Antwort Pflicht, solange nichts festgehalten ist (16.3) */
+function AnswerSheet({
   title,
+  hasResults,
+  draftKey,
   onClose,
   onConfirm,
-  inPlenum,
-  draftKey,
-  wf = 'WF-FRA-02',
 }: {
   title: string;
+  hasResults: boolean;
   /** lokaler Entwurf der Antwort (7.3), z. B. „frage:<id>:antwort“ */
   draftKey: string;
   onClose: () => void;
-  onConfirm: (answer: string, result: Result, source: SourceValue) => Promise<string | null>;
-  /** im Plenum ist das Plenum die Quelle – keine Auswahl nötig */
-  inPlenum?: boolean;
-  wf?: string;
+  onConfirm: (answer: string) => Promise<string | null>;
 }) {
   const [answer, setAnswer] = useState(() => readDraft(draftKey) ?? '');
-  const [result, setResult] = useState<Result>('antwort');
-  const [source, setSource] = useState<SourceValue>({ ...EMPTY_SOURCE, note: '' });
   const [error, setError] = useState<string | null>(null);
-  const needsSource = result !== 'antwort' && !inPlenum;
-  const missing = !answer.trim()
-    ? 'Antwort eingeben, dann speichern'
-    : needsSource && !sourceReady(source)
-      ? 'Quelle angeben, dann speichern'
-      : null;
+  const missing = !answer.trim() && !hasResults ? 'Antwort eingeben, dann speichern' : null;
 
   return (
-    <Sheet title="Frage klären" onClose={onClose} wf={wf} closeButton>
+    <Sheet title="Als beantwortet markieren" onClose={onClose} wf="WF-FRA-02" closeButton>
       <form
         className="flex flex-col gap-3.5"
         onSubmit={async (e) => {
           e.preventDefault();
           if (missing) return;
-          setError(await onConfirm(answer, result, needsSource ? source : EMPTY_SOURCE));
+          setError(await onConfirm(answer));
         }}
       >
         <span className="text-[14px] leading-[1.4] text-weich">{title}</span>
         <label className="label-mono flex flex-col gap-1.5">
-          Antwort *
+          {hasResults ? 'Antwort · optional, fasst die Ergebnisse zusammen' : 'Antwort *'}
           <textarea
-            data-wf={wf}
+            data-wf="WF-FRA-02"
             autoFocus
             value={answer}
             onChange={(e) => {
@@ -230,32 +263,9 @@ export function ClarifySheet({
             className="min-h-20 rounded-[14px] border border-rand bg-grund px-3.5 py-3 font-sans text-[15px] leading-normal text-text normal-case"
           />
         </label>
-        <div className="flex flex-col gap-2">
-          <span className="label-mono">Ergebnis</span>
-          <Segmented
-            label="Ergebnis"
-            wf={wf}
-            value={result}
-            onChange={setResult}
-            options={[
-              ['antwort', 'Nur Antwort'],
-              ['entscheidung', 'Entscheidung'],
-              ['fakt', 'Fakt'],
-            ]}
-          />
-        </div>
-        {needsSource && (
-          <div className="flex flex-col gap-2">
-            <span className="label-mono">Quelle * · außerhalb des Plenums</span>
-            <SourceFields value={source} onChange={setSource} wf={wf} kinds={['notiz', 'dokument']} />
-          </div>
-        )}
-        {inPlenum && result !== 'antwort' && (
-          <span className="text-[13px] leading-[1.4] text-leise">Quelle ist dieses Plenum.</span>
-        )}
         <FieldError>{error}</FieldError>
-        <LightButton type="submit" data-wf={wf} disabled={!!missing}>
-          {missing ?? 'Als geklärt speichern'}
+        <LightButton type="submit" data-wf="WF-FRA-02" disabled={!!missing}>
+          {missing ?? 'Als beantwortet speichern'}
         </LightButton>
       </form>
     </Sheet>

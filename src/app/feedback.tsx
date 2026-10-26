@@ -1,5 +1,6 @@
 // Querschnitt S-90: Bestätigung mit Rückgängig (WF-ALL-02), Versionskonflikt (WF-ALL-01),
-// Netzfehler mit erneutem Versuch (WF-ALL-03) – auf allen Screens gleich.
+// Netzfehler mit erneutem Versuch (WF-ALL-03) – auf allen Screens gleich. Dazu die Rückfrage „Gehört das zum
+// Plenum?“ (WF-PLE-21, 16.2) vor der ersten Änderung während eines laufenden Plenums.
 import {
   createContext,
   useCallback,
@@ -13,8 +14,10 @@ import {
 import { api } from '../data';
 import { isAppError, type AppError } from '../shared/errors';
 import { formatAgo } from '../shared/format';
+import type { SessionPlenum } from '../shared/rules/plenum';
 import { useLocation } from 'react-router-dom';
 import { useSession } from './session';
+import { belongsToPlenum, rememberPlenumAnswer, runningPlenum } from './plenum';
 import { enqueueAction } from './useActions';
 import { refreshAll } from './useData';
 
@@ -36,6 +39,8 @@ export interface RunOptions<T> {
   subject?: string;
   /** die Aktion ist gescheitert (auch Netzfehler, Konflikt) – vor jeder Meldung */
   onFailed?: () => void;
+  /** false: gehört nie zum Plenum (z. B. Zu- und Absagen) – keine Rückfrage (16.2) */
+  plenum?: false;
 }
 
 type Bar =
@@ -65,10 +70,19 @@ const FeedbackContext = createContext<FeedbackValue | null>(null);
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [bar, setBar] = useState<Bar | null>(null);
   const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [plenumAsk, setPlenumAsk] = useState<{
+    plenum: SessionPlenum;
+    resolve: (belongs: boolean) => void;
+  } | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const { pathname } = useLocation();
   const session = useSession();
   const sessionKey = session?.state === 'member' ? session.member.id : (session?.state ?? 'laden');
+  // die Rückfrage braucht den aktuellen Stand, run selbst bleibt stabil
+  const current = useRef({ session, pathname });
+  useEffect(() => {
+    current.current = { session, pathname };
+  });
 
   /** Verwirft einen offenen Netzfehler: der wartende Aufrufer erfährt, dass nichts gespeichert wurde */
   const pending = useRef<(() => void) | null>(null);
@@ -96,6 +110,15 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
   const run = useCallback(
     async function run<T>(action: () => Promise<T>, options: RunOptions<T> = {}): Promise<T | undefined> {
+      // 16.2: läuft gerade ein Plenum und ich stehe nicht auf der Teilnehmerliste, frage ich einmal je Plenum nach
+      const { session: now, pathname: at } = current.current;
+      const plenum =
+        options.plenum === false || at.startsWith('/profil') ? null : runningPlenum(now, new Date());
+      if (plenum && belongsToPlenum(plenum) === undefined) {
+        const belongs = await new Promise<boolean>((resolve) => setPlenumAsk({ plenum, resolve }));
+        setPlenumAsk(null);
+        rememberPlenumAnswer(plenum.id, belongs);
+      }
       try {
         const result = await action();
         const text = typeof options.success === 'function' ? options.success(result) : options.success;
@@ -225,6 +248,40 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           >
             ×
           </button>
+        </div>
+      )}
+      {plenumAsk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(6,5,10,0.72)] p-5">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Gehört das zum Plenum?"
+            data-wf="WF-PLE-21"
+            className="flex w-full max-w-[420px] flex-col gap-3.5 rounded-[22px] border border-rand bg-flaeche p-5"
+          >
+            <h2 className="m-0 text-[20px] font-bold">Gehört das zum Plenum?</h2>
+            <span className="text-[15px] leading-normal text-weich">
+              Gerade läuft {plenumAsk.plenum.title}. Du stehst nicht auf der Teilnehmerliste. Gehören deine
+              Änderungen dazu? Dann stehen sie im Ergebnis. Die Antwort gilt bis zum Ende des Plenums.
+            </span>
+            <button
+              type="button"
+              autoFocus
+              data-wf="WF-PLE-21"
+              onClick={() => plenumAsk.resolve(true)}
+              className="h-12 rounded-3xl bg-geplant text-[15px] font-bold text-grund"
+            >
+              Ja, gehört zum Plenum
+            </button>
+            <button
+              type="button"
+              data-wf="WF-PLE-21"
+              onClick={() => plenumAsk.resolve(false)}
+              className="h-12 rounded-3xl border border-rand-stark text-[15px] text-text"
+            >
+              Nein, gehört nicht dazu
+            </button>
+          </div>
         </div>
       )}
       {conflict && (

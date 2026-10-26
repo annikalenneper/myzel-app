@@ -1,4 +1,4 @@
-// Phase 3: Wissen – Entscheidungen und Fakten, offene Fragen, Dokumente, Markierungen, Suche
+// Phase 3: Wissen – Entscheidungen und Fakten, offene Fragen, Dokumente, „auf die Agenda“, Suche
 // (ANFORDERUNGEN 3.7 bis 3.9, 4.4, 4.5, 5.5, 5.6). Wie die Testdaten-Schicht (src/data/mock/knowledge.ts).
 import type { z } from 'zod';
 import type {
@@ -93,7 +93,8 @@ async function decisionItems(trx: Db, rows: DecisionRow[]): Promise<DecisionList
   const plenumIds = rows.flatMap((d) => (d.source_plenum_id ? [d.source_plenum_id] : []));
   const docIds = rows.flatMap((d) => (d.source_document_id ? [d.source_document_id] : []));
   const successorIds = rows.flatMap((d) => (d.superseded_by_id ? [d.superseded_by_id] : []));
-  const [plenums, docs, successors, marks] = await Promise.all([
+  const questionIds = rows.flatMap((d) => (d.source_question_id ? [d.source_question_id] : []));
+  const [plenums, docs, successors, marks, questions] = await Promise.all([
     plenumIds.length
       ? trx.selectFrom('appointments').select(['id', 'starts_at']).where('id', 'in', plenumIds).execute()
       : [],
@@ -112,6 +113,9 @@ async function decisionItems(trx: Db, rows: DecisionRow[]): Promise<DecisionList
         rows.map((d) => d.id),
       )
       .execute(),
+    questionIds.length
+      ? trx.selectFrom('questions').select(['id', 'title']).where('id', 'in', questionIds).execute()
+      : [],
   ]);
   return rows.map((d) => {
     // „Plenum 10.09.2026“, Titel des Dokuments oder „Notiz“
@@ -126,6 +130,7 @@ async function decisionItems(trx: Db, rows: DecisionRow[]): Promise<DecisionList
       source_label: parts.join(' · '),
       superseded_by_title: successors.find((s) => s.id === d.superseded_by_id)?.title ?? null,
       marked: marks.some((m) => m.decision_id === d.id),
+      source_question: questions.find((q) => q.id === d.source_question_id) ?? null,
     };
   });
 }
@@ -221,6 +226,11 @@ export async function insertDecision(
 ): Promise<DecisionRow> {
   await checkTopic(ctx, input.topic_id);
   await checkSources(ctx, input);
+  const question = input.source_question_id
+    ? await findQuestion(ctx.trx, input.source_question_id, false)
+    : null;
+  if (question?.archived_at)
+    throw new AppError('validation', 'Diese Frage gibt es nicht mehr.', { field: 'source_question_id' });
   const now = iso(ctx);
   const decision = await ctx.trx
     .insertInto('decisions')
@@ -234,6 +244,7 @@ export async function insertDecision(
       source_plenum_id: input.source_plenum_id,
       source_document_id: input.source_document_id,
       source_note: input.source_note,
+      source_question_id: input.source_question_id,
       archived_at: null,
       created_at: now,
       updated_at: now,
@@ -245,7 +256,15 @@ export async function insertDecision(
   await writeHistory(ctx, 'decision', decision.id, action, {
     title: { old: null, new: decision.title },
     ...(decision.source_plenum_id ? { source_plenum_id: { old: null, new: decision.source_plenum_id } } : {}),
+    ...(question ? { source_question_id: { old: null, new: question.id } } : {}),
   });
+  // die Frage bleibt offen – als beantwortet markiert sie die Person selbst (16.3)
+  if (question && action === 'created')
+    await writeHistory(ctx, 'question', question.id, 'result_added', {
+      decision_id: { old: null, new: decision.id },
+      title: { old: null, new: decision.title },
+      kind: { old: null, new: decision.kind },
+    });
   return decision;
 }
 
@@ -293,6 +312,8 @@ export async function replaceDecision(
         source_plenum_id: input.source_plenum_id,
         source_document_id: input.source_document_id,
         source_note: input.source_note,
+        // die neue Fassung gehört weiter zur selben Frage
+        source_question_id: old.source_question_id,
       },
       'created_as_replacement',
     );
@@ -314,7 +335,6 @@ export async function revokeDecision(
   id: string,
   note: unknown,
   version: number,
-  plenumId: string | null = null,
 ): Promise<Undoable> {
   const text = typeof note === 'string' ? note.trim().slice(0, 2000) : '';
   const d = await findDecision(ctx.trx, id);
@@ -323,7 +343,6 @@ export async function revokeDecision(
   ctx.inverse.push(decisionState(d));
   const changes: HistoryChanges = { status: { old: d.status, new: 'aufgehoben' } };
   if (text) changes.note = { old: null, new: text };
-  if (plenumId) changes.plenum_id = { old: null, new: plenumId };
   await dropMark(ctx, id);
   await touch(ctx, 'decisions', 'decision', d, { status: 'aufgehoben' });
   await writeHistory(ctx, 'decision', id, 'revoked', changes);
@@ -331,6 +350,9 @@ export async function revokeDecision(
 }
 
 // ── Offene Fragen ───────────────────────────────────────────────────────────
+
+const NO_ANSWER =
+  'Ohne Antwort oder festgehaltenes Ergebnis lässt sich die Frage nicht als beantwortet markieren.';
 
 async function findQuestion(trx: Db, id: string, lock = true): Promise<QuestionRow> {
   const question = await trx
@@ -345,17 +367,23 @@ async function findQuestion(trx: Db, id: string, lock = true): Promise<QuestionR
 
 async function questionItems(trx: Db, rows: QuestionRow[]): Promise<QuestionListItem[]> {
   if (rows.length === 0) return [];
-  const decisionIds = rows.flatMap((q) => (q.resulting_decision_id ? [q.resulting_decision_id] : []));
-  const decisions = decisionIds.length
-    ? await trx
-        .selectFrom('decisions')
-        .select(['id', 'title', 'kind'])
-        .where('id', 'in', decisionIds)
-        .execute()
-    : [];
+  const results = await trx
+    .selectFrom('decisions')
+    .select(['id', 'title', 'kind', 'status', 'source_question_id'])
+    .where(
+      'source_question_id',
+      'in',
+      rows.map((q) => q.id),
+    )
+    .where('archived_at', 'is', null)
+    .orderBy('created_at')
+    .orderBy('title')
+    .execute();
   return rows.map((q) => ({
     ...q,
-    resulting_decision: decisions.find((d) => d.id === q.resulting_decision_id) ?? null,
+    results: results
+      .filter((d) => d.source_question_id === q.id)
+      .map((d) => ({ id: d.id, title: d.title, kind: d.kind, status: d.status })),
   }));
 }
 
@@ -371,11 +399,7 @@ export async function getQuestion(trx: Db, id: string): Promise<QuestionDetail> 
 }
 
 /** WF-FRA-01 */
-export async function createQuestion(
-  ctx: Ctx,
-  raw: unknown,
-  originPlenumId: string | null = null,
-): Promise<{ id: string }> {
+export async function createQuestion(ctx: Ctx, raw: unknown): Promise<{ id: string }> {
   const input = parse(questionCreateSchema, raw);
   await checkTopic(ctx, input.topic_id);
   if (input.event_id) {
@@ -400,7 +424,6 @@ export async function createQuestion(
       raised_by: ctx.actor.id,
       answer: null,
       answered_in_plenum_id: null,
-      resulting_decision_id: null,
       archived_at: null,
       created_at: now,
       updated_at: now,
@@ -409,7 +432,6 @@ export async function createQuestion(
     .returning('id')
     .executeTakeFirstOrThrow();
   const changes: HistoryChanges = { title: { old: null, new: input.title } };
-  if (originPlenumId) changes.plenum_id = { old: null, new: originPlenumId };
   await writeHistory(ctx, 'question', question.id, 'created', changes);
   ctx.inverse.length = 0;
   return { id: question.id };
@@ -422,76 +444,65 @@ const questionState = (q: QuestionRow) =>
     status: q.status,
     answer: q.answer,
     answered_in_plenum_id: q.answered_in_plenum_id,
-    resulting_decision_id: q.resulting_decision_id,
   }) as const;
 
 /**
- * WF-FRA-02 / WF-PLE-11: klären – Antwort Pflicht; Ergebnis nur Antwort, Entscheidung oder Fakt.
- * Im Plenum ist das Plenum die Quelle, außerhalb eine Notiz oder ein Dokument. Eine Transaktion.
+ * WF-FRA-02 „Als beantwortet markieren“ (16.3): schließt die Frage auf Wunsch. Antwort Pflicht, solange noch kein
+ * Ergebnis aus ihr festgehalten ist. Im laufenden Plenum wird es zur Stelle, an der die Frage beantwortet wurde.
  */
-export async function clarifyQuestion(
-  ctx: Ctx,
-  id: string,
-  raw: unknown,
-  plenumId: string | null = null,
-): Promise<Undoable & { decision_id: string | null }> {
+export async function clarifyQuestion(ctx: Ctx, id: string, raw: unknown): Promise<Undoable> {
   const input = parse(questionClarifySchema, raw);
   const q = await findQuestion(ctx.trx, id);
   await checkVersion(ctx, 'question', q, input.version);
   if (q.status !== 'offen') throw rule('Diese Frage ist nicht mehr offen.');
-  ctx.inverse.push(questionState(q));
-  const changes: HistoryChanges = {
-    status: { old: q.status, new: 'geklaert' },
-    answer: { old: null, new: input.answer },
-  };
-  let decision: DecisionRow | null = null;
-  if (input.result !== 'antwort') {
-    decision = await insertDecision(
-      ctx,
-      {
-        title: input.decision_title || q.title,
-        description: input.answer,
-        kind: input.result,
-        topic_id: q.topic_id,
-        decided_on: null,
-        source_plenum_id: plenumId,
-        source_document_id: plenumId ? null : input.source_document_id,
-        source_note: plenumId ? null : input.source_note,
-      },
-      'created_from_question',
-    );
-    changes.resulting_decision_id = { old: null, new: decision.id };
+  if (!input.answer) {
+    const result = await ctx.trx
+      .selectFrom('decisions')
+      .select('id')
+      .where('source_question_id', '=', id)
+      .where('archived_at', 'is', null)
+      .executeTakeFirst();
+    if (!result) throw new AppError('validation', NO_ANSWER, { field: 'answer' });
   }
-  if (plenumId) changes.plenum_id = { old: null, new: plenumId };
+  ctx.inverse.push(questionState(q));
+  const changes: HistoryChanges = { status: { old: q.status, new: 'geklaert' } };
+  if (input.answer) changes.answer = { old: null, new: input.answer };
   await touch(ctx, 'questions', 'question', q, {
     status: 'geklaert',
     answer: input.answer,
-    answered_in_plenum_id: plenumId,
-    resulting_decision_id: decision?.id ?? null,
+    answered_in_plenum_id: ctx.plenumId,
   });
   await writeHistory(ctx, 'question', id, 'clarified', changes);
-  return {
-    ...(await registerUndo(ctx, 'question', q, 'Als geklärt gespeichert')),
-    decision_id: decision?.id ?? null,
-  };
+  return registerUndo(ctx, 'question', q, 'Als beantwortet markiert');
 }
 
-/** WF-FRA-03 / WF-PLE-12 */
-export async function discardQuestion(
-  ctx: Ctx,
-  id: string,
-  version: number,
-  plenumId: string | null = null,
-): Promise<Undoable> {
+/** WF-FRA-03 */
+export async function discardQuestion(ctx: Ctx, id: string, version: number): Promise<Undoable> {
   const q = await findQuestion(ctx.trx, id);
   await checkVersion(ctx, 'question', q, version);
   if (q.status !== 'offen') throw rule('Diese Frage ist nicht mehr offen.');
   ctx.inverse.push(questionState(q));
   const changes: HistoryChanges = { status: { old: q.status, new: 'verworfen' } };
-  if (plenumId) changes.plenum_id = { old: null, new: plenumId };
   await touch(ctx, 'questions', 'question', q, { status: 'verworfen' });
   await writeHistory(ctx, 'question', id, 'discarded', changes);
   return registerUndo(ctx, 'question', q, 'Frage verworfen');
+}
+
+/** WF-FRA-04: geklärte oder verworfene Frage wieder öffnen – die Antwort bleibt in der Historie, Ergebnisse bleiben */
+export async function reopenQuestion(ctx: Ctx, id: string, version: number): Promise<Undoable> {
+  const q = await findQuestion(ctx.trx, id);
+  await checkVersion(ctx, 'question', q, version);
+  if (q.status === 'offen') throw rule('Diese Frage ist schon offen.');
+  ctx.inverse.push(questionState(q));
+  const changes: HistoryChanges = { status: { old: q.status, new: 'offen' } };
+  if (q.answer) changes.answer = { old: q.answer, new: null };
+  await touch(ctx, 'questions', 'question', q, {
+    status: 'offen',
+    answer: null,
+    answered_in_plenum_id: null,
+  });
+  await writeHistory(ctx, 'question', id, 'reopened', changes);
+  return registerUndo(ctx, 'question', q, 'Wieder geöffnet');
 }
 
 // ── Dokumente ───────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 // S-33 Plenum – Detail · P3: ein Termin mit Ergebnis und Protokoll (F-PLE-01, -04; 16.2). Die Agenda ist seit dem
 // Umbau 10/2026 eine eigene Ansicht.
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { clearDraft, readDraft, writeDraft } from '../../app/drafts';
 import { useNow } from '../../app/useNow';
 import { BarOffset } from '../../app/feedback';
@@ -18,7 +19,8 @@ import {
   hasStarted,
   whenText,
 } from '../../shared/rules/appointments';
-import type { Member, ResultGroup } from '../../shared/schema';
+import { RESULT_TITLE, type ResultItem } from '../../shared/rules/plenum';
+import type { Member } from '../../shared/schema';
 import { Avatar, cx, FieldError, GhostButton, ListSkeleton, LoadError } from '../../ui/bits';
 import { IconMore } from '../../ui/icons';
 import { Sheet } from '../../ui/Sheet';
@@ -27,14 +29,6 @@ import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
 import { TopBar } from './AppointmentDetail';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
 import { rsvpButton, useRsvp } from './AppointmentsScreen';
-
-const RESULT_TITLE: Record<ResultGroup, string> = {
-  beschluesse: 'Entscheidungen & Fakten',
-  aufgaben: 'Aufgaben',
-  fragen: 'Fragen',
-  termine: 'Veranstaltungen & Termine',
-  besprochen: 'Besprochen',
-};
 
 type Tab = 'ergebnis' | 'protokoll';
 
@@ -65,9 +59,12 @@ function Loaded({ p }: { p: Detail }) {
   const [tab, setTab] = useState<Tab>('ergebnis');
   const [sheet, setSheet] = useState<'edit' | 'cancel' | 'close' | null>(null);
   const [menu, setMenu] = useState(false);
+  // 16.2: nach dem Abschluss ändert sich die Anwesenheit nur nach Rückfrage (einmal je Ansicht)
+  const [attendanceUnlocked, setAttendanceUnlocked] = useState(false);
+  const [askAttendance, setAskAttendance] = useState<(() => void) | null>(null);
   // vergangen und nicht abgeschlossen: nur ein Hinweis (F-PLE-01), am Tag danach
   const overdue = open && now.getTime() - new Date(p.ends_at ?? p.starts_at).getTime() > 12 * 3_600_000;
-  const resultCount = p.results.reduce((n, g) => n + g.lines.length, 0);
+  const resultCount = p.results.reduce((n, g) => n + g.items.length, 0);
 
   const tabs: [Tab, string][] = [
     ['ergebnis', `Ergebnis · ${resultCount}`],
@@ -206,9 +203,15 @@ function Loaded({ p }: { p: Detail }) {
                     data-wf="WF-TER-06"
                     aria-pressed={on}
                     aria-label={`${m.display_name} war da`}
-                    onClick={() =>
-                      void act(() => api.setAttendee(p.id, m.id, !on), { success: 'Gespeichert' })
-                    }
+                    onClick={() => {
+                      const change = () =>
+                        void act(() => api.setAttendee(p.id, m.id, !on), {
+                          success: 'Gespeichert',
+                          plenum: false,
+                        });
+                      if (attendanceUnlocked) change();
+                      else setAskAttendance(() => change);
+                    }}
                     className={cx(
                       'hit h-8 min-w-11 rounded-2xl border px-2.5 font-mono text-[12px] font-semibold',
                       on ? 'border-gruen bg-gruen text-grund' : 'border-rand-stark text-weich',
@@ -350,6 +353,7 @@ function Loaded({ p }: { p: Detail }) {
             onClick={() => {
               setSheet(null);
               void act(() => api.cancelAppointment(p.id, latest.current), {
+                plenum: false,
                 subject: 'dieses Plenum',
                 success: 'Abgesagt – Benachrichtigung geht raus',
               });
@@ -362,7 +366,45 @@ function Loaded({ p }: { p: Detail }) {
         </ConfirmDialog>
       )}
       {sheet === 'close' && <CloseSheet p={p} onClose={() => setSheet(null)} />}
+      {askAttendance && (
+        <ConfirmDialog label="Anwesenheit ändern" wf="WF-TER-06" onClose={() => setAskAttendance(null)}>
+          <h2 className="m-0 text-[20px] leading-[1.25] font-bold">Anwesenheit ändern?</h2>
+          <span className="text-[15px] leading-normal text-weich">
+            Das Plenum ist bereits abgeschlossen, möchtest du die Anwesenheitsliste trotzdem ändern? Die
+            Änderung steht in der Historie.
+          </span>
+          <button
+            type="button"
+            data-wf="WF-TER-06"
+            autoFocus
+            onClick={() => {
+              setAttendanceUnlocked(true);
+              askAttendance();
+              setAskAttendance(null);
+            }}
+            className="h-12 rounded-3xl bg-geplant text-[15px] font-bold text-grund"
+          >
+            Trotzdem ändern
+          </button>
+          <GhostButton onClick={() => setAskAttendance(null)}>Doch nicht</GhostButton>
+        </ConfirmDialog>
+      )}
     </div>
+  );
+}
+
+/** eine Zeile des Ergebnisses – führt zum Artefakt (Dokumente öffnen ihre Datei) */
+function ResultLine({ item }: { item: ResultItem }) {
+  const className =
+    'block rounded-xl border border-linie bg-flaeche px-3.5 py-2.5 text-[14px] leading-[1.35] text-text no-underline';
+  return item.link.startsWith('/') ? (
+    <Link to={item.link} className={className}>
+      {item.text}
+    </Link>
+  ) : (
+    <a href={item.link} target="_blank" rel="noreferrer" className={className}>
+      {item.text} ↗
+    </a>
   );
 }
 
@@ -372,15 +414,10 @@ function Results({ p }: { p: Detail }) {
       {p.results.map((g) => (
         <section key={g.group} aria-label={RESULT_TITLE[g.group]} className="flex flex-col gap-1.5">
           <span className="label-mono pt-1">
-            {RESULT_TITLE[g.group]} · {g.lines.length}
+            {RESULT_TITLE[g.group]} · {g.items.length}
           </span>
-          {g.lines.map((line, i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-linie bg-flaeche px-3.5 py-2.5 text-[14px] leading-[1.35]"
-            >
-              {line}
-            </div>
+          {g.items.map((item, i) => (
+            <ResultLine key={i} item={item} />
           ))}
         </section>
       ))}
@@ -415,6 +452,7 @@ function Protocol({ p }: { p: Detail }) {
   };
   const save = (patch: Partial<typeof current>, success: string, ownInput?: string) =>
     act(() => api.updateProtocol(p.id, { ...current, ...patch, version: latest.current }), {
+      plenum: false,
       success,
       subject: 'dieses Plenum',
       ownInput,
@@ -616,13 +654,13 @@ function CloseSheet({ p, onClose }: { p: Detail; onClose: () => void }) {
       </div>
       <span className="label-mono">Zusammenfassung · Vorschau</span>
       <div className="flex flex-col gap-1.5 rounded-[14px] border border-linie bg-grund px-3.5 py-3 text-[14px] leading-[1.45] text-weich">
-        {p.results.length === 0 && <span>Noch nichts beschlossen oder besprochen.</span>}
+        {p.results.length === 0 && <span>Noch nichts angelegt oder geändert.</span>}
         {p.results.map((g) => (
           <span key={g.group}>
             <span className="font-semibold text-text">
-              {RESULT_TITLE[g.group]} · {g.lines.length}:
+              {RESULT_TITLE[g.group]} · {g.items.length}:
             </span>{' '}
-            {g.lines.join('; ')}
+            {g.items.map((i) => i.text).join('; ')}
           </span>
         ))}
       </div>
@@ -633,6 +671,7 @@ function CloseSheet({ p, onClose }: { p: Detail; onClose: () => void }) {
           onClose();
           void act(() => api.closePlenum(p.id, present, latest.current), {
             subject: 'dieses Plenum',
+            plenum: false,
             success: (r) => `Abgeschlossen – Zusammenfassung an ${r.recipients} Mitglieder`,
           });
         }}

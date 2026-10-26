@@ -8,7 +8,7 @@
     },
     "version": {
       "type": "number",
-      "const": 1
+      "const": 2
     },
     "exported_at": {
       "type": "string",
@@ -1922,6 +1922,18 @@
               "null"
             ]
           },
+          "source_question_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "archived_at": {
             "anyOf": [
               {
@@ -1967,6 +1979,7 @@
           "source_plenum_id",
           "source_document_id",
           "source_note",
+          "source_question_id",
           "archived_at",
           "created_at",
           "updated_at",
@@ -2052,18 +2065,6 @@
               }
             ]
           },
-          "resulting_decision_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "archived_at": {
             "anyOf": [
               {
@@ -2108,7 +2109,6 @@
           "raised_by",
           "answer",
           "answered_in_plenum_id",
-          "resulting_decision_id",
           "archived_at",
           "created_at",
           "updated_at",

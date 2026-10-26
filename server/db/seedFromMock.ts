@@ -139,6 +139,8 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
         .set({ appointment_id: t.appointment_id, origin_plenum_id: t.origin_plenum_id })
         .where('id', '=', t.id)
         .execute();
+    // Entscheidungen verweisen auf ihre Frage (16.3): Fragen zuerst
+    if (data.questions.length) await trx.insertInto('questions').values(data.questions).execute();
     if (data.decisions.length) {
       // Nachfolgerinnen verweisen aufeinander: erst ohne, dann nachtragen
       await trx
@@ -152,7 +154,6 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
           .where('id', '=', d.id)
           .execute();
     }
-    if (data.questions.length) await trx.insertInto('questions').values(data.questions).execute();
     const links = data.document_links.filter((l) => l.target_type !== ('partner' as string));
     if (links.length) await trx.insertInto('document_links').values(links).execute();
     // Phase 4: Aufbau/Abbau und Schichtplan, Detailbereiche, Booking, Hauptverantwortliche, Partner, Vorlagen

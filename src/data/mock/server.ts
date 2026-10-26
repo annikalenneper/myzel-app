@@ -14,6 +14,7 @@ import {
   statusMessages,
   unblockedMessages,
 } from '../../shared/rules/notifications';
+import { countsForPlenum } from '../../shared/rules/plenum';
 import { canTransitionEvent } from '../../shared/rules/eventStatus';
 import {
   BLOCK_REASON_MISSING,
@@ -135,7 +136,6 @@ export type InverseOp =
       status: Question['status'];
       answer: string | null;
       answered_in_plenum_id: string | null;
-      resulting_decision_id: string | null;
     };
 
 export type UndoEntity = 'task' | 'event' | 'appointment' | 'decision' | 'question' | 'document' | 'partner';
@@ -276,6 +276,8 @@ export interface Ctx {
   outbox?: string[];
   /** Historien-Einträge dieser Aktion – ein „Rückgängig“ nimmt sie aus dem Plenum-Ergebnis */
   historyIds?: string[];
+  /** laufendes Plenum, zu dem diese Änderung gehört (16.2) – sonst null */
+  plenumId?: string | null;
 }
 
 const uuid = () => crypto.randomUUID();
@@ -302,13 +304,17 @@ export function writeHistory(
 ): void {
   const id = uuid();
   (ctx.historyIds ??= []).push(id);
+  // während des Plenums: die Änderung gehört zu seinem Ergebnis (16.2)
+  const all: HistoryChanges = { ...changes };
+  if (ctx.plenumId && !changes.plenum_id && countsForPlenum(entity_type, entity_id, action, ctx.plenumId))
+    all.plenum_id = { old: null, new: ctx.plenumId };
   ctx.db.history.push({
     id,
     entity_type,
     entity_id,
     actor_member_id: ctx.actor.id,
     action,
-    changes,
+    changes: all,
     created_at: iso(ctx),
   });
 }
@@ -555,7 +561,8 @@ export function createTask(ctx: Ctx, raw: unknown): { id: string } {
     topic_id: input.topic_id,
     event_id: input.event_id,
     appointment_id: input.appointment_id,
-    origin_plenum_id: null,
+    // im laufenden Plenum angelegt: Herkunft dieses Plenum (16.2)
+    origin_plenum_id: ctx.plenumId ?? null,
     priority: input.priority,
     due_date: input.due_date,
     status: 'neu',
@@ -1155,7 +1162,6 @@ export function undo(ctx: Ctx, token: string): void {
           question.status = op.status;
           question.answer = op.answer;
           question.answered_in_plenum_id = op.answered_in_plenum_id;
-          question.resulting_decision_id = op.resulting_decision_id;
         }
         break;
       }

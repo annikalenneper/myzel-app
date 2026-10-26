@@ -2,6 +2,7 @@
 // Jede Nachricht nennt Titel, Datum und einen Direktlink; Telegram bekommt den Link als volle Adresse.
 // Jeder Aufruf nach außen hat eine Zeitgrenze, damit ein hängender Dienst den Joblauf nicht aufhält.
 import webpush from 'web-push';
+import { telegramHtml } from '../../src/shared/rules/telegram';
 import { RetryLater, type Senders } from './notify';
 
 const TIMEOUT_MS = 4_000;
@@ -41,6 +42,7 @@ export async function sendTelegram(chatId: string, text: string): Promise<'ok' |
   const response = await telegramApi('sendMessage', {
     chat_id: chatId,
     text,
+    parse_mode: 'HTML',
     link_preview_options: { is_disabled: true },
   });
   if (response.ok) return 'ok';
@@ -75,7 +77,7 @@ export function liveSenders(): Senders {
       }
     },
     async telegram(chatId, message) {
-      return sendTelegram(chatId, `${message.text}\n${appUrl()}${message.link}`);
+      return sendTelegram(chatId, telegramHtml(message.text, `${appUrl()}${message.link}`));
     },
   };
 }

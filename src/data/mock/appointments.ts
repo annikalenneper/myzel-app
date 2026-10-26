@@ -325,7 +325,7 @@ export function setRsvp(ctx: Ctx, id: string, answer: RsvpAnswer | null): Undoab
   );
 }
 
-/** WF-TER-05: absagen – Nachricht an Zusagen und ohne Antwort, Markierung entfernt */
+/** WF-TER-05: absagen – Nachricht an Zusagen und ohne Antwort */
 export function cancelAppointment(ctx: Ctx, id: string, version: number): { notified: number } {
   const a = findAppointment(ctx.db, id);
   checkVersion(ctx, 'appointment', a, version);
@@ -407,6 +407,8 @@ export function setAttendee(ctx: Ctx, id: string, memberId: string, present: boo
     );
   writeHistory(ctx, 'appointment', id, present ? 'attendee_added' : 'attendee_removed', {
     attendee: present ? { old: null, new: memberId } : { old: memberId, new: null },
+    // nach dem Abschluss eines Plenums nur nach Rückfrage geändert (16.2)
+    ...(a.status === 'abgeschlossen' ? { after_close: { old: null, new: true } } : {}),
   });
 }
 

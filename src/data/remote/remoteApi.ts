@@ -5,6 +5,10 @@ import { AppError, type AppErrorCode, type ConflictInfo } from '../../shared/err
 import { emailInputSchema } from '../../shared/schema';
 import type { MyzelApi, Session } from '../api';
 
+/** Aktionen heißen wie die Server-Funktionen: kleiner Anfang, nur Buchstaben */
+const ACTION_NAME = /^[a-z][A-Za-z]+$/;
+const NOT_ACTIONS = new Set(['then', 'demo', 'toJSON', 'constructor', 'valueOf', 'toString']);
+
 export interface RemoteOptions {
   supabaseUrl: string;
   anonKey: string;
@@ -44,6 +48,8 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
   const apiBase = options.apiBase ?? '/api';
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((l) => l());
+  /** Antwort auf „Gehört das zum Plenum?“ (16.2) – geht mit jeder Anfrage mit, der Server prüft selbst */
+  let plenumAnswer: string | null = null;
   supabase.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') emit();
   });
@@ -57,6 +63,7 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
         headers: {
           'content-type': 'application/json',
           ...(data.session ? { authorization: `Bearer ${data.session.access_token}` } : {}),
+          ...(plenumAnswer ? { 'x-myzel-plenum': plenumAnswer } : {}),
         },
         body: JSON.stringify({ args }),
       });
@@ -91,6 +98,9 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
   };
 
   const base: Partial<MyzelApi> = {
+    setPlenumAnswer(plenumId, belongs) {
+      plenumAnswer = `${plenumId}:${belongs ? 'ja' : 'nein'}`;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -163,7 +173,8 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
   // „Das kommt mit einer späteren Phase.“
   return new Proxy(base as MyzelApi, {
     get(target, prop, receiver) {
-      if (typeof prop === 'string' && prop !== 'then' && prop !== 'demo' && !(prop in target))
+      // nur Namen von Aktionen – keine Nachfragen von Werkzeugen wie „toJSON“ oder „then“
+      if (typeof prop === 'string' && ACTION_NAME.test(prop) && !NOT_ACTIONS.has(prop) && !(prop in target))
         return (...args: unknown[]) => call(prop, args);
       return Reflect.get(target, prop, receiver);
     },

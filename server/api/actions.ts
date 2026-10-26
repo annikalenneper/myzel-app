@@ -155,6 +155,7 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   createQuestion: (ctx, [input]) => know.createQuestion(ctx, input),
   clarifyQuestion: (ctx, [id, input]) => know.clarifyQuestion(ctx, s(id), input),
   discardQuestion: (ctx, [id, version]) => know.discardQuestion(ctx, s(id), n(version)),
+  reopenQuestion: (ctx, [id, version]) => know.reopenQuestion(ctx, s(id), n(version)),
   createDocument: (ctx, [input]) => know.createDocument(ctx, input),
   linkDocument: (ctx, [documentId, target, targetId]) =>
     know.linkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),

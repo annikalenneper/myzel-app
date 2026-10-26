@@ -1,6 +1,7 @@
 // HTTP-Schicht der Server-Funktionen: POST /api/<aktion> mit { args }, Antwort { result } oder { error }.
 // Gemeinsam für die Netlify Function und den Server der Smoke-Tests – nur die Login-Prüfung unterscheidet sich.
 import type { Kysely } from 'kysely';
+import type { PlenumAnswer } from '../core/context';
 import type { Database } from '../db/types';
 import { changesData, errorBody, handleAction, type Login } from './handle';
 import { countingQueries, logTiming, serverTimingHeader, type QueryStats } from './timing';
@@ -10,6 +11,12 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
     status,
     headers: { 'content-type': 'application/json; charset=utf-8', ...headers },
   });
+
+/** „x-myzel-plenum: <id>:ja|nein“ – die Antwort der App auf „Gehört das zum Plenum?“ (16.2) */
+export function plenumAnswerFrom(req: Request): PlenumAnswer | null {
+  const m = /^([0-9a-f-]{36}):(ja|nein)$/.exec(req.headers.get('x-myzel-plenum') ?? '');
+  return m ? { plenumId: m[1]!, belongs: m[2] === 'ja' } : null;
+}
 
 export const bearerToken = (req: Request) =>
   req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || null;
@@ -40,7 +47,9 @@ export async function respond(
   try {
     const login = await loginFrom(req, action);
     loginMs = performance.now() - started;
-    const result = await countingQueries(stats, () => handleAction(db(), login, action, args, new Date()));
+    const result = await countingQueries(stats, () =>
+      handleAction(db(), login, action, args, new Date(), plenumAnswerFrom(req)),
+    );
     return timed(200, { result: result ?? null, changed: changesData(action, result) });
   } catch (e) {
     const { status, body } = errorBody(e);

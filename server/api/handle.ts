@@ -2,7 +2,7 @@
 // Die handelnde Person kommt allein aus dem Login (7.2); mitgeschickte IDs in den Argumenten ändern daran nichts.
 import type { Kysely } from 'kysely';
 import { AppError } from '../../src/shared/errors';
-import { inTransaction, resolveActor } from '../core/context';
+import { inTransaction, resolveActor, type PlenumAnswer } from '../core/context';
 import type { Database } from '../db/types';
 import { sessionFor } from '../p1/session';
 import { READ_ACTIONS, WRITE_ACTIONS } from './actions';
@@ -19,8 +19,10 @@ export async function handleAction(
   action: string,
   args: unknown[],
   now: Date,
+  /** Antwort der App auf „Gehört das zum Plenum?“ (16.2) */
+  plenumAnswer: PlenumAnswer | null = null,
 ): Promise<unknown> {
-  if (action === 'getSession') return sessionFor(db, login);
+  if (action === 'getSession') return sessionFor(db, login, now);
   // nur eigene Einträge – kein Treffer über die Prototyp-Kette (z. B. „toString“)
   const read = Object.hasOwn(READ_ACTIONS, action) ? READ_ACTIONS[action] : undefined;
   if (read) {
@@ -28,7 +30,8 @@ export async function handleAction(
     return read(db, args, now, actor);
   }
   const write = Object.hasOwn(WRITE_ACTIONS, action) ? WRITE_ACTIONS[action] : undefined;
-  if (write) return inTransaction(db, login?.authUserId ?? null, now, (ctx) => write(ctx, args));
+  if (write)
+    return inTransaction(db, login?.authUserId ?? null, now, (ctx) => write(ctx, args), plenumAnswer);
   throw new AppError('rule', 'Das kommt mit einer späteren Phase.');
 }
 

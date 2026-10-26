@@ -89,6 +89,12 @@ function decisionItem(db: Db, d: Decision): DecisionListItem {
       ? (db.decisions.find((x) => x.id === d.superseded_by_id)?.title ?? null)
       : null,
     marked: isMarked(db, d.id),
+    source_question: d.source_question_id
+      ? (() => {
+          const q = db.questions.find((x) => x.id === d.source_question_id);
+          return q ? { id: q.id, title: q.title } : null;
+        })()
+      : null,
   };
 }
 
@@ -154,6 +160,9 @@ export function insertDecision(
 ): Decision {
   checkTopic(ctx, input.topic_id);
   checkSources(ctx, input);
+  const question = input.source_question_id ? findQuestion(ctx.db, input.source_question_id) : null;
+  if (question?.archived_at)
+    throw new AppError('validation', 'Diese Frage gibt es nicht mehr.', { field: 'source_question_id' });
   const now = iso(ctx);
   const decision: Decision = {
     id: uuid(),
@@ -167,6 +176,7 @@ export function insertDecision(
     source_plenum_id: input.source_plenum_id,
     source_document_id: input.source_document_id,
     source_note: input.source_note,
+    source_question_id: input.source_question_id,
     archived_at: null,
     created_at: now,
     updated_at: now,
@@ -178,7 +188,15 @@ export function insertDecision(
   writeHistory(ctx, 'decision', decision.id, action, {
     title: { old: null, new: decision.title },
     ...(decision.source_plenum_id ? { source_plenum_id: { old: null, new: decision.source_plenum_id } } : {}),
+    ...(question ? { source_question_id: { old: null, new: question.id } } : {}),
   });
+  // die Frage bleibt offen – als beantwortet markiert sie die Person selbst (16.3)
+  if (question && action === 'created')
+    writeHistory(ctx, 'question', question.id, 'result_added', {
+      decision_id: { old: null, new: decision.id },
+      title: { old: null, new: decision.title },
+      kind: { old: null, new: decision.kind },
+    });
   return decision;
 }
 
@@ -221,6 +239,8 @@ export function replaceDecision(ctx: Ctx, id: string, raw: unknown): Undoable & 
         source_plenum_id: input.source_plenum_id,
         source_document_id: input.source_document_id,
         source_note: input.source_note,
+        // die neue Fassung gehört weiter zur selben Frage
+        source_question_id: old.source_question_id,
       },
       'created_as_replacement',
     );
@@ -239,20 +259,13 @@ export function replaceDecision(ctx: Ctx, id: string, raw: unknown): Undoable & 
 }
 
 /** WF-WIS-03 / WF-PLE-14: aufheben, Notiz optional */
-export function revokeDecision(
-  ctx: Ctx,
-  id: string,
-  note: string | null,
-  version: number,
-  plenumId: string | null = null,
-): Undoable {
+export function revokeDecision(ctx: Ctx, id: string, note: string | null, version: number): Undoable {
   const d = findDecision(ctx.db, id);
   checkVersion(ctx, 'decision', d, version);
   if (d.status !== 'gueltig') throw rule('Nur gültige Einträge lassen sich aufheben.');
   ctx.inverse.push(decisionState(d));
   const changes: HistoryChanges = { status: { old: d.status, new: 'aufgehoben' } };
   if (note?.trim()) changes.note = { old: null, new: note.trim() };
-  if (plenumId) changes.plenum_id = { old: null, new: plenumId };
   d.status = 'aufgehoben';
   dropMark(ctx, id);
   touch(ctx, d);
@@ -262,6 +275,9 @@ export function revokeDecision(
 
 // ── Offene Fragen ───────────────────────────────────────────────────────────
 
+export const NO_ANSWER =
+  'Ohne Antwort oder festgehaltenes Ergebnis lässt sich die Frage nicht als beantwortet markieren.';
+
 function findQuestion(db: Db, id: string): Question {
   const question = db.questions.find((q) => q.id === id);
   if (!question) throw notFound('Diese Frage');
@@ -270,12 +286,11 @@ function findQuestion(db: Db, id: string): Question {
 
 const questionItem = (db: Db, q: Question): QuestionListItem => ({
   ...q,
-  resulting_decision: q.resulting_decision_id
-    ? (() => {
-        const d = db.decisions.find((x) => x.id === q.resulting_decision_id);
-        return d ? { id: d.id, title: d.title, kind: d.kind } : null;
-      })()
-    : null,
+  results: db.decisions
+    .filter((d) => d.source_question_id === q.id && !d.archived_at)
+    // nach Zeit, bei Gleichstand nach Titel – wie auf dem Server
+    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.title.localeCompare(b.title))
+    .map((d) => ({ id: d.id, title: d.title, kind: d.kind, status: d.status })),
 });
 
 export function listQuestions(db: Db): QuestionListItem[] {
@@ -288,7 +303,7 @@ export function getQuestion(db: Db, id: string): QuestionDetail {
 }
 
 /** WF-FRA-01 */
-export function createQuestion(ctx: Ctx, raw: unknown, originPlenumId: string | null = null): { id: string } {
+export function createQuestion(ctx: Ctx, raw: unknown): { id: string } {
   const input = parse(questionCreateSchema, raw);
   checkTopic(ctx, input.topic_id);
   if (input.event_id && !ctx.db.events.some((e) => e.id === input.event_id && !e.archived_at))
@@ -305,7 +320,6 @@ export function createQuestion(ctx: Ctx, raw: unknown, originPlenumId: string | 
     raised_by: ctx.actor.id,
     answer: null,
     answered_in_plenum_id: null,
-    resulting_decision_id: null,
     archived_at: null,
     created_at: now,
     updated_at: now,
@@ -314,7 +328,6 @@ export function createQuestion(ctx: Ctx, raw: unknown, originPlenumId: string | 
   };
   ctx.db.questions.push(question);
   const changes: HistoryChanges = { title: { old: null, new: question.title } };
-  if (originPlenumId) changes.plenum_id = { old: null, new: originPlenumId };
   writeHistory(ctx, 'question', question.id, 'created', changes);
   ctx.inverse = [];
   return { id: question.id };
@@ -327,76 +340,57 @@ const questionState = (q: Question) =>
     status: q.status,
     answer: q.answer,
     answered_in_plenum_id: q.answered_in_plenum_id,
-    resulting_decision_id: q.resulting_decision_id,
   }) as const;
 
 /**
- * WF-FRA-02 / WF-PLE-11: klären – Antwort Pflicht; Ergebnis nur Antwort, Entscheidung oder Fakt.
- * Im Plenum ist das Plenum die Quelle, außerhalb eine Notiz oder ein Dokument. Eine Transaktion.
+ * WF-FRA-02 „Als beantwortet markieren“ (16.3): schließt die Frage auf Wunsch. Antwort Pflicht, solange noch kein
+ * Ergebnis aus ihr festgehalten ist. Im laufenden Plenum wird es zur Stelle, an der die Frage beantwortet wurde.
  */
-export function clarifyQuestion(
-  ctx: Ctx,
-  id: string,
-  raw: unknown,
-  plenumId: string | null = null,
-): Undoable & { decision_id: string | null } {
+export function clarifyQuestion(ctx: Ctx, id: string, raw: unknown): Undoable {
   const input = parse(questionClarifySchema, raw);
   const q = findQuestion(ctx.db, id);
   checkVersion(ctx, 'question', q, input.version);
   if (q.status !== 'offen') throw rule('Diese Frage ist nicht mehr offen.');
+  const hasResults = ctx.db.decisions.some((d) => d.source_question_id === id && !d.archived_at);
+  if (!input.answer && !hasResults) throw new AppError('validation', NO_ANSWER, { field: 'answer' });
   ctx.inverse.push(questionState(q));
-  const changes: HistoryChanges = {
-    status: { old: q.status, new: 'geklaert' },
-    answer: { old: null, new: input.answer },
-  };
-  let decision: Decision | null = null;
-  if (input.result !== 'antwort') {
-    decision = insertDecision(
-      ctx,
-      {
-        title: input.decision_title || q.title,
-        description: input.answer,
-        kind: input.result,
-        topic_id: q.topic_id,
-        decided_on: null,
-        source_plenum_id: plenumId,
-        source_document_id: plenumId ? null : input.source_document_id,
-        source_note: plenumId ? null : input.source_note,
-      },
-      'created_from_question',
-    );
-    changes.resulting_decision_id = { old: null, new: decision.id };
-  }
-  if (plenumId) changes.plenum_id = { old: null, new: plenumId };
+  const changes: HistoryChanges = { status: { old: q.status, new: 'geklaert' } };
+  if (input.answer) changes.answer = { old: null, new: input.answer };
   q.status = 'geklaert';
   q.answer = input.answer;
-  q.answered_in_plenum_id = plenumId;
-  q.resulting_decision_id = decision?.id ?? null;
+  q.answered_in_plenum_id = ctx.plenumId ?? null;
   touch(ctx, q);
   writeHistory(ctx, 'question', id, 'clarified', changes);
-  return {
-    ...registerUndo(ctx, 'question', q, 'Als geklärt gespeichert'),
-    decision_id: decision?.id ?? null,
-  };
+  return registerUndo(ctx, 'question', q, 'Als beantwortet markiert');
 }
 
-/** WF-FRA-03 / WF-PLE-12 */
-export function discardQuestion(
-  ctx: Ctx,
-  id: string,
-  version: number,
-  plenumId: string | null = null,
-): Undoable {
+/** WF-FRA-03 */
+export function discardQuestion(ctx: Ctx, id: string, version: number): Undoable {
   const q = findQuestion(ctx.db, id);
   checkVersion(ctx, 'question', q, version);
   if (q.status !== 'offen') throw rule('Diese Frage ist nicht mehr offen.');
   ctx.inverse.push(questionState(q));
   const changes: HistoryChanges = { status: { old: q.status, new: 'verworfen' } };
-  if (plenumId) changes.plenum_id = { old: null, new: plenumId };
   q.status = 'verworfen';
   touch(ctx, q);
   writeHistory(ctx, 'question', id, 'discarded', changes);
   return registerUndo(ctx, 'question', q, 'Frage verworfen');
+}
+
+/** WF-FRA-04: geklärte oder verworfene Frage wieder öffnen – die Antwort bleibt in der Historie, Ergebnisse bleiben */
+export function reopenQuestion(ctx: Ctx, id: string, version: number): Undoable {
+  const q = findQuestion(ctx.db, id);
+  checkVersion(ctx, 'question', q, version);
+  if (q.status === 'offen') throw rule('Diese Frage ist schon offen.');
+  ctx.inverse.push(questionState(q));
+  const changes: HistoryChanges = { status: { old: q.status, new: 'offen' } };
+  if (q.answer) changes.answer = { old: q.answer, new: null };
+  q.status = 'offen';
+  q.answer = null;
+  q.answered_in_plenum_id = null;
+  touch(ctx, q);
+  writeHistory(ctx, 'question', id, 'reopened', changes);
+  return registerUndo(ctx, 'question', q, 'Wieder geöffnet');
 }
 
 // ── Dokumente ───────────────────────────────────────────────────────────────

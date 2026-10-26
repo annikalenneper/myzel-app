@@ -116,7 +116,6 @@ export async function applyTemplate(
       event_id: eventId,
       priority: item.default_priority,
       due_date: item.due_date,
-      mark_for_plenum: false,
     });
     if (item.description)
       await ctx.trx

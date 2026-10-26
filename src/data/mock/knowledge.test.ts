@@ -174,36 +174,60 @@ describe('Offene Fragen (3.7, 4.4)', () => {
     expect([q.status, q.urgency]).toEqual(['offen', 'mittel']);
   });
 
-  it('klären verlangt eine Antwort; als Entscheidung braucht es außerhalb des Plenums eine Quelle', async () => {
+  it('aus einer Frage entstehen mehrere Ergebnisse; sie bleibt offen, bis jemand sie als beantwortet markiert', async () => {
     const q = await question('Machen wir an Silvester');
+    // ohne Antwort und ohne Ergebnis geht „beantwortet“ nicht
     await expectError(
       api.clarifyQuestion(q.id, { answer: '  ', version: q.version }),
       'validation',
       'answer',
     );
-    await expectError(
-      api.clarifyQuestion(q.id, { answer: 'Ja', result: 'entscheidung', version: q.version }),
-      'validation',
-      'source',
-    );
-    expect((await api.getQuestion(q.id)).status).toBe('offen');
-    expect((await api.listDecisions()).some((d) => d.title === q.title)).toBe(false);
+    const result = (title: string, kind: 'entscheidung' | 'fakt') =>
+      api.createDecision({
+        title,
+        kind,
+        topic_id: q.topic_id,
+        source_note: 'Abstimmung im Chat',
+        source_question_id: q.id,
+      });
+    const party = await result('Silvesterparty im Lager', 'entscheidung');
+    await result('Getränke bringt jede*r selbst mit', 'fakt');
+    const open = await api.getQuestion(q.id);
+    expect(open.status).toBe('offen');
+    // gleich alt: nach Titel
+    expect(open.results.map((r) => [r.kind, r.title])).toEqual([
+      ['fakt', 'Getränke bringt jede*r selbst mit'],
+      ['entscheidung', 'Silvesterparty im Lager'],
+    ]);
+    expect(open.history.filter((h) => h.action === 'result_added')).toHaveLength(2);
+    expect((await api.getDecision(party.id)).source_question).toEqual({ id: q.id, title: q.title });
 
-    const { undo_token, decision_id } = await api.clarifyQuestion(q.id, {
-      answer: 'Ja – kleine Party im Lager.',
-      result: 'entscheidung',
-      source_note: 'Abstimmung im Chat',
-      version: q.version,
-    });
+    // mit Ergebnissen ist die Antwort optional
+    const { undo_token } = await api.clarifyQuestion(q.id, { answer: '', version: open.version });
     const done = await api.getQuestion(q.id);
-    expect([done.status, done.resulting_decision?.id]).toEqual(['geklaert', decision_id]);
-    expect((await api.getDecision(decision_id!)).description).toBe('Ja – kleine Party im Lager.');
+    expect([done.status, done.answer]).toEqual(['geklaert', null]);
     await expectError(api.clarifyQuestion(q.id, { answer: 'nochmal', version: done.version }), 'rule');
-
     await api.undo(undo_token);
-    const back = await api.getQuestion(q.id);
-    expect([back.status, back.answer, back.resulting_decision]).toEqual(['offen', null, null]);
-    expect((await api.listDecisions()).some((d) => d.id === decision_id)).toBe(false);
+    expect((await api.getQuestion(q.id)).status).toBe('offen');
+    // die Ergebnisse bleiben dabei bestehen
+    expect((await api.getQuestion(q.id)).results).toHaveLength(2);
+  });
+
+  it('wieder öffnen: die Antwort bleibt in der Historie, Ergebnisse bleiben, mit Rückgängig', async () => {
+    const q = await question('Machen wir an Silvester');
+    await api.clarifyQuestion(q.id, { answer: 'Ja – kleine Party im Lager.', version: q.version });
+    const done = await api.getQuestion(q.id);
+    await expectError(api.reopenQuestion(q.id, q.version), 'conflict');
+    const { undo_token } = await api.reopenQuestion(q.id, done.version);
+    const reopened = await api.getQuestion(q.id);
+    expect([reopened.status, reopened.answer]).toEqual(['offen', null]);
+    expect(reopened.history[0]).toMatchObject({
+      action: 'reopened',
+      changes: { answer: { old: 'Ja – kleine Party im Lager.', new: null } },
+    });
+    await expectError(api.reopenQuestion(q.id, reopened.version), 'rule');
+    await api.undo(undo_token);
+    expect((await api.getQuestion(q.id)).answer).toBe('Ja – kleine Party im Lager.');
   });
 
   it('verwerfen geht nur bei offenen Fragen', async () => {

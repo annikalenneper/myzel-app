@@ -302,7 +302,6 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
             status: op.status as never,
             answer: op.answer,
             answered_in_plenum_id: op.answered_in_plenum_id,
-            resulting_decision_id: op.resulting_decision_id,
           })
           .where('id', '=', op.question_id)
           .execute();

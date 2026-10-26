@@ -61,6 +61,16 @@ export const CHECKS: IntegrityCheck[] = [
       where d.archived_at is not null or d.status <> 'gueltig'`,
   },
   {
+    name: 'Beantwortete Fragen haben eine Antwort oder ein Ergebnis',
+    level: 'fehler',
+    query: sql`select 'Frage „' || q.title || '“' as label
+      from questions q
+      where q.status = 'geklaert' and length(trim(coalesce(q.answer, ''))) = 0
+        and not exists (
+          select 1 from decisions d where d.source_question_id = q.id and d.archived_at is null
+        )`,
+  },
+  {
     name: 'Quelle „Plenum“ und Herkunft aus dem Plenum zeigen auf einen Plenum-Termin',
     level: 'fehler',
     query: sql`select x.art || ' „' || x.name || '“' as label from (

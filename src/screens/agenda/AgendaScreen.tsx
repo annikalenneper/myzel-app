@@ -78,7 +78,12 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
   const { topics, topicName, events, eventById } = useLookups();
   const { filter, setFilter } = useAgendaFilter();
   const { data: tasks, error, reload } = useData('tasks', () => api.listTasks());
-  const { data: questions } = useData('questions', () => api.listQuestions());
+  const {
+    data: questions,
+    error: questionsError,
+    reload: reloadQuestions,
+  } = useData('questions', () => api.listQuestions());
+  const loadError = (!tasks && error) || (!questions && questionsError) || null;
   const { data: decisions } = useData('decisions', () => api.listDecisions());
   const [menu, setMenu] = useState<OpenMenu>(null);
   const [creating, setCreating] = useState<'task' | 'question' | null>(null);
@@ -121,7 +126,12 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
     art: {
       label: 'Art',
       options: KINDS.map(([key, label]) => ({ key, label, selected: filter.kind === key })),
-      pick: (key) => setFilter({ kind: key as AgendaKind }),
+      pick: (key) =>
+        setFilter(
+          key === 'fragen'
+            ? { kind: 'fragen', status: null, scope: filter.scope === 'folge' ? 'alle' : filter.scope }
+            : { kind: key as AgendaKind },
+        ),
     },
     scope: {
       label: 'Grundmenge',
@@ -252,8 +262,16 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-3 px-5 pt-3.5 pb-[180px] lg:pb-28">
-        {!loaded && !error && <ListSkeleton />}
-        {!tasks && error && <LoadError message={error.message} onRetry={reload} />}
+        {!loaded && !loadError && <ListSkeleton />}
+        {loadError && (
+          <LoadError
+            message={loadError.message}
+            onRetry={() => {
+              reload();
+              reloadQuestions();
+            }}
+          />
+        )}
 
         {toReview.length > 0 && (
           <>
@@ -377,6 +395,7 @@ function QuestionCard({ q, selected }: { q: QuestionListItem; selected: boolean 
   return (
     <Link
       to={`/agenda/frage/${q.id}`}
+      data-wf="WF-AGE-01"
       className={cx(
         'flex flex-col gap-2 rounded-2xl border border-linie px-4 py-3.5 text-text no-underline',
         selected ? 'bg-erhoeht' : 'bg-flaeche',
@@ -384,13 +403,15 @@ function QuestionCard({ q, selected }: { q: QuestionListItem; selected: boolean 
     >
       <span className={cx('label-mono', open && q.urgency === 'hoch' && 'text-bernstein')}>{meta}</span>
       <span className={cx('text-[17px] leading-[1.3] font-semibold', !open && 'text-weich')}>{q.title}</span>
-      {q.status === 'geklaert' && (
+      {q.results.length > 0 && (
         <span className="text-[13px] leading-[1.4] text-leise">
-          →{' '}
-          {q.resulting_decision
-            ? `${DECISION_KIND_LABEL[q.resulting_decision.kind]}: ${q.resulting_decision.title}`
-            : q.answer}
+          {q.results.length === 1
+            ? `→ ${DECISION_KIND_LABEL[q.results[0]!.kind]}: ${q.results[0]!.title}`
+            : `→ ${q.results.length} Ergebnisse festgehalten`}
         </span>
+      )}
+      {q.status === 'geklaert' && q.answer && (
+        <span className="text-[13px] leading-[1.4] text-leise">Antwort: {q.answer}</span>
       )}
     </Link>
   );

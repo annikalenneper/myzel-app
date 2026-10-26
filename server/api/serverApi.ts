@@ -5,7 +5,7 @@ import { Kysely } from 'kysely';
 import type { DemoAccount, MyzelApi, Session } from '../../src/data/api';
 import { AppError } from '../../src/shared/errors';
 import { emailInputSchema } from '../../src/shared/schema';
-import { inTransaction, resolveActor } from '../core/context';
+import { inTransaction, resolveActor, type PlenumAnswer } from '../core/context';
 import { createLocalDb, type LocalDb } from '../db/localDb';
 import { PGliteDialect } from '../db/pgliteDialect';
 import { seedDrive, seedFromMock } from '../db/seedFromMock';
@@ -76,7 +76,7 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
 
   const emit = () => listeners.forEach((l) => l());
   const session = async (): Promise<Session> => {
-    const result = await sessionFor(db, login);
+    const result = await sessionFor(db, login, now());
     authUserId = result.state === 'member' ? login!.authUserId : null;
     return result;
   };
@@ -97,6 +97,9 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
     return result;
   };
 
+  /** wie die App: Antwort auf „Gehört das zum Plenum?“ (16.2) */
+  let plenumAnswer: PlenumAnswer | null = null;
+
   async function read(name: string, args: unknown[]): Promise<unknown> {
     const actor = await resolveActor(db, authUserId);
     return structuredClone(await READ_ACTIONS[name]!(db, args, now(), actor));
@@ -107,12 +110,21 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
       failWrites -= 1;
       throw new AppError('network', 'Keine Verbindung – nicht gespeichert.');
     }
-    const result = await inTransaction(db, authUserId, now(), (ctx) => WRITE_ACTIONS[name]!(ctx, args));
+    const result = await inTransaction(
+      db,
+      authUserId,
+      now(),
+      (ctx) => WRITE_ACTIONS[name]!(ctx, args),
+      plenumAnswer,
+    );
     emit();
     return structuredClone(result);
   }
 
   const base: Partial<MyzelApi> = {
+    setPlenumAnswer(plenumId, belongs) {
+      plenumAnswer = { plenumId, belongs };
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

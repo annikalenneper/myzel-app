@@ -1,6 +1,7 @@
 // Schnittstelle zwischen Oberfläche und Daten. In Schritt A bedient sie die Testdaten-Schicht
 // (src/data/mock), in Schritt C die Server-Funktionen – die Oberfläche kennt nur dieses Interface.
 import type { DriveKind } from '../shared/rules/drive';
+import type { ResultGroupItems, SessionPlenum } from '../shared/rules/plenum';
 import type { NotificationGroupKey } from '../shared/rules/notifications';
 import type { TelegramButtonKey } from '../shared/rules/telegram';
 import type { SectionSummary } from '../shared/rules/eventDetails';
@@ -17,7 +18,6 @@ import type {
   QuestionCreateInput,
   Appointment,
   ProtocolInput,
-  ResultGroup,
   AppointmentCreateInput,
   AppointmentSeries,
   SeriesCreateInput,
@@ -63,7 +63,10 @@ import type {
 } from '../shared/schema';
 
 export type Session =
-  { state: 'anonymous' } | { state: 'no_access'; email: string } | { state: 'member'; member: Member };
+  | { state: 'anonymous' }
+  | { state: 'no_access'; email: string }
+  /** plenum: das laufende bzw. nächste Plenum (16.2) – die App fragt damit vor einer Änderung nach */
+  | { state: 'member'; member: Member; plenum: SessionPlenum | null };
 
 export interface TaskListItem extends Task {
   assignee_ids: string[];
@@ -181,6 +184,8 @@ export interface DecisionListItem extends Decision {
   superseded_by_title: string | null;
   /** ausdrücklich auf der Agenda: „Stimmt das noch?“ (16.1) */
   marked: boolean;
+  /** aus welcher Frage der Eintrag entstanden ist (16.3) */
+  source_question: { id: string; title: string } | null;
 }
 
 export interface DecisionDetail extends DecisionListItem {
@@ -193,7 +198,8 @@ export interface DecisionDetail extends DecisionListItem {
 }
 
 export interface QuestionListItem extends Question {
-  resulting_decision: { id: string; title: string; kind: Decision['kind'] } | null;
+  /** Entscheidungen und Fakten, die aus der Frage entstanden sind (16.3) */
+  results: { id: string; title: string; kind: Decision['kind']; status: Decision['status'] }[];
 }
 
 export interface QuestionDetail extends QuestionListItem {
@@ -283,7 +289,8 @@ export interface AppointmentDetail extends AppointmentListItem {
 
 /** S-33 Plenum – Detail: ein Termin mit Ergebnis und Protokoll */
 export interface PlenumDetail extends AppointmentDetail {
-  results: { group: ResultGroup; lines: string[] }[];
+  /** je Artefakt eine Zeile: angelegt, geändert oder mit diesem Plenum als Quelle (16.2) */
+  results: ResultGroupItems[];
   protocol_document: { id: string; title: string; url: string } | null;
   /** an wie viele Mitglieder die Zusammenfassung ging; null, solange nicht abgeschlossen */
   summary_recipients: number | null;
@@ -468,11 +475,11 @@ export interface MyzelApi {
   listQuestions(): Promise<QuestionListItem[]>;
   getQuestion(id: string): Promise<QuestionDetail>;
   createQuestion(input: QuestionCreateInput): Promise<{ id: string }>;
-  clarifyQuestion(
-    id: string,
-    input: QuestionClarifyInput,
-  ): Promise<Undoable & { decision_id: string | null }>;
+  /** WF-FRA-02 „Als beantwortet markieren“ – Ergebnisse hängen schon über createDecision an der Frage */
+  clarifyQuestion(id: string, input: QuestionClarifyInput): Promise<Undoable>;
   discardQuestion(id: string, version: number): Promise<Undoable>;
+  /** WF-FRA-04 geklärte oder verworfene Frage wieder öffnen; Ergebnisse bleiben bestehen */
+  reopenQuestion(id: string, version: number): Promise<Undoable>;
   listDocuments(): Promise<DocumentListItem[]>;
   listLinkedDocuments(target: DocumentLinkTarget, targetId: string): Promise<DocumentListItem[]>;
   /** created: false – zu diesem Drive-Link gibt es schon ein Dokument; es wird nur verknüpft */
@@ -501,6 +508,11 @@ export interface MyzelApi {
   getPlenum(id: string): Promise<PlenumDetail>;
   updateProtocol(plenumId: string, input: ProtocolInput): Promise<void>;
   closePlenum(plenumId: string, attendeeIds: string[], version: number): Promise<{ recipients: number }>;
+  /**
+   * Antwort auf „Gehört das zum Plenum?“ (16.2) für Personen ohne Zusage – gilt für alle weiteren Änderungen dieser
+   * Sitzung, solange das Plenum läuft. Nur auf diesem Gerät; der Server prüft selbst, ob das Plenum läuft.
+   */
+  setPlenumAnswer(plenumId: string, belongs: boolean): void;
 
   // Erinnerungen [P2] (WF-PRO-02, WF-PRO-03, WF-ADM-07)
   getNotificationSettings(): Promise<NotificationSettings>;

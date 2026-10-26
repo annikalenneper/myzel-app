@@ -6,11 +6,13 @@ import type { PlenumDetail } from '../../src/data/api';
 import { AppError } from '../../src/shared/errors';
 import { hasStarted } from '../../src/shared/rules/appointments';
 import {
-  protocolSchema,
-  RESULT_GROUPS,
-  type HistoryChanges,
-  type ResultGroup,
-} from '../../src/shared/schema';
+  buildResults,
+  PLENUM_ENTITY_TYPES,
+  summaryText,
+  type ResultGroupItems,
+  type ResultSubject,
+} from '../../src/shared/rules/plenum';
+import { protocolSchema, type HistoryChanges } from '../../src/shared/schema';
 import { checkVersion, parse, rule, writeHistory, type Ctx, type Db, type ReadCtx } from '../core/context';
 import type { AppointmentRow } from '../db/types';
 import { enqueue } from '../p2/notify';
@@ -32,37 +34,141 @@ async function openPlenum(ctx: Ctx, id: string): Promise<AppointmentRow> {
 
 // ── Ergebnis: was in diesem Plenum passiert ist (F-PLE-04) ──────────────────
 
-interface Line {
-  group: ResultGroup;
-  text: string;
-}
+/**
+ * Ergebnis (16.2): je Artefakt eine Zeile – was während des Plenums angelegt oder geändert wurde oder dieses Plenum
+ * als Quelle bzw. Herkunft führt. Zurückgenommene Aktionen zählen nicht. Reihenfolge: die erste Änderung zuerst.
+ */
+export async function results(trx: Db, plenumId: string): Promise<ResultGroupItems[]> {
+  const types = sql.join(PLENUM_ENTITY_TYPES.map((t) => sql.lit(t)));
+  // passend zu den Indizes history_plenum, history_undone, tasks_origin_plenum, questions_answered_in_plenum,
+  // decisions_source_plenum
+  const touched = await sql<{ type: string; id: string; created: boolean }>`
+    select type, id, bool_or(created) as created
+    from (
+      select h.entity_type as type, h.entity_id as id, h.created_at as at,
+             h.action in ('created', 'created_as_replacement') as created
+      from history h
+      where h.changes -> 'plenum_id' ->> 'new' = ${plenumId}
+        and h.action not in ('undo', 'rsvp')
+        and h.entity_type in (${types})
+        and not (h.entity_type = 'appointment' and h.entity_id = ${plenumId}::uuid)
+        and not exists (
+          select 1 from history u
+          where u.action = 'undo' and u.changes -> 'history_ids' -> 'old' ? h.id::text
+        )
+      union all select 'decision', id, created_at, false from decisions where source_plenum_id = ${plenumId}::uuid
+      union all select 'task', id, created_at, false from tasks where origin_plenum_id = ${plenumId}::uuid
+      union all select 'question', id, created_at, false from questions where answered_in_plenum_id = ${plenumId}::uuid
+    ) x
+    group by type, id
+    order by min(at), type, id`.execute(trx);
+  const ids = (type: string) => {
+    const list = touched.rows.filter((r) => r.type === type).map((r) => r.id);
+    return list.length ? list : ['00000000-0000-0000-0000-000000000000'];
+  };
+  const [decisions, tasks, assignees, questions, events, appointments, documents, partners] =
+    await Promise.all([
+      trx
+        .selectFrom('decisions')
+        .selectAll()
+        .where('id', 'in', ids('decision'))
+        .where('archived_at', 'is', null)
+        .execute(),
+      trx
+        .selectFrom('tasks')
+        .selectAll()
+        .where('id', 'in', ids('task'))
+        .where('archived_at', 'is', null)
+        .execute(),
+      trx
+        .selectFrom('task_assignees as a')
+        .innerJoin('members as m', 'm.id', 'a.member_id')
+        .select(['a.task_id', 'm.display_name'])
+        .where('a.task_id', 'in', ids('task'))
+        .orderBy('a.assigned_at')
+        .execute(),
+      trx
+        .selectFrom('questions')
+        .selectAll()
+        .where('id', 'in', ids('question'))
+        .where('archived_at', 'is', null)
+        .execute(),
+      trx
+        .selectFrom('events')
+        .selectAll()
+        .where('id', 'in', ids('event'))
+        .where('archived_at', 'is', null)
+        .execute(),
+      trx
+        .selectFrom('appointments')
+        .selectAll()
+        .where('id', 'in', ids('appointment'))
+        .where('archived_at', 'is', null)
+        .execute(),
+      trx
+        .selectFrom('documents')
+        .selectAll()
+        .where('id', 'in', ids('document'))
+        .where('archived_at', 'is', null)
+        .execute(),
+      trx
+        .selectFrom('partners')
+        .selectAll()
+        .where('id', 'in', ids('partner'))
+        .where('archived_at', 'is', null)
+        .execute(),
+    ]);
+  // Titel der Fragen und Nachfolgerinnen, auf die Entscheidungen verweisen
+  const refIds = decisions.flatMap((d) =>
+    [d.source_question_id, d.superseded_by_id].filter((x): x is string => !!x),
+  );
+  const [refQuestions, refDecisions] = refIds.length
+    ? await Promise.all([
+        trx.selectFrom('questions').select(['id', 'title']).where('id', 'in', refIds).execute(),
+        trx.selectFrom('decisions').select(['id', 'title']).where('id', 'in', refIds).execute(),
+      ])
+    : [[], []];
 
-export async function results(trx: Db, plenumId: string): Promise<{ group: ResultGroup; lines: string[] }[]> {
-  // zurückgenommene Aktionen zählen nicht; passend zu den Indizes history_plenum und history_undone
-  const rows = await sql<{ line: Line }>`
-    select h.changes -> 'plenum_line' -> 'new' as line
-    from history h
-    where h.changes -> 'plenum_id' ->> 'new' = ${plenumId}
-      and h.changes ? 'plenum_line'
-      and not exists (
-        select 1 from history u
-        where u.action = 'undo' and u.changes -> 'history_ids' -> 'old' ? h.id::text
-      )
-    order by h.created_at, h.seq`.execute(trx);
-  const lines = rows.rows.map((r) => r.line);
-  return RESULT_GROUPS.map((group) => ({
-    group,
-    lines: lines.filter((l) => l.group === group).map((l) => l.text),
-  })).filter((g) => g.lines.length > 0);
+  const subjects: ResultSubject[] = [];
+  for (const { type, id, created } of touched.rows) {
+    if (type === 'decision') {
+      const row = decisions.find((x) => x.id === id);
+      if (row)
+        subjects.push({
+          type,
+          row,
+          created,
+          question_title: refQuestions.find((q) => q.id === row.source_question_id)?.title ?? null,
+          successor_title: refDecisions.find((d) => d.id === row.superseded_by_id)?.title ?? null,
+        });
+    } else if (type === 'task') {
+      const row = tasks.find((x) => x.id === id);
+      if (row)
+        subjects.push({
+          type,
+          row,
+          created,
+          assignee_names: assignees.filter((a) => a.task_id === id).map((a) => a.display_name),
+        });
+    } else if (type === 'question') {
+      const row = questions.find((x) => x.id === id);
+      if (row) subjects.push({ type, row, created });
+    } else if (type === 'event') {
+      const row = events.find((x) => x.id === id);
+      if (row) subjects.push({ type, row, created });
+    } else if (type === 'appointment') {
+      const row = appointments.find((x) => x.id === id);
+      if (row) subjects.push({ type, row, created });
+    } else if (type === 'document') {
+      const row = documents.find((x) => x.id === id);
+      if (row) subjects.push({ type, row, created });
+    } else if (type === 'partner') {
+      const row = partners.find((x) => x.id === id);
+      if (row) subjects.push({ type, row, created });
+    }
+  }
+  return buildResults(subjects);
 }
-
-export const RESULT_TITLE: Record<ResultGroup, string> = {
-  beschluesse: 'Entscheidungen & Fakten',
-  aufgaben: 'Aufgaben',
-  fragen: 'Fragen',
-  termine: 'Veranstaltungen & Termine',
-  besprochen: 'Besprochen',
-};
 
 export async function getPlenum(ctx: ReadCtx, id: string): Promise<PlenumDetail> {
   const plenum = await findPlenum(ctx.trx, id, false);
@@ -130,15 +236,6 @@ export async function updateProtocol(ctx: Ctx, plenumId: string, raw: unknown): 
   await writeHistory(ctx, 'appointment', plenumId, 'protocol', changes);
 }
 
-/** Zusammenfassung an alle aktiven Mitglieder (F-PLE-04): kurz, mit Link */
-export async function summaryText(trx: Db, plenum: AppointmentRow): Promise<string> {
-  const groups = await results(trx, plenum.id);
-  if (groups.length === 0)
-    return `${plenum.title} ist abgeschlossen – es wurde nichts beschlossen oder besprochen.`;
-  const parts = groups.map((g) => `${RESULT_TITLE[g.group]}: ${g.lines.join('; ')}`);
-  return `${plenum.title} ist abgeschlossen. ${parts.join(' · ')}`;
-}
-
 /**
  * WF-PLE-20 „Plenum abschließen“: setzt „stattgefunden“ mit, hält die Teilnahme fest und verschickt die
  * Zusammenfassung. Eine Transaktion.
@@ -155,7 +252,7 @@ export async function closePlenum(
   if (!hasStarted(plenum, ctx.now)) throw rule('Abschließen geht erst, wenn das Plenum begonnen hat.');
   await appts.replaceAttendees(ctx, plenumId, attendeeIds);
   const recipients = await appts.activeIds(ctx.trx);
-  const text = await summaryText(ctx.trx, plenum);
+  const text = summaryText(plenum.title, await results(ctx.trx, plenum.id));
   await enqueue(
     ctx.trx,
     ctx.now,

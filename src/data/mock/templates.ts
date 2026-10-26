@@ -125,7 +125,6 @@ export function applyTemplate(ctx: Ctx, eventId: string, raw: unknown): Undoable
       event_id: eventId,
       priority: item.default_priority,
       due_date: item.due_date,
-      mark_for_plenum: false,
     });
     if (item.description) server.findTask(ctx.db, taskId).description = item.description;
     ctx.inverse.push({ kind: 'task_delete', task_id: taskId });

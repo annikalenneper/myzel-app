@@ -3,20 +3,27 @@
 import { AppError } from '../../shared/errors';
 import { hasStarted } from '../../shared/rules/appointments';
 import {
-  protocolSchema,
-  RESULT_GROUPS,
-  type Appointment,
-  type HistoryChanges,
-  type ResultGroup,
-} from '../../shared/schema';
+  buildResults,
+  countsForPlenum,
+  isPlenumRunning,
+  plenumEnd,
+  SESSION_PLENUM_LOOKAHEAD_MS,
+  summaryText,
+  type ResultGroupItems,
+  type ResultSubject,
+  type SessionPlenum,
+} from '../../shared/rules/plenum';
+import { protocolSchema, type Appointment, type HistoryChanges } from '../../shared/schema';
 import type { PlenumDetail } from '../api';
 import * as appts from './appointments';
 import { enqueue } from './notify';
 import { checkVersion, parse, rule, touch, writeHistory, type Ctx, type Db } from './server';
 
+const isPlenum = appts.isPlenum;
+
 function findPlenum(db: Db, id: string): Appointment {
   const plenum = appts.findAppointment(db, id);
-  if (!appts.isPlenum(db, plenum)) throw rule('Das geht nur bei einem Plenum.');
+  if (!isPlenum(db, plenum)) throw rule('Das geht nur bei einem Plenum.');
   return plenum;
 }
 
@@ -28,36 +35,131 @@ function openPlenum(ctx: Ctx, id: string): Appointment {
   return plenum;
 }
 
-// ── Ergebnis: was in diesem Plenum passiert ist (F-PLE-04) ──────────────────
+// ── Laufendes Plenum (16.2) ─────────────────────────────────────────────────
 
-interface Line {
-  group: ResultGroup;
-  text: string;
+const isParticipant = (db: Db, plenumId: string, memberId: string) =>
+  db.appointment_rsvps.some(
+    (r) => r.appointment_id === plenumId && r.member_id === memberId && r.answer === 'ja',
+  ) || db.appointment_attendees.some((a) => a.appointment_id === plenumId && a.member_id === memberId);
+
+/** laufende Plenen, neueste zuerst */
+function running(db: Db, now: Date): Appointment[] {
+  return db.appointments
+    .filter((a) => !a.archived_at && isPlenum(db, a) && isPlenumRunning(a, now))
+    .sort((a, b) => b.starts_at.localeCompare(a.starts_at));
 }
 
-export function results(db: Db, plenumId: string): { group: ResultGroup; lines: string[] }[] {
-  // zurückgenommene Aktionen zählen nicht
-  const undone = new Set(
+/** Für die Transaktion: das laufende Plenum und ob die Person auf der Teilnehmerliste steht */
+export function runningPlenum(
+  db: Db,
+  memberId: string,
+  now: Date,
+): { id: string; participant: boolean } | null {
+  const plenum = running(db, now)[0];
+  return plenum ? { id: plenum.id, participant: isParticipant(db, plenum.id, memberId) } : null;
+}
+
+/** Für die Sitzung: das laufende oder nächste Plenum der kommenden 24 Stunden */
+export function sessionPlenum(db: Db, memberId: string, now: Date): SessionPlenum | null {
+  const plenum =
+    running(db, now)[0] ??
+    db.appointments
+      .filter(
+        (a) =>
+          !a.archived_at &&
+          isPlenum(db, a) &&
+          (a.status === 'geplant' || a.status === 'stattgefunden') &&
+          new Date(a.starts_at).getTime() > now.getTime() &&
+          new Date(a.starts_at).getTime() <= now.getTime() + SESSION_PLENUM_LOOKAHEAD_MS,
+      )
+      .sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0];
+  if (!plenum) return null;
+  return {
+    id: plenum.id,
+    title: plenum.title,
+    starts_at: plenum.starts_at,
+    ends_at: plenumEnd(plenum),
+    participant: isParticipant(db, plenum.id, memberId),
+  };
+}
+
+// ── Ergebnis: was in diesem Plenum passiert ist (F-PLE-04) ──────────────────
+
+/** zurückgenommene Aktionen zählen nicht */
+function undoneIds(db: Db): Set<string> {
+  return new Set(
     db.history.flatMap((h) =>
       h.action === 'undo' ? ((h.changes.history_ids?.old as string[] | undefined) ?? []) : [],
     ),
   );
-  const lines = db.history
-    .filter((h) => h.changes.plenum_id?.new === plenumId && h.changes.plenum_line && !undone.has(h.id))
-    .map((h) => h.changes.plenum_line!.new as Line);
-  return RESULT_GROUPS.map((group) => ({
-    group,
-    lines: lines.filter((l) => l.group === group).map((l) => l.text),
-  })).filter((g) => g.lines.length > 0);
 }
 
-export const RESULT_TITLE: Record<ResultGroup, string> = {
-  beschluesse: 'Entscheidungen & Fakten',
-  aufgaben: 'Aufgaben',
-  fragen: 'Fragen',
-  termine: 'Veranstaltungen & Termine',
-  besprochen: 'Besprochen',
-};
+const CREATED = new Set(['created', 'created_as_replacement']);
+
+/**
+ * Ergebnis (16.2): je Artefakt eine Zeile – was während des Plenums angelegt oder geändert wurde oder dieses Plenum
+ * als Quelle bzw. Herkunft führt. Reihenfolge: die erste Änderung zuerst.
+ */
+export function results(db: Db, plenumId: string): ResultGroupItems[] {
+  const undone = undoneIds(db);
+  const order: string[] = [];
+  const created = new Set<string>();
+  const add = (type: string, id: string) => {
+    const key = `${type}:${id}`;
+    if (!order.includes(key)) order.push(key);
+    return key;
+  };
+  for (const h of db.history) {
+    if (h.changes.plenum_id?.new !== plenumId || h.action === 'undo' || undone.has(h.id)) continue;
+    if (!countsForPlenum(h.entity_type, h.entity_id, h.action, plenumId)) continue;
+    const key = add(h.entity_type, h.entity_id);
+    if (CREATED.has(h.action)) created.add(key);
+  }
+  for (const d of db.decisions) if (d.source_plenum_id === plenumId) add('decision', d.id);
+  for (const t of db.tasks) if (t.origin_plenum_id === plenumId) add('task', t.id);
+  for (const q of db.questions) if (q.answered_in_plenum_id === plenumId) add('question', q.id);
+
+  const subjects: ResultSubject[] = [];
+  for (const key of order) {
+    const [type, id] = key.split(':') as [string, string];
+    const isNew = created.has(key);
+    if (type === 'decision') {
+      const row = db.decisions.find((x) => x.id === id);
+      if (!row || row.archived_at) continue;
+      subjects.push({
+        type,
+        row,
+        created: isNew,
+        question_title: db.questions.find((q) => q.id === row.source_question_id)?.title ?? null,
+        successor_title: db.decisions.find((x) => x.id === row.superseded_by_id)?.title ?? null,
+      });
+    } else if (type === 'task') {
+      const row = db.tasks.find((x) => x.id === id);
+      if (!row || row.archived_at) continue;
+      const names = db.task_assignees
+        .filter((a) => a.task_id === id)
+        .map((a) => db.members.find((m) => m.id === a.member_id)?.display_name)
+        .filter((n): n is string => !!n);
+      subjects.push({ type, row, created: isNew, assignee_names: names });
+    } else if (type === 'question') {
+      const row = db.questions.find((x) => x.id === id);
+      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+    } else if (type === 'event') {
+      const row = db.events.find((x) => x.id === id);
+      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+    } else if (type === 'appointment') {
+      const row = db.appointments.find((x) => x.id === id);
+      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+    } else if (type === 'document') {
+      const row = db.documents.find((x) => x.id === id);
+      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+    } else if (type === 'partner') {
+      const row = db.partners.find((x) => x.id === id);
+      if (row && !row.archived_at) subjects.push({ type, row, created: isNew });
+    }
+  }
+  return buildResults(subjects);
+}
 
 export function getPlenum(db: Db, id: string, meId: string): PlenumDetail {
   const plenum = findPlenum(db, id);
@@ -100,15 +202,6 @@ export function updateProtocol(ctx: Ctx, plenumId: string, raw: unknown): void {
   writeHistory(ctx, 'appointment', plenumId, 'protocol', changes);
 }
 
-/** Zusammenfassung an alle aktiven Mitglieder (F-PLE-04): kurz, mit Link */
-export function summaryText(db: Db, plenum: Appointment): string {
-  const groups = results(db, plenum.id);
-  if (groups.length === 0)
-    return `${plenum.title} ist abgeschlossen – es wurde nichts beschlossen oder besprochen.`;
-  const parts = groups.map((g) => `${RESULT_TITLE[g.group]}: ${g.lines.join('; ')}`);
-  return `${plenum.title} ist abgeschlossen. ${parts.join(' · ')}`;
-}
-
 /**
  * WF-PLE-20 „Plenum abschließen“: setzt „stattgefunden“ mit, hält die Teilnahme fest und verschickt die
  * Zusammenfassung. Eine Transaktion.
@@ -130,7 +223,7 @@ export function closePlenum(
     .filter((x) => x.appointment_id !== plenumId)
     .concat([...new Set(attendeeIds)].map((member_id) => ({ appointment_id: plenumId, member_id })));
   const recipients = db.members.filter((m) => m.active && !m.is_system);
-  const text = summaryText(db, plenum);
+  const text = summaryText(plenum.title, results(db, plenum.id));
   enqueue(
     db,
     ctx.now,

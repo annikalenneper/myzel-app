@@ -52,3 +52,21 @@ export function linkTarget(link: string): { kind: 'task' | 'appointment'; id: st
   if (!m) return null;
   return { kind: m[1] === 'termine' ? 'appointment' : 'task', id: m[2]! };
 }
+
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * Text einer Nachricht für Telegram (parse_mode HTML, 16.2): mehrzeilig mit fetter erster Zeile und fetten
+ * Gruppenüberschriften (Zeilen mit „:“ am Ende), Aufzählungen bleiben; am Ende der Link in die App.
+ */
+export function telegramHtml(text: string, url: string): string {
+  const lines = text.split('\n');
+  const body = lines
+    .map((line, i) => {
+      const safe = escapeHtml(line);
+      const heading = lines.length > 1 && (i === 0 || (line.trim().endsWith(':') && !line.startsWith('•')));
+      return heading && line.trim() ? `<b>${safe}</b>` : safe;
+    })
+    .join('\n');
+  return `${body}\n\n<a href="${escapeHtml(url)}">In Myzel öffnen</a>`;
+}

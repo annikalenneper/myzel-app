@@ -65,3 +65,46 @@ test('WF-PLE-20: Plenum abschließen – Teilnahme, Vorschau, Zusammenfassung an
   await expect(page.getByText(/Abgeschlossen · Zusammenfassung an \d+ Mitglieder verschickt/)).toBeVisible();
   await expect(tab(page, /Ergebnis/)).toHaveAttribute('aria-selected', 'true');
 });
+
+test('WF-PLE-21: während des Plenums fragt die App einmal nach – die Änderung steht im Ergebnis', async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto('/termine');
+  await page.getByRole('button', { name: 'Termin anlegen' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
+  await sheet.getByRole('button', { name: 'Plenum' }).click();
+  await sheet.getByLabel('Titel *').fill('Plenum Jetzt');
+  // vor zehn Minuten begonnen, ohne Ende: läuft drei Stunden
+  const d = new Date(Date.now() - 10 * 60_000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  await sheet
+    .getByLabel('Beginn *')
+    .fill(
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    );
+  await sheet.getByLabel('Link zum Call *').fill('https://meet.example.org/myzel');
+  await sheet.locator('button[type=submit]').click();
+  await expect(undoBar(page)).toBeVisible();
+
+  // Mo hat nicht zugesagt: die erste Änderung fragt nach
+  await page.goto('/agenda');
+  await page.getByRole('link', { name: /Vereinshaftpflicht verlängern/ }).click();
+  await page
+    .getByRole('group', { name: 'Status' })
+    .getByRole('button', { name: 'Geplant', exact: true })
+    .click();
+  const ask = page.getByRole('alertdialog', { name: 'Gehört das zum Plenum?' });
+  await expect(ask).toContainText('Gerade läuft Plenum Jetzt.');
+  await ask.getByRole('button', { name: 'Ja, gehört zum Plenum' }).click();
+  await expect(undoBar(page)).toContainText('Status: Geplant');
+  // die Antwort gilt für weitere Änderungen
+  await page.getByRole('button', { name: 'Folgen' }).first().click();
+  await expect(ask).toHaveCount(0);
+
+  await page.goto('/termine');
+  await page.getByRole('article').filter({ hasText: 'Plenum Jetzt' }).getByRole('link').first().click();
+  await expect(page.getByRole('region', { name: 'Aufgaben' })).toContainText(
+    'Vereinshaftpflicht verlängern · Geplant',
+  );
+});

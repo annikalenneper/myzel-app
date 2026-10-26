@@ -111,6 +111,15 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
             </button>
           </div>
         )}
+        {/* 16.3: Ergebnis einer Frage */}
+        {d.source_question && (
+          <Link
+            to={`/agenda/frage/${d.source_question.id}`}
+            className="hit flex min-h-11 items-center self-start text-[14px] text-text"
+          >
+            Aus der Frage: {d.source_question.title} ›
+          </Link>
+        )}
         {d.status === 'ersetzt' && d.superseded_by_id && (
           <Link
             to={`/wissen/beschluesse/${d.superseded_by_id}`}

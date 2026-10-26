@@ -469,7 +469,7 @@ export async function setRsvp(ctx: Ctx, id: string, answer: RsvpAnswer | null): 
   );
 }
 
-/** WF-TER-05: absagen – Nachricht an Zusagen und ohne Antwort, Markierung entfernt */
+/** WF-TER-05: absagen – Nachricht an Zusagen und ohne Antwort */
 export async function cancelAppointment(
   ctx: Ctx,
   id: string,
@@ -572,6 +572,8 @@ export async function setAttendee(ctx: Ctx, id: string, memberId: string, presen
       .execute();
   await writeHistory(ctx, 'appointment', id, present ? 'attendee_added' : 'attendee_removed', {
     attendee: present ? { old: null, new: memberId } : { old: memberId, new: null },
+    // nach dem Abschluss eines Plenums nur nach Rückfrage geändert (16.2)
+    ...(a.status === 'abgeschlossen' ? { after_close: { old: null, new: true } } : {}),
   });
 }
 

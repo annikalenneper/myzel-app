@@ -33,7 +33,7 @@ export interface MockOptions {
   latency?: number;
 }
 
-const DB_KEY = 'myzel:mock:db:v12';
+const DB_KEY = 'myzel:mock:db:v13';
 const DEVICE_KEY = 'myzel:mock:geraet';
 const OUTAGE_KEY = 'myzel:mock:ausfall';
 const SESSION_KEY = 'myzel:mock:session';
@@ -98,6 +98,8 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     storage?.setItem(DB_KEY, JSON.stringify(db));
   };
 
+  /** Antworten auf „Gehört das zum Plenum?“ dieser Sitzung (16.2) */
+  const plenumAnswers = new Map<string, boolean>();
   const wait = () => (latency ? new Promise<void>((r) => setTimeout(r, latency)) : Promise.resolve());
   const emit = () => listeners.forEach((l) => l());
   const sessionEmail = () => storage?.getItem(SESSION_KEY) ?? memorySession;
@@ -117,7 +119,9 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     const email = sessionEmail();
     if (!email) return { state: 'anonymous' };
     const member = memberByEmail(email);
-    return member ? { state: 'member', member } : { state: 'no_access', email };
+    return member
+      ? { state: 'member', member, plenum: plenum.sessionPlenum(db, member.id, now()) }
+      : { state: 'no_access', email };
   };
 
   /** Nur eingeloggte aktive Mitglieder lesen und schreiben (7.1). */
@@ -145,11 +149,14 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
   function transact<T>(member: Member, fn: (ctx: Ctx) => T, silent = false): T {
     sync();
     const draft = structuredClone(db);
+    // läuft ein Plenum, gehört die Änderung dazu: auf der Teilnehmerliste immer, sonst nach Antwort (16.2)
+    const running = plenum.runningPlenum(draft, member.id, now());
     const ctx: Ctx = {
       db: draft,
       actor: draft.members.find((m) => m.id === member.id)!,
       now: now(),
       inverse: [],
+      plenumId: running && (running.participant || plenumAnswers.get(running.id)) ? running.id : null,
     };
     const result = fn(ctx);
     db = draft;
@@ -323,6 +330,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     createQuestion: (input) => write((ctx) => know.createQuestion(ctx, input)),
     clarifyQuestion: (id, input) => write((ctx) => know.clarifyQuestion(ctx, id, input)),
     discardQuestion: (id, version) => write((ctx) => know.discardQuestion(ctx, id, version)),
+    reopenQuestion: (id, version) => write((ctx) => know.reopenQuestion(ctx, id, version)),
     listDocuments: () => read((d) => know.listDocuments(d)),
     listLinkedDocuments: (target, targetId) => read((d) => know.linkedDocuments(d, target, targetId)),
     createDocument: (input) => write((ctx) => know.createDocument(ctx, input)),
@@ -352,6 +360,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
 
     getPlenum: (id) => read((d) => plenum.getPlenum(d, id, actor().id)),
     updateProtocol: (plenumId, input) => write((ctx) => plenum.updateProtocol(ctx, plenumId, input)),
+    setPlenumAnswer: (plenumId, belongs) => void plenumAnswers.set(plenumId, belongs),
     closePlenum: (plenumId, attendeeIds, version) =>
       write((ctx) => plenum.closePlenum(ctx, plenumId, attendeeIds, version)),
 

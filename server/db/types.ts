@@ -266,6 +266,7 @@ export interface DecisionsTable {
   source_plenum_id: string | null;
   source_document_id: string | null;
   source_note: string | null;
+  source_question_id: string | null;
   archived_at: Timestamp | null;
   created_at: CreatedAt;
   updated_at: Timestamp;
@@ -284,7 +285,6 @@ export interface QuestionsTable {
   raised_by: string;
   answer: string | null;
   answered_in_plenum_id: string | null;
-  resulting_decision_id: string | null;
   archived_at: Timestamp | null;
   created_at: CreatedAt;
   updated_at: Timestamp;

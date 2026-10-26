@@ -2,21 +2,83 @@
 // bestätigte Mail-Adresse mit dem Mitglied verknüpft – beim ersten Login einmalig, danach über auth_user_id.
 // Weitere Adressen (member_emails) sind eigene Logins mit eigener Verknüpfung.
 // Wer nicht auf der Mitgliederliste steht oder deaktiviert ist, bekommt keinen Zugriff.
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { Session } from '../../src/data/api';
+import {
+  PLENUM_DEFAULT_HOURS,
+  SESSION_PLENUM_LOOKAHEAD_MS,
+  type SessionPlenum,
+} from '../../src/shared/rules/plenum';
 import { memberForLogin } from '../core/context';
-import type { Database } from '../db/types';
+import type { Database, MemberRow } from '../db/types';
+
+/**
+ * Das laufende oder nächste Plenum der kommenden 24 Stunden (16.2), mit der Angabe, ob die Person auf der
+ * Teilnehmerliste steht – die App fragt damit vor einer Änderung nach.
+ */
+async function sessionPlenum(
+  db: Kysely<Database>,
+  memberId: string,
+  now: Date,
+): Promise<SessionPlenum | null> {
+  const at = now.toISOString();
+  const until = new Date(now.getTime() + SESSION_PLENUM_LOOKAHEAD_MS).toISOString();
+  const end = sql<string>`coalesce(a.ends_at, a.starts_at + make_interval(hours => ${PLENUM_DEFAULT_HOURS}))`;
+  const row = await db
+    .selectFrom('appointments as a')
+    .innerJoin('appointment_types as t', 't.id', 'a.type_id')
+    .select((eb) => [
+      'a.id',
+      'a.title',
+      'a.starts_at',
+      end.as('ends_at'),
+      eb
+        .or([
+          eb.exists(
+            eb
+              .selectFrom('appointment_rsvps as r')
+              .select('r.member_id')
+              .whereRef('r.appointment_id', '=', 'a.id')
+              .where('r.member_id', '=', memberId)
+              .where('r.answer', '=', 'ja'),
+          ),
+          eb.exists(
+            eb
+              .selectFrom('appointment_attendees as x')
+              .select('x.member_id')
+              .whereRef('x.appointment_id', '=', 'a.id')
+              .where('x.member_id', '=', memberId),
+          ),
+        ])
+        .as('participant'),
+    ])
+    .where('t.has_plenum_features', '=', true)
+    .where('a.archived_at', 'is', null)
+    .where('a.status', 'in', ['geplant', 'stattgefunden'])
+    .where(sql<boolean>`${end} >= ${at}::timestamptz`)
+    .where(sql<boolean>`a.starts_at <= ${until}::timestamptz`)
+    .orderBy('a.starts_at')
+    .executeTakeFirst();
+  return row
+    ? { ...row, ends_at: new Date(row.ends_at).toISOString(), participant: !!row.participant }
+    : null;
+}
+
+const asMember = async (db: Kysely<Database>, member: MemberRow, now: Date): Promise<Session> => ({
+  state: 'member',
+  member,
+  plenum: await sessionPlenum(db, member.id, now),
+});
 
 export async function sessionFor(
   db: Kysely<Database>,
   login: { authUserId: string; email: string | null } | null,
+  now: Date = new Date(),
 ): Promise<Session> {
   if (!login) return { state: 'anonymous' };
   const linked = await memberForLogin(db, login.authUserId);
   if (linked)
-    return linked.active
-      ? { state: 'member', member: linked }
-      : { state: 'no_access', email: linked.email ?? '' };
+    return linked.active ? asMember(db, linked, now) : { state: 'no_access', email: linked.email ?? '' };
   if (!login.email) return { state: 'no_access', email: '' };
   // erster Login: Mitglied mit dieser Mail, das noch mit keinem Login verknüpft ist – oder gerade eben von einer
   // gleichzeitigen Anfrage desselben Logins verknüpft wurde (die App fragt beim Start mehrfach parallel)
@@ -28,7 +90,7 @@ export async function sessionFor(
     .where('is_system', '=', false)
     .returningAll()
     .executeTakeFirst();
-  if (byEmail?.active) return { state: 'member', member: byEmail };
+  if (byEmail?.active) return asMember(db, byEmail, now);
   if (byEmail) return { state: 'no_access', email: login.email };
   // sonst: eine weitere Adresse eines Mitglieds
   const extra = await db
@@ -44,7 +106,7 @@ export async function sessionFor(
       .selectAll()
       .where('id', '=', extra.member_id)
       .executeTakeFirst();
-    if (member?.active && !member.is_system) return { state: 'member', member };
+    if (member?.active && !member.is_system) return asMember(db, member, now);
   }
   return { state: 'no_access', email: login.email };
 }

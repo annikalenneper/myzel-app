@@ -7,7 +7,7 @@ import { addDays, berlinDate, daysUntil, dueState, isPlausibleDate } from './due
 import { suggestsFollowUp } from './eventDetails';
 import { allowedEventTransitions, canTransitionEvent } from './eventStatus';
 import { suggestShort } from './members';
-import { linkTarget } from './telegram';
+import { linkTarget, telegramHtml } from './telegram';
 import { sortTasks } from './taskSort';
 import { blockReasonMissing, canTransitionTask, statusAfterLastAssigneeLeft } from './taskStatus';
 import { orderTopics, topicFilterIds, topicLabel } from './topics';
@@ -257,5 +257,21 @@ describe('Telegram-Buttons: Ziel aus dem Link (6.4, 16.1)', () => {
     expect(linkTarget(`/aufgaben/${id}`)).toEqual({ kind: 'task', id });
     expect(linkTarget(`/termine/${id}`)).toEqual({ kind: 'appointment', id });
     expect(linkTarget(`/agenda/frage/${id}`)).toBeNull();
+  });
+});
+
+describe('Telegram-Text (16.2): formatiert und sicher', () => {
+  it('fette Überschriften, Aufzählung bleibt, Sonderzeichen maskiert, Link am Ende', () => {
+    const text = 'Plenum Oktober ist abgeschlossen.\n\nAufgaben:\n• Neu: Kabel <3m> & Stecker · Geplant';
+    expect(telegramHtml(text, 'https://myzel.example/termine/1?a=1&b=2')).toBe(
+      '<b>Plenum Oktober ist abgeschlossen.</b>\n\n<b>Aufgaben:</b>\n• Neu: Kabel &lt;3m&gt; &amp; Stecker · Geplant' +
+        '\n\n<a href="https://myzel.example/termine/1?a=1&amp;b=2">In Myzel öffnen</a>',
+    );
+  });
+
+  it('einzeilige Nachrichten bleiben ohne Hervorhebung', () => {
+    expect(telegramHtml('Du bist eingetragen: „A & B“', 'https://x/a')).toBe(
+      'Du bist eingetragen: „A &amp; B“\n\n<a href="https://x/a">In Myzel öffnen</a>',
+    );
   });
 });

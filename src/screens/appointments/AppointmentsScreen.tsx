@@ -69,6 +69,8 @@ export function useRsvp() {
             ? `Abgesagt: ${a.title}`
             : 'Antwort zurückgenommen',
       undo: (r) => r.undo_token,
+      // Zu- und Absagen gehören nie zum Ergebnis eines Plenums (16.2)
+      plenum: false,
     });
   };
 }

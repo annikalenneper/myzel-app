@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
+import { belongsToPlenum, runningPlenum } from '../../app/plenum';
+import { useSession } from '../../app/session';
 import { api } from '../../data';
 import { PRIORITY_LABEL } from '../../shared/labels';
 import { DECISION_KIND_LABEL } from '../../shared/rules/knowledge';
@@ -87,39 +89,42 @@ export function TopicSelect({
   );
 }
 
-/** WF-WIS-01 – mindestens eine Quelle ist Pflicht */
+/**
+ * WF-WIS-01 – mindestens eine Quelle ist Pflicht. Aus einer Frage heraus (WF-FRA-05, 16.3) ist es ein Ergebnis der
+ * Frage; die Frage bleibt offen. Läuft gerade ein Plenum, zu dem meine Änderungen gehören, ist es die Quelle.
+ */
 export function DecisionSheet({
   onClose,
-  plenumId,
   sourceNote,
   initialKind = 'entscheidung',
+  question,
   onCreated,
 }: {
   onClose: () => void;
   /** vorausgewählte Art, z. B. im Reiter „Fakten“ */
   initialKind?: DecisionKind;
-  /** im Plenum angelegt: das Plenum ist die Quelle (WF-PLE-05) */
-  plenumId?: string;
   /** vorbelegte Notiz als Quelle, z. B. „Nachbereitung Winterrave“ */
   sourceNote?: string;
+  /** Ergebnis dieser Frage: Titel und Thema vorbelegt */
+  question?: { id: string; title: string; topic_id: string };
   onCreated?: () => void;
 }) {
-  const WF = plenumId ? 'WF-PLE-05' : 'WF-WIS-01';
+  const WF = question ? 'WF-FRA-05' : 'WF-WIS-01';
   const { run } = useFeedback();
   const { topics } = useLookups();
+  const session = useSession();
   const [kind, setKind] = useState<DecisionKind>(initialKind);
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(question?.title ?? '');
   const [topicId, setTopicId] = useState(
-    () => topics.find((t) => t.name === 'Organisatorisches' && !t.archived_at)?.id ?? '',
+    () =>
+      question?.topic_id ?? topics.find((t) => t.name === 'Organisatorisches' && !t.archived_at)?.id ?? '',
   );
   const [decidedOn, setDecidedOn] = useState(() => toIsoDate(new Date()));
-  const [source, setSource] = useState<SourceValue>(
-    plenumId
-      ? { ...EMPTY_SOURCE, plenumId }
-      : sourceNote
-        ? { ...EMPTY_SOURCE, note: sourceNote }
-        : EMPTY_SOURCE,
-  );
+  const [source, setSource] = useState<SourceValue>(() => {
+    const plenum = runningPlenum(session, new Date());
+    if (plenum && belongsToPlenum(plenum) !== false) return { ...EMPTY_SOURCE, plenumId: plenum.id };
+    return sourceNote ? { ...EMPTY_SOURCE, note: sourceNote } : EMPTY_SOURCE;
+  });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -145,6 +150,7 @@ export function DecisionSheet({
           source_plenum_id: source.plenumId,
           source_document_id: source.documentId,
           source_note: source.note,
+          source_question_id: question?.id ?? null,
         }),
       {
         success: kind === 'fakt' ? 'Fakt festgehalten' : 'Entscheidung festgehalten',
@@ -159,7 +165,7 @@ export function DecisionSheet({
   };
 
   return (
-    <Sheet title="Neu festhalten" onClose={onClose} wf={WF} closeButton>
+    <Sheet title={question ? 'Ergebnis festhalten' : 'Neu festhalten'} onClose={onClose} wf={WF} closeButton>
       <form
         className="flex flex-col gap-3.5"
         onSubmit={(e) => {
@@ -167,6 +173,11 @@ export function DecisionSheet({
           void save();
         }}
       >
+        {question && (
+          <span className="text-[14px] leading-[1.4] text-weich">
+            Aus der Frage „{question.title}“ – die Frage bleibt offen.
+          </span>
+        )}
         <Segmented
           label="Art"
           wf={WF}

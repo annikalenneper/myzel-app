@@ -595,14 +595,12 @@ export function seedDb(now: Date): Db {
     title: 'Werkzeug mitbringen (Akkuschrauber, Leiter)',
     topic_id: topic['Lager & Material']!.id,
     appointment_id: bautag,
-    mark_for_plenum: false,
   }).id;
   plan(tools, 'KI', 5, ['KI']);
   server.createTask(as('TI', 3, '17:20'), {
     title: 'Schwerlastregal im Lager aufbauen',
     topic_id: topic['Lager & Material']!.id,
     appointment_id: bautag,
-    mark_for_plenum: false,
   });
 
   // Ältere Plenen stehen als Quelle für Entscheidungen in der Historie (F-PLE-01): nur Datum und Status
@@ -775,7 +773,7 @@ export function seedDb(now: Date): Db {
   frage.status = 'geklaert';
   frage.answer = 'Mindestens 4 Personen pro Veranstaltung.';
   frage.answered_in_plenum_id = plenumSept;
-  frage.resulting_decision_id = awareness4;
+  db.decisions.find((d) => d.id === awareness4)!.source_question_id = geklaert;
 
   // Phase 4: der Winterrave mit Detailbereichen wie im Prototyp (D-Event)
   const raveRow = db.events.find((e) => e.id === rave)!;

@@ -231,7 +231,8 @@ export async function createTask(ctx: Ctx, raw: unknown): Promise<{ id: string }
       topic_id: input.topic_id,
       event_id: input.event_id,
       appointment_id: input.appointment_id,
-      origin_plenum_id: null,
+      // im laufenden Plenum angelegt: Herkunft dieses Plenum (16.2)
+      origin_plenum_id: ctx.plenumId,
       priority: input.priority,
       due_date: input.due_date,
       created_at: now,

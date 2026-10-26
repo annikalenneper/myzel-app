@@ -409,6 +409,8 @@ export const decisionSchema = z.object({
   source_plenum_id: idSchema.nullable(),
   source_document_id: idSchema.nullable(),
   source_note: z.string().nullable(),
+  /** aus welcher Frage der Eintrag entstanden ist – eine Frage kann mehrere Ergebnisse haben (16.3) */
+  source_question_id: idSchema.nullable(),
   archived_at: timestampSchema.nullable(),
   created_at: timestampSchema,
   updated_at: timestampSchema,
@@ -432,7 +434,6 @@ export const questionSchema = z.object({
   raised_by: idSchema,
   answer: z.string().nullable(),
   answered_in_plenum_id: idSchema.nullable(),
-  resulting_decision_id: idSchema.nullable(),
   archived_at: timestampSchema.nullable(),
   created_at: timestampSchema,
   updated_at: timestampSchema,
@@ -748,6 +749,8 @@ export const decisionCreateSchema = z
     kind: decisionKindSchema,
     topic_id: z.uuid('Bitte ein Thema wählen.'),
     decided_on: dateSchema.nullable().default(null),
+    /** Ergebnis einer Frage (16.3): die Frage bleibt dabei offen */
+    source_question_id: idSchema.nullable().default(null),
     ...sourceFields,
   })
   .refine(oneSource, oneSourceIssue);
@@ -784,19 +787,11 @@ export const questionCreateSchema = z.object({
 export type QuestionCreateInput = z.input<typeof questionCreateSchema>;
 
 /**
- * WF-FRA-02 / WF-PLE-11: Antwort ist Pflicht. Wird daraus eine Entscheidung oder ein Fakt, braucht es
- * außerhalb des Plenums eine Quelle (Notiz oder Dokument); im Plenum ist das Plenum die Quelle.
+ * WF-FRA-02 „Als beantwortet markieren“ (16.3): schließt die Frage erst auf Wunsch. Die Antwort ist optional, wenn
+ * schon Entscheidungen oder Fakten aus ihr festgehalten sind – sonst Pflicht.
  */
 export const questionClarifySchema = z.object({
-  answer: z
-    .string()
-    .trim()
-    .min(1, 'Ohne Antwort lässt sich die Frage nicht klären.')
-    .max(10000, 'Der Text ist zu lang.'),
-  result: z.enum(['antwort', 'entscheidung', 'fakt']).default('antwort'),
-  decision_title: z.string().trim().max(200, 'Der Titel darf höchstens 200 Zeichen haben.').default(''),
-  source_document_id: idSchema.nullable().default(null),
-  source_note: optionalText(500, 'Die Notiz ist zu lang.'),
+  answer: optionalText(10000, 'Der Text ist zu lang.'),
   version: versionSchema,
 });
 export type QuestionClarifyInput = z.input<typeof questionClarifySchema>;

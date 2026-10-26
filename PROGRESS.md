@@ -38,9 +38,22 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         Aktionslisten in `remoteApi.ts` sind weg (eine fehlte schon für `setDecisionAgenda`, nur der Smoke-Test fand
         es); restliche Lese-Aktionen (Benachrichtigungen, Systemstatus, Mitglieder-Adressen, Deaktivieren) ohne
         Transaktion
-- [ ] **Phase 3 – Plenum:** Detail nur noch Ergebnis und Protokoll; Zuordnung von Änderungen zum laufenden Plenum
-      (Rückfrage für Personen ohne Zusage); Ergebnis je Artefakt eine Zeile; Frage mit mehreren Ergebnissen, „wieder
-      öffnen“; Telegram-Zusammenfassung formatiert; Anwesenheit nach Abschluss nur nach Rückfrage, mit Historie
+- [x] **Phase 3 – Plenum** (lokal, Migration 20261026000002 noch nicht eingespielt):
+  - [x] Plenum-Detail nur noch Ergebnis und Protokoll (Agenda schon in Phase 2 entfernt)
+  - [x] Laufendes Plenum: Beginn bis Ende, ohne Ende + 3 h, bis zum Abschließen. Die Sitzung kennt es samt
+        Teilnahme; der Server ermittelt es in derselben Abfrage wie die handelnde Person (keine Extra-Rundreise)
+  - [x] Teilnehmerliste (Zusage „ja“ oder anwesend): Änderungen zählen automatisch; alle anderen fragt die App
+        einmal je Plenum „Gehört das zum Plenum?“ (WF-PLE-21; nicht im Profil, nicht bei Zusagen und Plenum-eigenen
+        Aktionen); Antwort per Kopfzeile `x-myzel-plenum`, Historie bekommt `plenum_id`
+  - [x] Ergebnis je Artefakt eine Zeile mit Link: Änderungen im Plenum, Quelle/Herkunft/Antwort in diesem Plenum;
+        eine Frage nur einmal, ihre Ergebnisse unter „Entscheidungen & Fakten“ mit „aus der Frage …“; im Plenum
+        angelegte Aufgaben haben es als Herkunft
+  - [x] Frage mit mehreren Ergebnissen (`decisions.source_question_id`), bleibt offen; „Als beantwortet markieren“
+        (Antwort optional mit Ergebnissen), „Wieder öffnen“ (WF-FRA-04), „Ergebnis festhalten“ (WF-FRA-05)
+  - [x] Telegram als HTML: fette Überschriften, Aufzählung, Link „In Myzel öffnen“; Zusammenfassung mehrzeilig
+  - [x] Anwesenheit nach dem Abschluss nur nach Rückfrage; Historie mit Kennzeichen `after_close`
+  - [x] Review Phase 2 (Subagent): kein hoher Befund; M1 (Agenda hängt, wenn Fragen nicht laden), N1, N3, N4, N5,
+        N6 behoben; N2 durch Phase 3 erledigt
 - [ ] **Phase 4 – Grundfunktionen:** Titel und Beschreibung überall bearbeitbar (Historie alt → neu), Kommentare und
       Historie für alle Artefakte, Event-Bezug für alle, Fakten/Entscheidungen mit Text auf der Karte (max. 300 Zeichen)
 - [ ] **Phase 5 – Globaler „+“-Knopf:** jede Art aus jeder Ansicht anlegen, mit Vorbelegung aus dem Kontext
@@ -91,19 +104,22 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 
 ## Offene Fragen und Annahmen
 
-| Nr. | Datum      | Frage / Annahme                                                                                                                                                                                                                      | Stand   |
-| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| U1  | 25.10.2026 | Markierungen außer an Entscheidungen/Fakten werden beim Umbau ohne Ersatz gelöscht (sie haben keine Historie).                                                                                                                       | Annahme |
-| U2  | 25.10.2026 | Fakten brauchen keine Bestätigung, nur Entscheidungen; bestehende Entscheidungen bleiben „gültig“.                                                                                                                                   | Annahme |
-| U3  | 25.10.2026 | Text von Fakten/Entscheidungen max. 300 Zeichen; längere Bestandstexte bleiben, beim Bearbeiten muss gekürzt werden.                                                                                                                 | Annahme |
-| U4  | 25.10.2026 | Plenum ohne Ende: Zeitraum Beginn + 3 Stunden, längstens bis zum Abschließen.                                                                                                                                                        | Annahme |
-| U5  | 25.10.2026 | Rückfrage „Gehört das zum Plenum?“ nur bei Schreibaktionen an Artefakten (nicht Profil, Benachrichtigungen, Zusagen).                                                                                                                | Annahme |
-| U6  | 25.10.2026 | Entscheidungen: Titel/Text-Korrektur im Detail erlaubt, Inhaltliches weiter über „Ersetzen“.                                                                                                                                         | Annahme |
-| U7  | 25.10.2026 | Function-Region EU (Frankfurt): im Free-Tarif nicht möglich (Nutzerin, 25.10.2026); bleibt us-east-2.                                                                                                                                | geklärt |
-| U8  | 25.10.2026 | Login wird außer bei getSession lokal am Token geprüft: ein abgemeldetes Token gilt bis zu seinem Ablauf (1 h); Deaktivierte scheitern weiter an der Mitgliederprüfung.                                                              | Annahme |
-| U9  | 26.10.2026 | Neue Workflow-IDs: WF-AGE-01 Agenda und Filter nach Art, WF-AGE-02 „Aufgaben und offene Fragen zu diesem Event“, WF-AGE-03 Entscheidung/Fakt auf die Agenda bzw. „Stimmt noch“.                                                      | Annahme |
-| U10 | 26.10.2026 | „Stimmt das noch?“ zeigt die Agenda nur ohne Einschränkung auf Personen, Status oder Veranstaltung (Entscheidungen haben dafür noch keine Felder). Fragen: „Meine“ = selbst gestellt; bei „Folge ich“ und Statusfilter keine Fragen. | Annahme |
-| U11 | 26.10.2026 | Die Plenum-Agenda samt Aktionen (Einplanen, Besprochen, Reihenfolge …) entfällt schon mit Phase 2; das Ergebnis zeigt bis Phase 3 nur, was früher über die Agenda lief.                                                              | Annahme |
+| Nr. | Datum      | Frage / Annahme                                                                                                                                                                                                                       | Stand   |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| U1  | 25.10.2026 | Markierungen außer an Entscheidungen/Fakten werden beim Umbau ohne Ersatz gelöscht (sie haben keine Historie).                                                                                                                        | Annahme |
+| U2  | 25.10.2026 | Fakten brauchen keine Bestätigung, nur Entscheidungen; bestehende Entscheidungen bleiben „gültig“.                                                                                                                                    | Annahme |
+| U3  | 25.10.2026 | Text von Fakten/Entscheidungen max. 300 Zeichen; längere Bestandstexte bleiben, beim Bearbeiten muss gekürzt werden.                                                                                                                  | Annahme |
+| U4  | 25.10.2026 | Plenum ohne Ende: Zeitraum Beginn + 3 Stunden, längstens bis zum Abschließen.                                                                                                                                                         | Annahme |
+| U5  | 25.10.2026 | Rückfrage „Gehört das zum Plenum?“ nur bei Schreibaktionen an Artefakten (nicht Profil, Benachrichtigungen, Zusagen).                                                                                                                 | Annahme |
+| U6  | 25.10.2026 | Entscheidungen: Titel/Text-Korrektur im Detail erlaubt, Inhaltliches weiter über „Ersetzen“.                                                                                                                                          | Annahme |
+| U7  | 25.10.2026 | Function-Region EU (Frankfurt): im Free-Tarif nicht möglich (Nutzerin, 25.10.2026); bleibt us-east-2.                                                                                                                                 | geklärt |
+| U8  | 25.10.2026 | Login wird außer bei getSession lokal am Token geprüft: ein abgemeldetes Token gilt bis zu seinem Ablauf (1 h); Deaktivierte scheitern weiter an der Mitgliederprüfung.                                                               | Annahme |
+| U9  | 26.10.2026 | Neue Workflow-IDs: WF-AGE-01 Agenda und Filter nach Art, WF-AGE-02 „Aufgaben und offene Fragen zu diesem Event“, WF-AGE-03 Entscheidung/Fakt auf die Agenda bzw. „Stimmt noch“.                                                       | Annahme |
+| U10 | 26.10.2026 | „Stimmt das noch?“ zeigt die Agenda nur ohne Einschränkung auf Personen, Status oder Veranstaltung (Entscheidungen haben dafür noch keine Felder). Fragen: „Meine“ = selbst gestellt; bei „Folge ich“ und Statusfilter keine Fragen.  | Annahme |
+| U11 | 26.10.2026 | Die Plenum-Agenda samt Aktionen (Einplanen, Besprochen, Reihenfolge …) entfällt schon mit Phase 2; das Ergebnis zeigt bis Phase 3 nur, was früher über die Agenda lief.                                                               | Annahme |
+| U12 | 26.10.2026 | Gehört eine Änderung zum Plenum, gilt das für Artefakte (Aufgabe, Veranstaltung, Termin, Entscheidung/Fakt, Frage, Dokument, Partner), nicht für Zu- und Absagen und nicht für das Plenum selbst (Protokoll, Teilnahme, Abschließen). | Annahme |
+| U13 | 26.10.2026 | Die Antwort auf „Gehört das zum Plenum?“ gilt im Tab bis zum Ende des Plenums; wer „Nein“ sagt, wird in diesem Plenum nicht wieder gefragt.                                                                                           | Annahme |
+| U14 | 26.10.2026 | Ergebnisse einer Frage stehen bei gleichem Zeitpunkt nach Titel sortiert. Eine ersetzte Entscheidung reicht die Frage an die neue Fassung weiter.                                                                                     | Annahme |
 
 ## Entscheidungsprotokoll
 

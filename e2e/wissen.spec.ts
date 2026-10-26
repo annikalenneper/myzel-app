@@ -92,7 +92,7 @@ test('WF-WIS-02 / -03 / WF-AGE-03: Entscheidung auf die Agenda, ersetzen (mit R�
   await expect(page.getByText('Mo hat die Entscheidung aufgehoben. Notiz: Passt nicht mehr')).toBeVisible();
 });
 
-test('WF-FRA-01 bis -03: Frage auf der Agenda stellen, klären als Entscheidung, verwerfen', async ({
+test('WF-FRA-01 bis -05: Frage stellen, mehrere Ergebnisse festhalten, beantworten, wieder öffnen, verwerfen', async ({
   page,
 }) => {
   await login(page);
@@ -108,18 +108,33 @@ test('WF-FRA-01 bis -03: Frage auf der Agenda stellen, klären als Entscheidung,
   await expect(question(/Wer hat den Zweitschlüssel/)).toBeVisible();
 
   await question(/Machen wir an Silvester eine Party/).click();
-  await page.getByRole('button', { name: 'Klären' }).click();
-  const clarify = page.getByRole('dialog', { name: 'Frage klären' });
-  await expect(clarify.locator('button[type=submit]')).toBeDisabled();
-  await clarify.getByLabel('Antwort *').fill('Ja – kleine Party im Lager.');
-  await clarify.getByRole('button', { name: 'Entscheidung' }).click();
-  await clarify.getByLabel('Notiz zur Quelle').fill('Abstimmung im Chat');
-  await clarify.locator('button[type=submit]').click();
-  await expect(page.getByText('Ja – kleine Party im Lager.')).toBeVisible();
-  await expect(
-    page.getByRole('link', { name: /Entscheidung: Machen wir an Silvester eine Party/ }),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Klären' })).toHaveCount(0);
+  // WF-FRA-05: Ergebnisse festhalten – die Frage bleibt offen (16.3)
+  const results = page.getByRole('region', { name: 'Ergebnisse' });
+  const addResult = async (title: string, kind: 'Entscheidung' | 'Fakt') => {
+    await page.getByRole('button', { name: 'Ergebnis festhalten' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Ergebnis festhalten' });
+    await expect(sheet.getByLabel('Titel *')).toHaveValue('Machen wir an Silvester eine Party?');
+    await sheet.getByRole('button', { name: kind, exact: true }).click();
+    await sheet.getByLabel('Titel *').fill(title);
+    await sheet.getByRole('button', { name: 'Notiz' }).click();
+    await sheet.getByLabel('Notiz zur Quelle').fill('Abstimmung im Chat');
+    await sheet.locator('button[type=submit]').click();
+    await expect(sheet).toBeHidden();
+    await expect(results.getByRole('link').filter({ hasText: title })).toBeVisible();
+  };
+  await addResult('Silvesterparty im Lager', 'Entscheidung');
+  await addResult('Getränke bringt jede*r selbst mit', 'Fakt');
+  await expect(results).toContainText('Ergebnisse · 2');
+
+  // WF-FRA-02: als beantwortet markieren – mit Ergebnissen ist die Antwort optional
+  await page.getByRole('button', { name: 'Beantwortet', exact: true }).click();
+  const answer = page.getByRole('dialog', { name: 'Als beantwortet markieren' });
+  await answer.getByRole('button', { name: 'Als beantwortet speichern' }).click();
+  await expect(undoBar(page)).toContainText('Als beantwortet markiert');
+  // WF-FRA-04: wieder öffnen
+  await page.getByRole('button', { name: 'Wieder öffnen' }).click();
+  await expect(page.getByRole('button', { name: 'Ergebnis festhalten' })).toBeVisible();
+  await expect(results).toContainText('Ergebnisse · 2');
 
   await page.goto('/agenda');
   await question(/Wechseln wir zu einer anderen Bank/).click();

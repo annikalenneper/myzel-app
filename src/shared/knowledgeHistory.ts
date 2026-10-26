@@ -36,7 +36,11 @@ export function knowledgeHistorySentence(
     case 'revoked':
       return `${who} hat ${the}${inPlenum} aufgehoben.${c.note?.new ? ` Notiz: ${String(c.note.new)}` : ''}${mark}`;
     case 'clarified':
-      return `${who} hat die Frage${inPlenum} geklärt.${mark}`;
+      return `${who} hat die Frage${inPlenum} als beantwortet markiert.${mark}`;
+    case 'result_added':
+      return `${who} hat${inPlenum} ${c.kind?.new === 'fakt' ? 'einen Fakt' : 'eine Entscheidung'} festgehalten: „${String(c.title?.new ?? '')}“.`;
+    case 'reopened':
+      return `${who} hat die Frage${inPlenum} wieder geöffnet.`;
     case 'discarded':
       return `${who} hat die Frage${inPlenum} verworfen.${mark}`;
     case 'discussed':
