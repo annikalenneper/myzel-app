@@ -1,6 +1,7 @@
 // Entscheidung oder Fakt ausdrücklich auf der Agenda (16.1): „Stimmt das noch?“. Neu Aufgesetztes kommt ans Ende;
 // Ersetzen und Aufheben nehmen den Eintrag herunter (mit Gegenschritt).
 import { decisionActive } from '../../src/shared/rules/knowledge';
+import type { MarkReason } from '../../src/shared/schema';
 import { iso, lockFor, type Ctx, type Db } from './context';
 
 export async function isMarked(trx: Db, decisionId: string): Promise<boolean> {
@@ -24,7 +25,11 @@ export async function dropMark(ctx: Ctx, decisionId: string): Promise<boolean> {
 }
 
 /** Neu Aufgesetztes kommt ans Ende der Agenda. */
-export async function addMark(ctx: Ctx, decisionId: string): Promise<void> {
+export async function addMark(
+  ctx: Ctx,
+  decisionId: string,
+  reason: MarkReason = 'stimmt_noch',
+): Promise<void> {
   await lockFor(ctx, 'plenum_marks');
   const max = await ctx.trx
     .selectFrom('plenum_marks')
@@ -34,6 +39,7 @@ export async function addMark(ctx: Ctx, decisionId: string): Promise<void> {
     .insertInto('plenum_marks')
     .values({
       decision_id: decisionId,
+      reason,
       position: Number(max?.max ?? 0) + 1,
       marked_by: ctx.actor.id,
       marked_at: iso(ctx),

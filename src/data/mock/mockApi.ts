@@ -355,7 +355,8 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
       write((ctx) => know.linkDocument(ctx, documentId, target, targetId)),
     unlinkDocument: (documentId, target, targetId) =>
       write((ctx) => know.unlinkDocument(ctx, documentId, target, targetId)),
-    setDecisionAgenda: (id, onAgenda) => write((ctx) => know.setDecisionAgenda(ctx, id, onAgenda)),
+    setDecisionAgenda: (id, onAgenda, reason) =>
+      write((ctx) => know.setDecisionAgenda(ctx, id, onAgenda, reason ?? 'stimmt_noch')),
     search: (query) => read((d, n) => know.search(d, query, n)),
 
     getDriveFolder: (folderId) => read((d) => drive.getDriveFolder(d, folderId)),

@@ -5,6 +5,7 @@ import type {
   DecisionKind,
   DecisionStatus,
   DecisionVoteKind,
+  MarkReason,
   DocType,
   Priority,
   Question,
@@ -21,6 +22,12 @@ export const DECISION_STATUS_LABEL: Record<DecisionStatus, string> = {
   ersetzt: 'Ersetzt',
   aufgehoben: 'Aufgehoben',
 };
+/** Die Frage, die auf der Karte steht (Phase 12) */
+export const MARK_REASON_LABEL: Record<MarkReason, string> = {
+  stimmt_noch: 'Stimmt das noch?',
+  aktion: 'Aktion erforderlich',
+};
+
 export const DECISION_VOTE_LABEL: Record<DecisionVoteKind, string> = {
   bestaetigt: 'Bestätigt',
   widerspruch: 'Widerspruch',

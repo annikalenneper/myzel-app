@@ -1,6 +1,6 @@
 // S-40 Wissen · P3: Entscheidungen, Fakten, Dokumente; P5: Drive-Verzeichnis. Fragen stehen seit dem Umbau 10/2026
 // in der Agenda (16.1).
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ListDetailLayout } from '../../app/AppShell';
 import { BarOffset, useFeedback } from '../../app/feedback';
@@ -9,15 +9,21 @@ import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { DecisionListItem, DocumentListItem, DriveEntry } from '../../data/api';
 import { formatDayMonth } from '../../shared/format';
-import { DECISION_STATUS_LABEL, decisionActive, DOC_TYPE_LABEL } from '../../shared/rules/knowledge';
+import {
+  DECISION_STATUS_LABEL,
+  decisionActive,
+  DOC_TYPE_LABEL,
+  MARK_REASON_LABEL,
+} from '../../shared/rules/knowledge';
 import { topicFilterIds } from '../../shared/rules/topics';
-import type { DecisionKind, DecisionStatus } from '../../shared/schema';
+import type { DecisionKind, DecisionStatus, MarkReason } from '../../shared/schema';
 import { cx, ListSkeleton, Pill } from '../../ui/bits';
 import { IconBookmark } from '../../ui/icons';
 import { Menu, type MenuOption } from '../../ui/Menu';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
 import { DecisionDetail } from './DecisionDetail';
+import { AgendaReasonSheet } from './DetailParts';
 import { DocumentLinkScreen } from './DocumentLinkScreen';
 import { DriveBrowser, useDriveSync } from './Drive';
 import { DriveMissing } from './LinkedDocuments';
@@ -66,13 +72,26 @@ function AgendaButton({ on, onToggle, title }: { on: boolean; onToggle: () => vo
   );
 }
 
-function useAgendaToggle() {
+/** Lesezeichen: herunternehmen sofort, aufsetzen mit Wahl „Stimmt das noch?“ / „Aktion erforderlich“ (Phase 12) */
+function useAgendaToggle(): [(d: DecisionListItem) => void, ReactNode] {
   const { run } = useFeedback();
-  return (d: DecisionListItem) =>
-    void run(() => api.setDecisionAgenda(d.id, !d.marked), {
-      success: d.marked ? 'Von der Agenda genommen' : 'Auf der Agenda',
+  const [choosing, setChoosing] = useState<DecisionListItem | null>(null);
+  const set = (d: DecisionListItem, on: boolean, reason?: MarkReason) =>
+    void run(() => api.setDecisionAgenda(d.id, on, reason), {
+      success: on && reason ? `Auf der Agenda: ${MARK_REASON_LABEL[reason]}` : 'Von der Agenda genommen',
       undo: (r) => r.undo_token,
     });
+  const sheet = choosing && (
+    <AgendaReasonSheet
+      title={choosing.title}
+      onClose={() => setChoosing(null)}
+      onPick={(reason) => {
+        setChoosing(null);
+        set(choosing, true, reason);
+      }}
+    />
+  );
+  return [(d) => (d.marked ? set(d, false) : setChoosing(d)), sheet];
 }
 
 function KnowledgeList({
@@ -190,7 +209,7 @@ function Decisions({
   selectedId: string | null;
   onCreate: () => void;
 }) {
-  const toggleAgenda = useAgendaToggle();
+  const [toggleAgenda, agendaSheet] = useAgendaToggle();
   const { topics } = useLookups();
   const { data: decisions } = useData('decisions', () => api.listDecisions());
   // WF-WIS-04 Filter Thema und Status – kombinierbar, speichern nichts; Standard: gültige und offene (16.4)
@@ -291,6 +310,7 @@ function Decisions({
       {shown.map((d) => (
         <DecisionCard key={d.id} d={d} selected={d.id === selectedId} onAgenda={() => toggleAgenda(d)} />
       ))}
+      {agendaSheet}
       {shown.length === 0 && (
         <Empty
           text={

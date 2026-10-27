@@ -282,6 +282,19 @@ describe('Auf die Agenda: „Stimmt das noch?“ (16.1, WF-AGE-03)', () => {
     expect((await api.getDecision(d.id)).marked).toBe(true);
   });
 
+  it('Phase 12: Grund „Aktion erforderlich“; ein anderer Grund setzt neu auf, Rückgängig stellt den alten her', async () => {
+    const d = await decision('Mate am Tresen für 2,50 €');
+    await api.setDecisionAgenda(d.id, true, 'aktion');
+    expect((await api.getDecision(d.id)).mark_reason).toBe('aktion');
+    const { undo_token } = await api.setDecisionAgenda(d.id, true, 'stimmt_noch');
+    expect((await api.getDecision(d.id)).mark_reason).toBe('stimmt_noch');
+    await api.undo(undo_token);
+    expect((await api.getDecision(d.id)).mark_reason).toBe('aktion');
+    await expectError(api.setDecisionAgenda(d.id, true, 'unsinn' as never), 'validation');
+    await api.setDecisionAgenda(d.id, false);
+    expect((await api.getDecision(d.id)).mark_reason).toBeNull();
+  });
+
   it('Ersetzen nimmt den Eintrag von der Agenda', async () => {
     const d = await decision('Mate am Tresen für 2,50 €');
     await api.setDecisionAgenda(d.id, true);

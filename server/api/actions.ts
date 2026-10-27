@@ -176,7 +176,8 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
     know.linkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
   unlinkDocument: (ctx, [documentId, target, targetId]) =>
     know.unlinkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
-  setDecisionAgenda: (ctx, [id, onAgenda]) => know.setDecisionAgenda(ctx, s(id), onAgenda === true),
+  setDecisionAgenda: (ctx, [id, onAgenda, reason]) =>
+    know.setDecisionAgenda(ctx, s(id), onAgenda === true, reason ?? 'stimmt_noch'),
 
   // [P4] Veranstaltungen ausgebaut, Partner, Vorlagen
   updateEventDetail: (ctx, [id, input]) => p4events.updateEventDetail(ctx, s(id), input),

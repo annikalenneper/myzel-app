@@ -160,8 +160,9 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         (Daten-Migration 20261031000002 mit Verlauf; live betrifft das den Leitfaden Polizei/Ordnungsamt, das
         Sicherheitskonzept ist schon Leitlinie, ein Code of Conduct ist live noch nicht erfasst)
   - [x] Event: „Alle Aufgaben und Fragen zum Event ›“, pink wie „Zum Event“ in der Aufgabe
-  - [ ] Auf die Agenda setzen mit Wahl „Stimmt das noch?“ oder „Aktion erforderlich“; die Frage steht auf der Karte, die
-        Überschrift heißt „Entscheidungen & Fakten“
+  - [x] Auf die Agenda setzen mit Wahl „Stimmt das noch?“ oder „Aktion erforderlich“; die Frage steht auf der Karte, die
+        Überschrift heißt „Entscheidungen & Fakten“ (Migration 20261031000003; Widerspruch setzt „Aktion erforderlich“;
+        „Aktion erforderlich“ nimmt man mit „Erledigt“ herunter)
   - [ ] Push/Telegram auch bei eigenen Aktionen, aus eigener Sicht: „Du hast … – n Personen werden benachrichtigt.“
   - [ ] Reaktionen an Kommentaren: ❤️ 👍 👎 ❓ 😂 💀 🍀
   - [x] Jeder Deploy: Version hochzählen, Changelog-Einträge „Feat: …“/„Fix: …“ (CLAUDE.md „Deploy“, Test prüft das

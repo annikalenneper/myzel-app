@@ -8,6 +8,7 @@ import type {
   DecisionKind,
   DecisionStatus,
   DecisionVoteKind,
+  MarkReason,
   DocType,
   DocumentLinkTarget,
   QuestionStatus,
@@ -147,6 +148,8 @@ export interface PlenumMarksTable {
   decision_id: string;
   position: number;
   note: string | null;
+  /** Phase 12: „Stimmt das noch?“ oder „Aktion erforderlich“ */
+  reason: Generated<MarkReason>;
   marked_by: string;
   marked_at: CreatedAt;
 }

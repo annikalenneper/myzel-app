@@ -62,6 +62,7 @@ import {
   type AppointmentType,
   type Decision,
   type DecisionVote,
+  type MarkReason,
   type AppReport,
   type DocumentLink,
   type DocumentRow,
@@ -544,13 +545,14 @@ export function dropMark(ctx: Ctx, decisionId: string): boolean {
 }
 
 /** Neu Aufgesetztes kommt ans Ende der Agenda. */
-export function addMark(ctx: Ctx, decisionId: string): void {
+export function addMark(ctx: Ctx, decisionId: string, reason: MarkReason = 'stimmt_noch'): void {
   const position = Math.max(0, ...ctx.db.plenum_marks.map((m) => m.position)) + 1;
   ctx.db.plenum_marks.push({
     id: uuid(),
     decision_id: decisionId,
     position,
     note: null,
+    reason,
     marked_by: ctx.actor.id,
     marked_at: iso(ctx),
   });

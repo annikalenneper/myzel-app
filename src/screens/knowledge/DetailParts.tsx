@@ -6,10 +6,11 @@ import { useData } from '../../app/useData';
 import { api } from '../../data';
 import { formatHistoryTime } from '../../shared/format';
 import { knowledgeHistorySentence } from '../../shared/knowledgeHistory';
-import type { HistoryEntry } from '../../shared/schema';
-import { cx } from '../../ui/bits';
+import { MARK_REASON_LABEL } from '../../shared/rules/knowledge';
+import type { HistoryEntry, MarkReason } from '../../shared/schema';
+import { cx, GhostButton } from '../../ui/bits';
 import { IconBack, IconBookmark, IconEdit } from '../../ui/icons';
-import { useModal } from '../../ui/Sheet';
+import { Sheet, useModal } from '../../ui/Sheet';
 
 /** Wohin „Zurück“ führt: aus Wissen nach Wissen, aus der Agenda zur Agenda */
 export interface BackTarget {
@@ -177,5 +178,41 @@ export function ConfirmDialog({
         {children}
       </div>
     </div>
+  );
+}
+
+/** WF-AGE-03 (Phase 12): beim Aufsetzen wählen, welche Frage auf der Karte steht */
+export function AgendaReasonSheet({
+  title,
+  onPick,
+  onClose,
+}: {
+  title: string;
+  onPick: (reason: MarkReason) => void;
+  onClose: () => void;
+}) {
+  const options: [MarkReason, string][] = [
+    ['stimmt_noch', 'Prüfen, ob es weiter gilt'],
+    ['aktion', 'Es muss etwas passieren'],
+  ];
+  return (
+    <Sheet title="Auf die Agenda" onClose={onClose} wf="WF-AGE-03" closeButton>
+      <div className="flex flex-col gap-2.5">
+        <span className="text-[14px] leading-[1.4] text-weich">„{title}“ – was steht auf der Karte?</span>
+        {options.map(([reason, hint]) => (
+          <button
+            key={reason}
+            type="button"
+            data-wf="WF-AGE-03"
+            onClick={() => onPick(reason)}
+            className="flex min-h-14 flex-col items-start justify-center gap-0.5 rounded-[14px] border border-rand-stark px-4 py-2 text-left text-text"
+          >
+            <span className="text-[16px] font-semibold">{MARK_REASON_LABEL[reason]}</span>
+            <span className="text-[13px] text-leise">{hint}</span>
+          </button>
+        ))}
+        <GhostButton onClick={onClose}>Abbrechen</GhostButton>
+      </div>
+    </Sheet>
   );
 }

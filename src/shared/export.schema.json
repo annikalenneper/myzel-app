@@ -567,6 +567,13 @@
               "null"
             ]
           },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "stimmt_noch",
+              "aktion"
+            ]
+          },
           "marked_by": {
             "type": "string",
             "format": "uuid",
@@ -583,6 +590,7 @@
           "decision_id",
           "position",
           "note",
+          "reason",
           "marked_by",
           "marked_at"
         ],

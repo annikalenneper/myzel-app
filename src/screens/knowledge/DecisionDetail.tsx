@@ -17,12 +17,14 @@ import {
   DECISION_STATUS_LABEL,
   decisionActive,
   defaultConsensusUntil,
+  MARK_REASON_LABEL,
 } from '../../shared/rules/knowledge';
-import { DECISION_TEXT_MAX } from '../../shared/schema';
+import { DECISION_TEXT_MAX, type MarkReason } from '../../shared/schema';
 import { cx, FieldError, GhostButton, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
 import { Sheet } from '../../ui/Sheet';
 import {
   ActionBar,
+  AgendaReasonSheet,
   BACK_TO_KNOWLEDGE,
   ConfirmDialog,
   DetailTopBar,
@@ -152,15 +154,19 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
   const latest = useLatest(d.version);
   const { topicName, eventById } = useLookups();
   const event = d.event_id ? eventById.get(d.event_id) : undefined;
-  const [sheet, setSheet] = useState<'replace' | 'revoke' | 'document' | 'edit' | null>(null);
+  const [sheet, setSheet] = useState<'replace' | 'revoke' | 'document' | 'edit' | 'agenda' | null>(null);
   const [note, setNote] = useState('');
   const valid = d.status === 'gueltig';
   // offene Entscheidungen lassen sich wie gültige bearbeiten, ersetzen, aufheben und auf die Agenda setzen (16.4)
   const active = decisionActive(d.status);
   const noun = DECISION_KIND_LABEL[d.kind];
   const remove = useDeleteArtifact('decision', d.id, () => latest.current, back.to);
-  const setAgenda = (on: boolean, success = on ? 'Auf der Agenda' : 'Von der Agenda genommen') =>
-    void act(() => api.setDecisionAgenda(d.id, on), { success, undo: (r) => r.undo_token });
+  const setAgenda = (
+    on: boolean,
+    success = on ? 'Auf der Agenda' : 'Von der Agenda genommen',
+    reason?: MarkReason,
+  ) => void act(() => api.setDecisionAgenda(d.id, on, reason), { success, undo: (r) => r.undo_token });
+  const reason = d.mark_reason ?? 'stimmt_noch';
 
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
@@ -168,7 +174,11 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
       <DetailTopBar
         label="Beschlüsse"
         back={back}
-        agenda={active ? { on: d.marked, onToggle: () => setAgenda(!d.marked) } : undefined}
+        agenda={
+          active
+            ? { on: d.marked, onToggle: () => (d.marked ? setAgenda(false) : setSheet('agenda')) }
+            : undefined
+        }
         onEdit={active ? () => setSheet('edit') : undefined}
         editWf="WF-WIS-12"
       >
@@ -203,20 +213,31 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
           </span>
         </div>
         {d.status === 'offen' && d.consensus && <Consensus d={d} />}
-        {/* 16.1 „Stimmt das noch?“ – ausdrücklich auf die Agenda gesetzt */}
+        {/* 16.1 ausdrücklich auf die Agenda gesetzt – „Stimmt das noch?“ oder „Aktion erforderlich“ (Phase 12) */}
         {valid && d.marked && (
           <div className="flex flex-col gap-2.5 rounded-[14px] border border-pink px-3.5 py-3">
-            <span className="text-[15px] font-semibold">Steht auf der Agenda: Stimmt das noch?</span>
+            <span className="text-[15px] font-semibold">
+              Steht auf der Agenda: {MARK_REASON_LABEL[reason]}
+            </span>
             <span className="text-[13px] leading-[1.45] text-weich">
-              Gilt es weiter, nimm es von der Agenda. Sonst unten ersetzen oder aufheben.
+              {reason === 'aktion'
+                ? 'Ist es erledigt, nimm es von der Agenda. Ändert sich, was gilt: unten ersetzen oder aufheben.'
+                : 'Gilt es weiter, nimm es von der Agenda. Sonst unten ersetzen oder aufheben.'}
             </span>
             <button
               type="button"
               data-wf="WF-AGE-03"
-              onClick={() => setAgenda(false, 'Bestätigt · von der Agenda genommen')}
+              onClick={() =>
+                setAgenda(
+                  false,
+                  reason === 'aktion'
+                    ? 'Erledigt · von der Agenda genommen'
+                    : 'Bestätigt · von der Agenda genommen',
+                )
+              }
               className="hit h-10 self-start rounded-[20px] border border-rand-stark px-4 text-[14px] text-text"
             >
-              Stimmt noch
+              {reason === 'aktion' ? 'Erledigt' : 'Stimmt noch'}
             </button>
           </div>
         )}
@@ -327,6 +348,16 @@ function Loaded({ d, back }: { d: Detail; back: BackTarget }) {
       )}
 
       {sheet === 'edit' && <DecisionEditSheet d={d} onClose={() => setSheet(null)} />}
+      {sheet === 'agenda' && (
+        <AgendaReasonSheet
+          title={d.title}
+          onClose={() => setSheet(null)}
+          onPick={(picked) => {
+            setSheet(null);
+            setAgenda(true, `Auf der Agenda: ${MARK_REASON_LABEL[picked]}`, picked);
+          }}
+        />
+      )}
       {sheet === 'replace' && (
         <ReplaceSheet
           decision={d}

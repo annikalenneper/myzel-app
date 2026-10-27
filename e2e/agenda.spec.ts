@@ -92,9 +92,16 @@ test('WF-AGE-03: Entscheidung auf die Agenda setzen; „Stimmt noch“ nimmt sie
   await page.goto('/wissen');
   await page.getByRole('link', { name: /Mate am Tresen für 2,50 €/ }).click();
   await page.getByRole('button', { name: 'Auf die Agenda setzen' }).click();
-  await expect(undoBar(page)).toContainText('Auf der Agenda');
+  // Phase 12: was auf der Karte steht, wählt man beim Aufsetzen
+  await page
+    .getByRole('dialog', { name: 'Auf die Agenda' })
+    .getByRole('button', { name: /^Stimmt das noch\?/ })
+    .click();
+  await expect(undoBar(page)).toContainText('Auf der Agenda: Stimmt das noch?');
   await page.goto('/agenda');
+  await expect(page.getByText('Entscheidungen & Fakten', { exact: true })).toBeVisible();
   const review = page.getByRole('link', { name: /Mate am Tresen für 2,50 €/ });
+  await expect(review).toContainText('Stimmt das noch?');
   await review.click();
   await expect(page.getByText('Steht auf der Agenda: Stimmt das noch?')).toBeVisible();
   await page.getByRole('button', { name: 'Stimmt noch' }).click();
@@ -556,4 +563,23 @@ test('WF-AUF-01: Grundmenge „Nur Fragen“ zeigt Fragen und „Stimmt das noch
   await page.getByRole('button', { name: 'Nur Fragen ▾' }).click();
   await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Alle' }).click();
   await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
+});
+
+test('WF-AGE-03: „Aktion erforderlich“ steht auf der Karte, „Erledigt“ nimmt sie herunter', async ({
+  page,
+}) => {
+  await page.goto('/wissen');
+  await page.getByRole('link', { name: /Mate am Tresen für 2,50 €/ }).click();
+  await page.getByRole('button', { name: 'Auf die Agenda setzen' }).click();
+  await page
+    .getByRole('dialog', { name: 'Auf die Agenda' })
+    .getByRole('button', { name: /^Aktion erforderlich/ })
+    .click();
+  await expect(page.getByText('Steht auf der Agenda: Aktion erforderlich')).toBeVisible();
+  await page.goto('/agenda');
+  const card = page.getByRole('link', { name: /Mate am Tresen für 2,50 €/ });
+  await expect(card).toContainText('Aktion erforderlich');
+  await card.click();
+  await page.getByRole('button', { name: 'Erledigt' }).click();
+  await expect(undoBar(page)).toContainText('Erledigt · von der Agenda genommen');
 });

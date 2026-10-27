@@ -30,6 +30,7 @@ import {
   defaultConsensusUntil,
   DOC_TYPE_LABEL,
   initialDecisionStatus,
+  MARK_REASON_LABEL,
   QUESTION_STATUS_LABEL,
   sortQuestions,
 } from '../../src/shared/rules/knowledge';
@@ -38,6 +39,7 @@ import {
   decisionUpdateSchema,
   decisionReplaceSchema,
   decisionVoteKindSchema,
+  markReasonSchema,
   documentCreateSchema,
   questionClarifySchema,
   questionCreateSchema,
@@ -141,7 +143,7 @@ async function decisionItems(trx: Db, rows: DecisionRow[], actorId: string): Pro
       : [],
     trx
       .selectFrom('plenum_marks')
-      .select('decision_id')
+      .select(['decision_id', 'reason'])
       .where(
         'decision_id',
         'in',
@@ -168,6 +170,7 @@ async function decisionItems(trx: Db, rows: DecisionRow[], actorId: string): Pro
       source_label: parts.join(' · '),
       superseded_by_title: successors.find((s) => s.id === d.superseded_by_id)?.title ?? null,
       marked: marks.some((m) => m.decision_id === d.id),
+      mark_reason: marks.find((m) => m.decision_id === d.id)?.reason ?? null,
       source_question: questions.find((q) => q.id === d.source_question_id) ?? null,
       consensus: d.consensus_until
         ? {
@@ -517,7 +520,7 @@ export async function voteDecision(
   ctx.inverse.push({ kind: 'vote_restore', decision_id: id, member_id: ctx.actor.id, row: before ?? null });
   await writeHistory(ctx, 'decision', id, 'voted', { vote: { old: before?.vote ?? null, new: vote } });
   // ein Widerspruch hält sie offen und setzt sie auf die Agenda
-  if (vote === 'widerspruch' && !(await isMarked(ctx.trx, id))) await addMark(ctx, id);
+  if (vote === 'widerspruch' && !(await isMarked(ctx.trx, id))) await addMark(ctx, id, 'aktion');
   const valid = await settle(ctx, d);
   const label = vote === 'bestaetigt' ? 'Bestätigt' : 'Widersprochen';
   return { ...(await registerUndo(ctx, 'decision', d, label)), valid };
@@ -918,19 +921,35 @@ export async function createDocument(ctx: Ctx, raw: unknown): Promise<{ id: stri
   return { id: document.id, created: true };
 }
 
-// ── Entscheidung oder Fakt auf die Agenda (16.1): „Stimmt das noch?“ ────────
+// ── Entscheidung oder Fakt auf die Agenda (16.1): „Stimmt das noch?“ oder „Aktion erforderlich“ (Phase 12) ──
 
-export async function setDecisionAgenda(ctx: Ctx, id: string, onAgenda: boolean): Promise<Undoable> {
+export async function setDecisionAgenda(
+  ctx: Ctx,
+  id: string,
+  onAgenda: boolean,
+  rawReason: unknown = 'stimmt_noch',
+): Promise<Undoable> {
+  const reason = parse(markReasonSchema, rawReason);
   const d = await findDecision(ctx.trx, id);
-  if ((await isMarked(ctx.trx, id)) === onAgenda) return { undo_token: '' };
-  if (onAgenda) {
-    if (d.archived_at || !decisionActive(d.status))
-      throw rule('Nur gültige oder offene Einträge lassen sich auf die Agenda setzen.');
-    await addMark(ctx, id);
-    return registerUndo(ctx, 'decision', d, 'Auf der Agenda');
+  const mark = await ctx.trx
+    .selectFrom('plenum_marks')
+    .select('reason')
+    .where('decision_id', '=', id)
+    .executeTakeFirst();
+  if (!onAgenda) {
+    if (!mark) return { undo_token: '' };
+    await dropMark(ctx, id);
+    return registerUndo(ctx, 'decision', d, 'Von der Agenda genommen');
   }
-  await dropMark(ctx, id);
-  return registerUndo(ctx, 'decision', d, 'Von der Agenda genommen');
+  if (mark?.reason === reason) return { undo_token: '' };
+  if (d.archived_at || !decisionActive(d.status))
+    throw rule('Nur gültige oder offene Einträge lassen sich auf die Agenda setzen.');
+  // anderer Grund: neu aufsetzen (der alte Eintrag kommt mit Rückgängig zurück)
+  if (mark) await dropMark(ctx, id);
+  await addMark(ctx, id, reason);
+  // Rückgängig arbeitet die Gegenschritte der Reihe nach ab: erst die neue Markierung weg, dann die alte zurück
+  if (mark) ctx.inverse.push(...ctx.inverse.splice(-2, 2).reverse());
+  return registerUndo(ctx, 'decision', d, `Auf der Agenda: ${MARK_REASON_LABEL[reason]}`);
 }
 
 // ── Globale Suche (F-WIS-06): nur App-Daten, gruppiert nach Art ─────────────

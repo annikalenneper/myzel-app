@@ -68,6 +68,10 @@ test('WF-WIS-02 / -03 / WF-AGE-03: Entscheidung auf die Agenda, ersetzen (mit R�
   await expect(page.getByRole('link', { name: /^Plenum September/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /Protokoll Plenum September/ })).toBeVisible();
   await page.getByRole('button', { name: 'Auf die Agenda setzen' }).click();
+  await page
+    .getByRole('dialog', { name: 'Auf die Agenda' })
+    .getByRole('button', { name: /^Stimmt das noch\?/ })
+    .click();
   await expect(page.getByRole('button', { name: 'Von der Agenda nehmen' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Ersetzen', exact: true }).click();
@@ -266,7 +270,7 @@ test('WF-WIS-13: offene Entscheidung bestätigen, widersprechen – Widerspruch 
   await expect(page.getByText('Mo hat widersprochen.')).toBeVisible();
 
   await page.goto('/agenda');
-  await expect(page.getByText('Zu besprechen')).toBeVisible();
+  await expect(page.getByText('Entscheidungen & Fakten', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: /Bier beim Winterrave für 3 €/ })).toContainText(
     'Widerspruch – noch nicht gültig',
   );

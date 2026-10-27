@@ -31,6 +31,7 @@ import type {
   CommentTarget,
   DecisionUpdateInput,
   DecisionVoteKind,
+  MarkReason,
   AppReport,
   AppReportCreateInput,
   ArchiveTarget,
@@ -201,8 +202,10 @@ export interface DecisionListItem extends Decision {
   /** „Plenum 10.09.2026“, Titel des Dokuments oder „Notiz“ */
   source_label: string;
   superseded_by_title: string | null;
-  /** ausdrücklich auf der Agenda: „Stimmt das noch?“ (16.1) */
+  /** ausdrücklich auf der Agenda (16.1) */
   marked: boolean;
+  /** Phase 12: „Stimmt das noch?“ oder „Aktion erforderlich“ – null, wenn nicht auf der Agenda */
+  mark_reason: MarkReason | null;
   /** aus welcher Frage der Eintrag entstanden ist (16.3) */
   source_question: { id: string; title: string } | null;
   /** Stand der Abstimmung (16.4) – nur bei Entscheidungen mit Frist; Stimmen aktiver Mitglieder */
@@ -536,7 +539,7 @@ export interface MyzelApi {
   linkDocument(documentId: string, target: DocumentLinkTarget, targetId: string): Promise<void>;
   unlinkDocument(documentId: string, target: DocumentLinkTarget, targetId: string): Promise<void>;
   /** Entscheidung oder Fakt ausdrücklich auf die Agenda setzen bzw. herunternehmen (16.1) */
-  setDecisionAgenda(id: string, onAgenda: boolean): Promise<Undoable>;
+  setDecisionAgenda(id: string, onAgenda: boolean, reason?: MarkReason): Promise<Undoable>;
   search(query: string): Promise<SearchGroup[]>;
 
   // Drive [P5] (WF-WIS-08 bis -10, WF-VER-14): Anzeige immer sofort aus dem Cache

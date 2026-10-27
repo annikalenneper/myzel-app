@@ -21,6 +21,7 @@ import { isOverdue, toIsoDate } from '../../shared/rules/due';
 import {
   DECISION_KIND_LABEL,
   decisionActive,
+  MARK_REASON_LABEL,
   QUESTION_STATUS_LABEL,
   sortQuestions,
 } from '../../shared/rules/knowledge';
@@ -267,9 +268,7 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
 
         {toReview.length > 0 && (
           <>
-            <span className="label-mono">
-              {toReview.some((d) => d.status === 'offen') ? 'Zu besprechen' : 'Stimmt das noch?'}
-            </span>
+            <span className="label-mono">Entscheidungen & Fakten</span>
             {toReview.map((d) => (
               <ReviewCard key={d.id} d={d} selected={d.id === selectedId} />
             ))}
@@ -425,7 +424,7 @@ function ReviewCard({ d, selected }: { d: DecisionListItem; selected: boolean })
           ? d.consensus?.objected
             ? 'Widerspruch – noch nicht gültig'
             : 'Noch nicht gültig – wartet auf Bestätigung'
-          : 'Stimmt das noch?'}
+          : MARK_REASON_LABEL[d.mark_reason ?? 'stimmt_noch']}
       </span>
     </Link>
   );

@@ -138,11 +138,17 @@ export type Comment = z.infer<typeof commentSchema>;
  * Entscheidung oder Fakt ausdrücklich auf der Agenda (16.1): „Stimmt das noch?“. Andere Arten stehen von selbst
  * auf der Agenda (offene Aufgaben und Fragen) oder gar nicht.
  */
+/** Warum ein Eintrag auf der Agenda steht (Phase 12) */
+export const MARK_REASONS = ['stimmt_noch', 'aktion'] as const;
+export const markReasonSchema = z.enum(MARK_REASONS);
+export type MarkReason = z.infer<typeof markReasonSchema>;
+
 export const plenumMarkSchema = z.object({
   id: idSchema,
   decision_id: idSchema,
   position: z.number().int(),
   note: z.string().nullable(),
+  reason: markReasonSchema,
   marked_by: idSchema,
   marked_at: timestampSchema,
 });
