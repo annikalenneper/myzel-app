@@ -10,7 +10,10 @@ import type { EventListItem } from '../../data/api';
 import { EVENT_STATUS_COLOR, EVENT_STATUS_LABEL, EVENT_TYPE_LABEL } from '../../shared/labels';
 import { LONG_FOLLOW_UP_DAYS } from '../../shared/rules/eventDetails';
 import { Avatar, cx, ListSkeleton, LoadError } from '../../ui/bits';
-import { byMonth, DateBadge, MonthSection, TimeTabs, type TimeTab } from '../../ui/DatedList';
+import { byMonth, DateBadge, MonthSection, TabBar } from '../../ui/DatedList';
+
+/** Abgesagte stehen nur in ihrem eigenen Reiter (Nutzerin, 27.10.2026) */
+type EventTab = 'kommend' | 'vergangen' | 'abgesagt';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { EventDetail } from './EventDetail';
 import { EventFormSheet } from './EventFormSheet';
@@ -38,7 +41,7 @@ const startOf = (e: EventListItem) => new Date(e.starts_at).getTime();
 
 function EventList({ selectedId }: { selectedId: string | null }) {
   const { data: events, error, reload } = useData('events', () => api.listEvents());
-  const [tab, setTab] = useState<TimeTab>('kommend');
+  const [tab, setTab] = useState<EventTab>('kommend');
   const [templateFor, setTemplateFor] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -49,7 +52,11 @@ function EventList({ selectedId }: { selectedId: string | null }) {
   const closed = (events ?? []).filter((e) => e.status === 'abgeschlossen').length;
   // WF-VER-01: kommende aufsteigend, vergangene absteigend nach Datum
   const shown = (events ?? [])
-    .filter((e) => (tab === 'kommend' ? endOf(e) >= now : endOf(e) < now))
+    .filter((e) =>
+      tab === 'abgesagt'
+        ? e.status === 'abgesagt'
+        : e.status !== 'abgesagt' && (tab === 'kommend' ? endOf(e) >= now : endOf(e) < now),
+    )
     .sort((a, b) => (tab === 'kommend' ? startOf(a) - startOf(b) : startOf(b) - startOf(a)));
 
   return (
@@ -71,7 +78,16 @@ function EventList({ selectedId }: { selectedId: string | null }) {
             {events ? `${upcoming} ANSTEHEND · ${closed} ABGESCHLOSSEN` : ' '}
           </div>
         </div>
-        <TimeTabs value={tab} onChange={setTab} wf="WF-VER-01" />
+        <TabBar
+          value={tab}
+          onChange={setTab}
+          wf="WF-VER-01"
+          options={[
+            ['kommend', 'KOMMEND'],
+            ['vergangen', 'VERGANGEN'],
+            ['abgesagt', 'ABGESAGT'],
+          ]}
+        />
       </div>
 
       <div role="tabpanel" className="flex flex-1 flex-col gap-3 px-5 pt-4 pb-[180px] lg:pb-28">
@@ -148,7 +164,9 @@ function EventList({ selectedId }: { selectedId: string | null }) {
             <span className="text-[14px] leading-normal text-leise">
               {tab === 'kommend'
                 ? 'Noch keine kommenden Veranstaltungen. Leg die nächste an.'
-                : 'Noch keine vergangenen Veranstaltungen.'}
+                : tab === 'abgesagt'
+                  ? 'Keine abgesagten Veranstaltungen.'
+                  : 'Noch keine vergangenen Veranstaltungen.'}
             </span>
             {tab === 'kommend' && (
               <button

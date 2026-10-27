@@ -151,6 +151,13 @@ test('WF-VER-04: Absagen ist endgültig; Abschließen ohne offene Aufgaben fragt
   await expect(eventStatus(page, 'Abgesagt')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('Abgesagt – der Status lässt sich nicht mehr ändern.')).toBeVisible();
   await expect(eventStatus(page, 'In Nachbereitung')).toHaveAttribute('aria-disabled', 'true');
+
+  // Abgesagte stehen nur im Reiter „Abgesagt“
+  await page.goto('/events');
+  const list = page.getByRole('tabpanel');
+  await expect(list.getByRole('link', { name: /Siebdruck-Workshop/ })).toHaveCount(0);
+  await page.getByRole('tab', { name: 'ABGESAGT' }).click();
+  await expect(list.getByRole('link', { name: /Siebdruck-Workshop/ })).toBeVisible();
 });
 
 test('WF-VER-05: bestehende Aufgabe mit dem Event verknüpfen; Entscheidung/Fakt aus der Leiste', async ({

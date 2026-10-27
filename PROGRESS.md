@@ -171,7 +171,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         Format)
 - [x] **Kleinigkeiten (Nutzerin, 27.10.2026):** Link „Alle Aufgaben und Fragen zum Event“ mit mehr Abstand; Events-Kopf
       wie Agenda und Termine (Logo, Suche, Profil, „x ANSTEHEND · y ABGESCHLOSSEN“). Ausnahmsweise ohne neue Version
-      deployt (Nutzerin)
+      deployt (Nutzerin). Dazu Reiter „Abgesagt“ bei Events – abgesagte stehen nicht mehr unter Kommend/Vergangen
 - [ ] **Phase 11 – Archiv im Profil (geplant, F4; noch nicht umsetzen)**
   - [ ] Profil › „Archiv“: alles Gelöschte an einem Ort, gruppiert nach Art (Aufgaben, Veranstaltungen, Termine,
         Entscheidungen & Fakten, Fragen, Dokumente, Partner), zuletzt Gelöschtes zuerst, mit „gelöscht von … am …“
