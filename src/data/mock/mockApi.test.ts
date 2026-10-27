@@ -873,18 +873,18 @@ describe('Phase 12: Reaktionen an Kommentaren', () => {
     const { id } = await api.addComment('task', task.id, 'Wer bringt Kabel mit?');
     await api.setReaction(id, 'daumen_hoch', true);
     await api.setReaction(id, 'daumen_hoch', true);
-    await api.setReaction(id, 'kleeblatt', true);
+    await api.setReaction(id, 'lachen', true);
     await login('lea');
     await api.setReaction(id, 'daumen_hoch', true);
     const reactions = () => api.getTask(task.id).then((t) => t.comments[0]!.reactions);
     const { member } = await ids();
     // Reihenfolge der Arten wie in der Auswahl; Personen bei gleichem Zeitpunkt ohne feste Reihenfolge
     const got = await reactions();
-    expect(got.map((r) => r.reaction)).toEqual(['daumen_hoch', 'kleeblatt']);
+    expect(got.map((r) => r.reaction)).toEqual(['daumen_hoch', 'lachen']);
     expect([...got[0]!.member_ids].sort()).toEqual([member('Mo').id, member('Lea').id].sort());
     expect(got[1]!.member_ids).toEqual([member('Mo').id]);
     await login('mo');
-    await api.setReaction(id, 'kleeblatt', false);
+    await api.setReaction(id, 'lachen', false);
     expect((await reactions()).map((r) => r.reaction)).toEqual(['daumen_hoch']);
     await expectError(api.setReaction(id, 'einhorn' as never, true), 'validation');
   });

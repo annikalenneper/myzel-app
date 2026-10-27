@@ -135,15 +135,7 @@ export const commentSchema = z.object({
 export type Comment = z.infer<typeof commentSchema>;
 
 /** Phase 12: Reaktionen an Kommentaren (Reihenfolge wie in der Auswahl) */
-export const REACTIONS = [
-  'herz',
-  'daumen_hoch',
-  'daumen_runter',
-  'frage',
-  'lachen',
-  'totenkopf',
-  'kleeblatt',
-] as const;
+export const REACTIONS = ['herz', 'daumen_hoch', 'daumen_runter', 'frage', 'lachen'] as const;
 export const reactionSchema = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof reactionSchema>;
 export const REACTION_EMOJI: Record<Reaction, string> = {
@@ -152,8 +144,6 @@ export const REACTION_EMOJI: Record<Reaction, string> = {
   daumen_runter: '👎',
   frage: '❓',
   lachen: '😂',
-  totenkopf: '💀',
-  kleeblatt: '🍀',
 };
 
 export const commentReactionSchema = z.object({

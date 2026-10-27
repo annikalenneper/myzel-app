@@ -166,7 +166,9 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Push/Telegram auch bei eigenen Aktionen, aus eigener Sicht: „Du hast … – n Personen werden benachrichtigt.“
         Neue Art „Eigene Aktionen“ (eigene Zeile in der Matrix, ohne Telegram-Knöpfe); nur wenn die Aktion jemanden
         betrifft; nicht bei Serien und beim Plenum-Abschluss (dort kommt die Zusammenfassung ohnehin)
-  - [x] Reaktionen an Kommentaren: ❤️ 👍 👎 ❓ 😂 💀 🍀 (Migration 20261031000004, Export Version 5)
+  - [x] Reaktionen an Kommentaren: ❤️ 👍 👎 ❓ 😂 (Migration 20261031000004, Export Version 5); Totenkopf und Kleeblatt
+        wieder entfernt (Migration 20261031000005), Knopf „Reaktion +“, Reaktion erscheint sofort (vor der Antwort des
+        Servers) – ohne neue Version, Eintrag 0.10.0 im Changelog angepasst (Nutzerin)
   - [x] Jeder Deploy: Version hochzählen, Changelog-Einträge „Feat: …“/„Fix: …“ (CLAUDE.md „Deploy“, Test prüft das
         Format)
 - [x] **Kleinigkeiten (Nutzerin, 27.10.2026):** Link „Alle Aufgaben und Fragen zum Event“ mit mehr Abstand; Events-Kopf

@@ -5,9 +5,11 @@ import { clearDraft, readDraft, writeDraft } from '../app/drafts';
 import { useLookups } from '../app/lookups';
 import { useMe } from '../app/session';
 import { useActions } from '../app/useActions';
+import { optimisticPatch } from '../app/useData';
 import { api } from '../data';
 import { formatCommentTime } from '../shared/format';
 import {
+  COMMENT_TARGETS,
   REACTION_EMOJI,
   REACTIONS,
   type CommentItem,
@@ -119,8 +121,36 @@ export function CommentRow({
 
 /**
  * Phase 12: Reaktionen unter einem Kommentar – vorhandene mit Anzahl (eigene hervorgehoben, antippen nimmt sie
- * zurück), dazu „☺ +“ für die Auswahl ❤️ 👍 👎 ❓ 😂 💀 🍀.
+ * zurück), dazu „Reaktion +“ für die Auswahl ❤️ 👍 👎 ❓ 😂. Die Änderung steht sofort da, nicht erst nach dem Server.
  */
+/** Wo der Kommentar hängt – die Detailansicht lädt ihn unter diesem Schlüssel (ein Plenum unter „plenum:“) */
+function dataKeys(comment: CommentItem): string[] {
+  for (const target of COMMENT_TARGETS) {
+    const id = comment[`${target}_id`];
+    if (id) return target === 'appointment' ? [`appointment:${id}`, `plenum:${id}`] : [`${target}:${id}`];
+  }
+  return [];
+}
+
+/** Reaktion sofort in der Ansicht an- oder abschalten */
+function reactionPatches(comment: CommentItem, reaction: Reaction, meId: string, on: boolean) {
+  const apply = (reactions: CommentItem['reactions']) => {
+    const others = reactions.filter((r) => r.reaction !== reaction);
+    const current = reactions.find((r) => r.reaction === reaction)?.member_ids ?? [];
+    const member_ids = on
+      ? [...current.filter((id) => id !== meId), meId]
+      : current.filter((id) => id !== meId);
+    const next = member_ids.length ? [...others, { reaction, member_ids }] : others;
+    return next.sort((a, b) => REACTIONS.indexOf(a.reaction) - REACTIONS.indexOf(b.reaction));
+  };
+  return dataKeys(comment).map((key) =>
+    optimisticPatch<{ comments: CommentItem[] }>(key, (data) => ({
+      ...data,
+      comments: data.comments.map((c) => (c.id === comment.id ? { ...c, reactions: apply(c.reactions) } : c)),
+    })),
+  );
+}
+
 function Reactions({
   comment,
   act,
@@ -137,7 +167,9 @@ function Reactions({
   const [picking, setPicking] = useState(false);
   const toggle = (reaction: Reaction, on: boolean) => {
     setPicking(false);
-    void act(() => api.setReaction(comment.id, reaction, on), {});
+    void act(() => api.setReaction(comment.id, reaction, on), {
+      optimistic: reactionPatches(comment, reaction, me.id, on),
+    });
   };
   return (
     <div className="flex flex-col gap-1.5">
@@ -167,12 +199,11 @@ function Reactions({
         <button
           type="button"
           data-wf={wf}
-          aria-label="Reagieren"
           aria-expanded={picking}
           onClick={() => setPicking(!picking)}
-          className="hit flex h-7 items-center rounded-[14px] border border-linie px-2 text-[13px] text-leise"
+          className="hit flex h-7 items-center rounded-[14px] border border-linie px-2.5 text-[12px] text-leise"
         >
-          ☺ +
+          Reaktion +
         </button>
         {children}
       </div>
