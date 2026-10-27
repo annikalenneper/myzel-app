@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { handleAction } from '../api/handle';
 import { TEST_PUSH_KEYS } from '../api/serverApi';
 import { createFirstAdmin } from '../db/firstAdmin';
-import { NOTIFICATION_CHANNELS, NOTIFICATION_EVENTS } from '../../src/shared/schema';
 import { createLocalDb, type LocalDb } from '../db/localDb';
 import { RetryLater, runJob, type Senders } from './notify';
 import { handleTelegramUpdate } from './telegramBot';
@@ -40,17 +39,6 @@ beforeEach(async () => {
     keys: TEST_PUSH_KEYS,
   });
   await local.pg.query(`insert into telegram_links (member_id, chat_id) values ($1, 'chat-jule')`, [juleId]);
-  // Schalter-Matrix: ohne Eintrag aus – hier wie bei den bestehenden Mitgliedern alles an (Migration 20261031000001)
-  await local.db
-    .insertInto('notification_preferences')
-    .values(
-      [juleId].flatMap((member_id) =>
-        NOTIFICATION_EVENTS.flatMap((event_type) =>
-          NOTIFICATION_CHANNELS.map((channel) => ({ member_id, event_type, channel, enabled: true })),
-        ),
-      ),
-    )
-    .execute();
 });
 afterEach(async () => {
   await local.db.destroy();

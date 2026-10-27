@@ -105,7 +105,7 @@ test('WF-VER-05 / WF-AGE-02: Aufgabe aus der Veranstaltung anlegen, Fortschritt 
   await sheet.locator('button[type=submit]').click();
   await expect(page.getByText('4 VON 10 ERLEDIGT')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Aufgaben und offene Fragen zu diesem Event' }).click();
+  await page.getByRole('button', { name: 'Alle Aufgaben und Fragen zum Event' }).click();
   await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Winterrave ▾' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('article')).toHaveCount(6);

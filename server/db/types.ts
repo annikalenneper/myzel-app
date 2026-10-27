@@ -286,7 +286,7 @@ export interface DecisionsTable {
   version: Generated<number>;
 }
 
-/** Schalter-Matrix (F-PRO-02): fehlt eine Zeile, ist der Kanal für dieses Ereignis aus */
+/** Schalter-Matrix (F-PRO-02): fehlt eine Zeile, ist der Kanal für dieses Ereignis an */
 export interface NotificationPreferencesTable {
   member_id: string;
   event_type: NotificationEvent;

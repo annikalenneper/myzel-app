@@ -36,7 +36,7 @@ export interface MockOptions {
   latency?: number;
 }
 
-const DB_KEY = 'myzel:mock:db:v15';
+const DB_KEY = 'myzel:mock:db:v16';
 const DEVICE_KEY = 'myzel:mock:geraet';
 const OUTAGE_KEY = 'myzel:mock:ausfall';
 const SESSION_KEY = 'myzel:mock:session';

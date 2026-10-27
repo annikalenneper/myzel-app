@@ -44,7 +44,7 @@ export function enqueue(db: Db, now: Date, messages: readonly Message[], collect
       )
     )
       continue;
-    // [P6] Schalter-Matrix: je Ereignis und Kanal; ohne Eintrag aus (Rückmeldung vom 22.10.2026)
+    // [P6] Schalter-Matrix: je Ereignis und Kanal; ohne Eintrag an (Nutzerin, 27.10.2026)
     const on = (c: NotificationChannel) =>
       channelEnabled(db.notification_preferences, member.id, m.event_type, c);
     const channels: NotificationChannel[] = [];

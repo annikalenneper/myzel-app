@@ -153,8 +153,17 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
 - [x] **Fix Benachrichtigungs-Einstellungen (Nutzerin, 27.10.2026):** Schalter-Matrix (Push/Telegram je Ereignis) und
       Vorlauf der Fristerinnerungen gab es nur in der Testdaten-Schicht – live kam „kommt mit einer späteren Phase“. Jetzt
       auf dem Server (Migration 20261031000001, Tabelle `notification_preferences`); der Versand beachtet die Schalter.
-      Bestehende Mitglieder bekommen alle Schalter „an“ (bisher hat der Server alles verschickt), neue starten mit „aus“
-      (Rückmeldung 22.10.2026). Die Tests der Matrix laufen jetzt auch gegen den Server
+      Ohne Eintrag ist ein Schalter an – bestehende und neue Mitglieder starten mit allem an (Nutzerin, 27.10.2026;
+      ersetzt „standardmäßig aus“ vom 22.10.2026). Die Tests der Matrix laufen jetzt auch gegen den Server
+- [ ] **Phase 12 – Verbesserungen (Nutzerin, 27.10.2026):**
+  - [ ] Dokumente „Code of Conduct“, „Polizei/Ordnungsamt“, „Sicherheitskonzept Outdoor“: Art „Leitlinie“ statt „Sonstiges“
+  - [x] Event: „Alle Aufgaben und Fragen zum Event ›“, pink wie „Zum Event“ in der Aufgabe
+  - [ ] Auf die Agenda setzen mit Wahl „Stimmt das noch?“ oder „Aktion erforderlich“; die Frage steht auf der Karte, die
+        Überschrift heißt „Entscheidungen & Fakten“
+  - [ ] Push/Telegram auch bei eigenen Aktionen, aus eigener Sicht: „Du hast … – n Personen werden benachrichtigt.“
+  - [ ] Reaktionen an Kommentaren: ❤️ 👍 👎 ❓ 😂 💀 🍀
+  - [x] Jeder Deploy: Version hochzählen, Changelog-Einträge „Feat: …“/„Fix: …“ (CLAUDE.md „Deploy“, Test prüft das
+        Format)
 - [ ] **Phase 11 – Archiv im Profil (geplant, F4; noch nicht umsetzen)**
   - [ ] Profil › „Archiv“: alles Gelöschte an einem Ort, gruppiert nach Art (Aufgaben, Veranstaltungen, Termine,
         Entscheidungen & Fakten, Fragen, Dokumente, Partner), zuletzt Gelöschtes zuerst, mit „gelöscht von … am …“

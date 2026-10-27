@@ -51,6 +51,18 @@ supabase/migrations.
 
 OffeneFragen (Abschnitt 11) halten die Arbeit nicht auf: nach plausibler Annahme bauen, in PROGRESS.md festhalten,in der nächsten Durchsicht vorlegen.
 
+## Deploy
+
+Ein Push auf `main` deployt (Netlify). Nur mit Freigabe der Nutzerin, dann immer in dieser Reihenfolge:
+
+1. Version in package.json (und die beiden Zeilen in package-lock.json) hochzählen: neue Funktion → Minor, nur
+   Korrekturen → Patch.
+2. Eintrag in src/shared/changelog.ts mit derselben Version und dem Datum, jede Zeile „Feat: …“ (Neues) oder
+   „Fix: …“ (Korrektur, Anpassung) – kurz, aus Sicht der Nutzer*innen. Die App zeigt ihn einmal als „Was ist neu?“.
+3. `npm run check` grün, bei Server-Änderungen auch `npm run test:db`.
+4. Neue Migrationen zuerst einspielen (`npm run db:push`), danach pushen; Deploy abwarten, `npm run check:integrity`.
+5. PROGRESS.md: Stand mit Version und Deploy.
+
 ## Integritätsregeln in Kürze
 
 - Die Datenbank sichert nur Struktur (NOT NULL, Unique, FK RESTRICT, RLS: Lesen für aktive Mitglieder,

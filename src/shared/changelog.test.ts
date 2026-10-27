@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHANGELOG, compareVersions, unseenChanges } from './changelog';
+import { CHANGELOG, CHANGELOG_ITEM, compareVersions, unseenChanges } from './changelog';
 
 const log = [
   { version: '0.10.0', date: '2026-12-01', items: ['C'] },
@@ -20,6 +20,12 @@ describe('Was ist neu? (16.5)', () => {
     expect(unseenChanges('0.8.0', '0.9.0', log).map((e) => e.version)).toEqual(['0.9.0']);
     // zum ersten Mal in diesem Browser: nur die laufende Version
     expect(unseenChanges(null, '0.9.0', log).map((e) => e.version)).toEqual(['0.9.0']);
+  });
+
+  it('jeder Eintrag beginnt mit „Feat:“ oder „Fix:“, Versionen absteigend und eindeutig', () => {
+    for (const e of CHANGELOG) for (const item of e.items) expect(item, e.version).toMatch(CHANGELOG_ITEM);
+    for (let i = 1; i < CHANGELOG.length; i++)
+      expect(compareVersions(CHANGELOG[i - 1]!.version, CHANGELOG[i]!.version)).toBeGreaterThan(0);
   });
 
   it('der Changelog passt zur Version in package.json', async () => {

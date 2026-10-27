@@ -11,7 +11,7 @@ import type {
   Priority,
   Topic,
 } from '../../shared/schema';
-import { DRIVE_FOLDER_MIME, NOTIFICATION_CHANNELS, NOTIFICATION_EVENTS } from '../../shared/schema';
+import { DRIVE_FOLDER_MIME } from '../../shared/schema';
 import * as appts from './appointments';
 import * as drive from './drive';
 import * as events from './events';
@@ -165,10 +165,6 @@ export function seedDb(now: Date): Db {
       version: 1,
     };
     db.members.push(member[short]);
-    // Benachrichtigungen sind standardmäßig aus (F-PRO-02); die Testpersonen haben alle Zeilen eingeschaltet
-    for (const event_type of NOTIFICATION_EVENTS)
-      for (const channel of NOTIFICATION_CHANNELS)
-        db.notification_preferences.push({ member_id: member[short].id, event_type, channel, enabled: true });
   });
 
   const topic: Record<string, Topic> = {};

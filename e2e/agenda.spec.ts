@@ -103,13 +103,11 @@ test('WF-AGE-03: Entscheidung auf die Agenda setzen; „Stimmt noch“ nimmt sie
   await expect(review).toHaveCount(0);
 });
 
-test('WF-AGE-02: aus der Aufgabe zum Event, dort „Aufgaben und offene Fragen zu diesem Event“', async ({
-  page,
-}) => {
+test('WF-AGE-02: aus der Aufgabe zum Event, dort „Alle Aufgaben und Fragen zum Event“', async ({ page }) => {
   await openTask(page, 'Getränke bei der Brauerei bestellen');
   await page.getByRole('link', { name: 'Zum Event: Winterrave ›' }).click();
   await expect(page).toHaveURL(/\/events\/.+/);
-  await page.getByRole('button', { name: 'Aufgaben und offene Fragen zu diesem Event' }).click();
+  await page.getByRole('button', { name: 'Alle Aufgaben und Fragen zum Event' }).click();
   await expect(page.getByRole('button', { name: 'Winterrave ▾' })).toBeVisible();
   await expect(
     page.getByRole('link', { name: /Brauchen wir für den Winterrave eine Garderobe/ }),

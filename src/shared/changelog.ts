@@ -1,5 +1,6 @@
 // Was ist neu? (16.5) – die App zeigt nach einem neuen Deploy einmal die Einträge seit der zuletzt gesehenen Version.
-// Neueste Version zuerst; die Versionsnummer steht auch in package.json.
+// Neueste Version zuerst; die Versionsnummer steht auch in package.json. Jeder Deploy mit Änderungen für die
+// Nutzer*innen bekommt eine neue Version und einen Eintrag (CLAUDE.md, „Deploy“).
 
 export interface ChangelogEntry {
   version: string;
@@ -13,28 +14,33 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.9.0',
     date: '2026-10-26',
     items: [
-      'Agenda, Termine und Events mit Reitern: Aktuell/Abgeschlossen bzw. Kommend/Vergangen; Events nach Monat.',
-      'Aufgabe anlegen mit Beschreibung und Zuordnung – auch „Alle“. „In Arbeit“ trägt niemanden mehr von selbst ein.',
-      'Im Event: bestehende Aufgabe verknüpfen oder neue anlegen, Entscheidung/Fakt direkt in der Leiste.',
-      'Kommentare und Verlauf in zwei Reitern in allen Detailansichten.',
-      'Alles lässt sich löschen (archivieren) – immer mit Rückfrage und kurz danach mit Rückgängig.',
-      'Termine: Link zum Call geht auch später; „Zum Call“ als Knopf. Entscheidungen und Fakten: höchstens 200 Zeichen.',
+      'Feat: Agenda, Termine und Events mit Reitern – Aktuell/Abgeschlossen bzw. Kommend/Vergangen; Events nach Monat',
+      'Feat: Aufgabe gleich mit Beschreibung und Zuordnung anlegen, auch „Alle“',
+      'Fix: „In Arbeit“ trägt niemanden mehr von selbst ein',
+      'Feat: Im Event bestehende Aufgabe verknüpfen oder neue anlegen, Entscheidung/Fakt direkt in der Leiste',
+      'Feat: Kommentare und Verlauf in zwei Reitern in allen Detailansichten',
+      'Feat: Alles lässt sich löschen (archivieren) – immer mit Rückfrage und kurz danach mit Rückgängig',
+      'Fix: Link zum Call geht auch später; „Zum Call“ als Knopf',
+      'Fix: Entscheidungen und Fakten höchstens 200 Zeichen',
     ],
   },
   {
     version: '0.8.0',
     date: '2026-10-26',
     items: [
-      'Agenda statt „Aufgaben“: Aufgaben und offene Fragen an einem Ort, Filter nach Art und Veranstaltung.',
-      'Plenum: Das Ergebnis sammelt alles, was während des Plenums angelegt oder geändert wurde.',
-      'Ein „+“ für alles – Aufgabe, Frage, Entscheidung, Fakt, Veranstaltung, Termin, Dokument, Partner.',
-      'Kommentare und Verlauf an allen Einträgen, mit vorher → nachher.',
-      'Entscheidungen gelten erst, wenn alle bestätigen oder bis zur Frist niemand widerspricht.',
-      'Termine in Google Kalender eintragen oder als .ics herunterladen.',
-      'Rückmeldung aus der App: Bug oder Wunsch direkt im Profil melden.',
+      'Feat: Agenda statt „Aufgaben“ – Aufgaben und offene Fragen an einem Ort',
+      'Feat: Plenum-Ergebnis sammelt alles, was während des Plenums angelegt oder geändert wurde',
+      'Feat: Ein „+“ für alles – Aufgabe, Frage, Entscheidung, Fakt, Veranstaltung, Termin, Dokument, Partner',
+      'Feat: Kommentare und Verlauf an allen Einträgen, mit vorher → nachher',
+      'Feat: Entscheidungen gelten erst, wenn alle bestätigen oder bis zur Frist niemand widerspricht',
+      'Feat: Termine in Google Kalender eintragen oder als .ics herunterladen',
+      'Feat: Rückmeldung aus der App – Bug oder Wunsch direkt im Profil melden',
     ],
   },
 ];
+
+/** Format eines Eintrags: „Feat: …“ für Neues, „Fix: …“ für Korrekturen und Anpassungen */
+export const CHANGELOG_ITEM = /^(Feat|Fix): \S/;
 
 /** „0.10.0“ > „0.9.1“: Versionen Teil für Teil als Zahlen vergleichen */
 export function compareVersions(a: string, b: string): number {

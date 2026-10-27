@@ -108,20 +108,20 @@ export async function enqueue(
   const hasTelegram = new Set(recipients.filter((r) => r.telegram).map((r) => r.id));
   const reachable = new Set([...hasPush, ...hasTelegram]);
   if (!messages.some((m) => reachable.has(m.member_id))) return 0;
-  // Schalter-Matrix (F-PRO-02): je Ereignis und Kanal; ohne Eintrag aus
-  const switchedOn = new Set(
+  // Schalter-Matrix (F-PRO-02): je Ereignis und Kanal; ohne Eintrag an – gespeichert ist, was jemand abschaltet
+  const switchedOff = new Set(
     (
       await trx
         .selectFrom('notification_preferences')
         .select(['member_id', 'event_type', 'channel'])
         .where('member_id', 'in', [...reachable])
-        .where('enabled', '=', true)
+        .where('enabled', '=', false)
         .execute()
     ).map((p) => `${p.member_id}:${p.event_type}:${p.channel}`),
   );
   const on = (m: Message, channel: NotificationChannel) =>
     (channel === 'push' ? hasPush : hasTelegram).has(m.member_id) &&
-    switchedOn.has(`${m.member_id}:${m.event_type}:${channel}`);
+    !switchedOff.has(`${m.member_id}:${m.event_type}:${channel}`);
   // ohne eingeschalteten Kanal gibt es nichts zu verschicken – auch keine Prüfung auf Doppelte
   const wanted = messages.filter((m) => on(m, 'push') || on(m, 'telegram'));
   if (wanted.length === 0) return 0;
@@ -582,7 +582,7 @@ export async function notificationSettings(
       .selectFrom('notification_preferences')
       .select(['event_type', 'channel'])
       .where('member_id', '=', me)
-      .where('enabled', '=', true)
+      .where('enabled', '=', false)
       .execute(),
   ]);
   return {
@@ -592,8 +592,8 @@ export async function notificationSettings(
     // eine Zeile gilt als an, solange eines ihrer Ereignisse an ist – gesetzt wird immer die ganze Zeile
     matrix: NOTIFICATION_GROUPS.map((g) => ({
       key: g.key,
-      push: g.events.some((e) => prefs.some((p) => p.event_type === e && p.channel === 'push')),
-      telegram: g.events.some((e) => prefs.some((p) => p.event_type === e && p.channel === 'telegram')),
+      push: g.events.some((e) => !prefs.some((p) => p.event_type === e && p.channel === 'push')),
+      telegram: g.events.some((e) => !prefs.some((p) => p.event_type === e && p.channel === 'telegram')),
     })),
     reminder_lead_days: ctx.actor.reminder_lead_days,
   };
