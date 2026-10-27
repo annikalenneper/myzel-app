@@ -21,7 +21,7 @@ import {
 } from '../../shared/schema';
 import type { AppointmentDetail, AppointmentListItem, AppointmentTypeWithUsage, Undoable } from '../api';
 import { commentsOf, historyOf } from './comments';
-import { enqueue } from './notify';
+import { notifyAction } from './notify';
 import {
   checkVersion,
   notFound,
@@ -243,7 +243,11 @@ export function createAppointment(ctx: Ctx, raw: unknown): { id: string } {
   });
   // nachgetragene Termine laden niemanden mehr ein
   if (!hasStarted(appointment, ctx.now))
-    enqueue(ctx.db, ctx.now, invitationMessages(appointment, activeIds(ctx.db), ctx.actor.id));
+    notifyAction(
+      ctx,
+      invitationMessages(appointment, activeIds(ctx.db), ctx.actor.id),
+      `zu „${appointment.title}“ eingeladen`,
+    );
   return { id: appointment.id };
 }
 
@@ -292,11 +296,10 @@ export function updateAppointment(ctx: Ctx, id: string, raw: unknown): { notifie
     ctx.db.appointment_rsvps.filter((r) => r.appointment_id === id),
     activeIds(ctx.db),
   ).filter((m) => m !== ctx.actor.id);
-  enqueue(
-    ctx.db,
-    ctx.now,
+  notifyAction(
+    ctx,
     changeMessages(a, 'verschoben', recipients, ctx.actor.id, iso(ctx)),
-    (ctx.outbox ??= []),
+    `„${a.title}“ geändert`,
   );
   return { notified: recipients.length };
 }
@@ -345,11 +348,10 @@ export function cancelAppointment(ctx: Ctx, id: string, version: number): { noti
     ctx.db.appointment_rsvps.filter((r) => r.appointment_id === id),
     activeIds(ctx.db),
   ).filter((m) => m !== ctx.actor.id);
-  enqueue(
-    ctx.db,
-    ctx.now,
+  notifyAction(
+    ctx,
     changeMessages(a, 'abgesagt', recipients, ctx.actor.id, iso(ctx)),
-    (ctx.outbox ??= []),
+    `„${a.title}“ abgesagt`,
   );
   return { notified: recipients.length };
 }

@@ -54,7 +54,7 @@ import type {
 import { isPlenum } from './appointments';
 import { commentsOf, historyOf } from './comments';
 import { documentFor, driveFileMissing, driveItem } from './drive';
-import { enqueue } from './notify';
+import { notifyAction } from './notify';
 import {
   addMark,
   checkVersion,
@@ -229,15 +229,14 @@ export function insertDecision(
   });
   // alle anderen erfahren, dass sie bestätigen oder widersprechen können (F3)
   if (consensusUntil)
-    enqueue(
-      ctx.db,
-      ctx.now,
+    notifyAction(
+      ctx,
       consensusInviteMessages(
         { id: decision.id, title: decision.title, consensus_until: consensusUntil },
         activeMemberIds(ctx.db),
         ctx.actor.id,
       ),
-      (ctx.outbox ??= []),
+      `„${decision.title}“ zur Bestätigung festgehalten`,
     );
   // die Frage bleibt offen – als beantwortet markiert sie die Person selbst (16.3)
   if (question && action === 'created')

@@ -36,6 +36,12 @@ export const NOTIFICATION_GROUPS = [
   },
   { key: 'zusammenfassung', label: 'Plenum-Zusammenfassung', hint: null, events: ['plenum_zusammenfassung'] },
   {
+    key: 'eigene',
+    label: 'Eigene Aktionen',
+    hint: 'Wer über das, was du tust, benachrichtigt wird',
+    events: ['eigene_aktion'],
+  },
+  {
     key: 'entscheidungen',
     label: 'Entscheidungen zum Bestätigen',
     hint: 'Neu · letzter Tag der Frist',
@@ -279,4 +285,26 @@ export function consensusDeadlineMessages(
         dedupe_key: `entscheidung_frist:${decision.id}:${member_id}:${decision.consensus_until}`,
       })),
     );
+}
+
+// ── Eigene Aktionen (Phase 12) ──────────────────────────────────────────────
+
+/**
+ * Bestätigung für die handelnde Person, aus ihrer Sicht: „Du hast „Flyer“ kommentiert. 3 Personen werden
+ * benachrichtigt.“ – gezählt wird, wer die Nachricht wirklich bekommt (Kanal eingerichtet, Schalter an).
+ */
+export function ownActionMessage(
+  actorId: string,
+  what: string,
+  reached: number,
+  about: Pick<Message, 'link' | 'dedupe_key'>,
+): Message {
+  const who = reached === 0 ? 'Niemand wird' : reached === 1 ? '1 Person wird' : `${reached} Personen werden`;
+  return {
+    member_id: actorId,
+    event_type: 'eigene_aktion',
+    text: `Du hast ${what}. ${who} benachrichtigt.`,
+    link: about.link,
+    dedupe_key: `eigene_aktion:${about.dedupe_key}`,
+  };
 }

@@ -48,6 +48,7 @@ describe('Schalter-Matrix (F-PRO-02)', () => {
       'frist',
       'termine',
       'zusammenfassung',
+      'eigene',
       'entscheidungen',
     ]);
     expect(s.matrix.every((r) => r.push && r.telegram)).toBe(true);

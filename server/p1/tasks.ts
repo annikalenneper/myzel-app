@@ -307,6 +307,7 @@ async function assignMany(ctx: Ctx, task: TaskRow, memberIds: readonly string[])
   await notify(
     ctx,
     added.flatMap((memberId) => assignmentMessages(task, memberId, ctx.actor.id, at)),
+    `${added.length === 1 ? 'eine Person' : `${added.length} Personen`} bei „${task.title}“ eingetragen`,
   );
   return added;
 }
@@ -444,7 +445,11 @@ export async function setTaskStatus(ctx: Ctx, id: string, raw: unknown): Promise
   if (!followers.includes(ctx.actor.id)) followers.push(ctx.actor.id);
   await writeHistory(ctx, 'task', id, 'status', changes);
   // [P2] Bearbeitende und Folgende erfahren es (6.2)
-  await notify(ctx, statusMessages(task, to, ctx.actor.id, assignees, followers, iso(ctx)));
+  await notify(
+    ctx,
+    statusMessages(task, to, ctx.actor.id, assignees, followers, iso(ctx)),
+    `„${task.title}“ auf „${TASK_STATUS_LABEL[to]}“ gesetzt`,
+  );
   if (to === 'erledigt') {
     // die wartenden Aufgaben ändern ihren Status nicht automatisch – ihre Bearbeitenden erfahren es (4.1)
     const waiting = await ctx.trx
@@ -474,7 +479,11 @@ export async function addAssignee(ctx: Ctx, taskId: string, memberId: string): P
   await follow(ctx, taskId, memberId);
   await touchTask(ctx, task);
   await writeHistory(ctx, 'task', taskId, 'assignee_added', { assignee: { old: null, new: memberId } });
-  await notify(ctx, assignmentMessages(task, memberId, ctx.actor.id, iso(ctx)));
+  await notify(
+    ctx,
+    assignmentMessages(task, memberId, ctx.actor.id, iso(ctx)),
+    `${member.display_name} bei „${task.title}“ eingetragen`,
+  );
   return registerUndo(ctx, 'task', task, `${member.display_name} eingetragen`);
 }
 
@@ -613,6 +622,7 @@ export async function addComment(
       assignees,
       followers,
     ),
+    `„${task.title}“ kommentiert`,
   );
   return { id: comment.id, now_following };
 }

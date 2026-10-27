@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Umbau 10/2026 und Verbesserungen (Phasen 9–10) live seit 26.10.2026 – Version 0.9.0, Deploy db55b12, Integritätsprüfung ohne Befund.** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Version 0.10.0 live seit 27.10.2026 (Phase 12, Benachrichtigungs-Schalter auf dem Server). Geplant: Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
@@ -155,7 +155,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
       auf dem Server (Migration 20261031000001, Tabelle `notification_preferences`); der Versand beachtet die Schalter.
       Ohne Eintrag ist ein Schalter an – bestehende und neue Mitglieder starten mit allem an (Nutzerin, 27.10.2026;
       ersetzt „standardmäßig aus“ vom 22.10.2026). Die Tests der Matrix laufen jetzt auch gegen den Server
-- [ ] **Phase 12 – Verbesserungen (Nutzerin, 27.10.2026):**
+- [x] **Phase 12 – Verbesserungen (Nutzerin, 27.10.2026)** (live mit 0.10.0):
   - [x] Dokumente „Code of Conduct“, „Polizei/Ordnungsamt“, „Sicherheitskonzept Outdoor“: Art „Leitlinie“ statt „Sonstiges“
         (Daten-Migration 20261031000002 mit Verlauf; live betrifft das den Leitfaden Polizei/Ordnungsamt, das
         Sicherheitskonzept ist schon Leitlinie, ein Code of Conduct ist live noch nicht erfasst)
@@ -163,7 +163,9 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Auf die Agenda setzen mit Wahl „Stimmt das noch?“ oder „Aktion erforderlich“; die Frage steht auf der Karte, die
         Überschrift heißt „Entscheidungen & Fakten“ (Migration 20261031000003; Widerspruch setzt „Aktion erforderlich“;
         „Aktion erforderlich“ nimmt man mit „Erledigt“ herunter)
-  - [ ] Push/Telegram auch bei eigenen Aktionen, aus eigener Sicht: „Du hast … – n Personen werden benachrichtigt.“
+  - [x] Push/Telegram auch bei eigenen Aktionen, aus eigener Sicht: „Du hast … – n Personen werden benachrichtigt.“
+        Neue Art „Eigene Aktionen“ (eigene Zeile in der Matrix, ohne Telegram-Knöpfe); nur wenn die Aktion jemanden
+        betrifft; nicht bei Serien und beim Plenum-Abschluss (dort kommt die Zusammenfassung ohnehin)
   - [x] Reaktionen an Kommentaren: ❤️ 👍 👎 ❓ 😂 💀 🍀 (Migration 20261031000004, Export Version 5)
   - [x] Jeder Deploy: Version hochzählen, Changelog-Einträge „Feat: …“/„Fix: …“ (CLAUDE.md „Deploy“, Test prüft das
         Format)

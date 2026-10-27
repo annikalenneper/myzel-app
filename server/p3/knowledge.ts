@@ -350,6 +350,7 @@ export async function insertDecision(
         await activeMemberIds(ctx.trx),
         ctx.actor.id,
       ),
+      `„${decision.title}“ zur Bestätigung festgehalten`,
     );
   // die Frage bleibt offen – als beantwortet markiert sie die Person selbst (16.3)
   if (question && action === 'created')

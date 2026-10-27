@@ -96,7 +96,7 @@ import type {
   Undoable,
 } from '../api';
 import { settle } from './knowledge';
-import { enqueue } from './notify';
+import { enqueue, notifyAction } from './notify';
 
 export type InverseOp =
   | {
@@ -631,8 +631,12 @@ function assignMany(ctx: Ctx, task: Task, memberIds: readonly string[]): string[
     ctx.inverse.push({ kind: 'assignee_remove', task_id: task.id, member_id: memberId });
     follow(ctx, task.id, memberId);
     writeHistory(ctx, 'task', task.id, 'assignee_added', { assignee: { old: null, new: memberId } });
-    enqueue(ctx.db, ctx.now, assignmentMessages(task, memberId, ctx.actor.id, iso(ctx)), (ctx.outbox ??= []));
   }
+  notifyAction(
+    ctx,
+    added.flatMap((memberId) => assignmentMessages(task, memberId, ctx.actor.id, iso(ctx))),
+    `${added.length === 1 ? 'eine Person' : `${added.length} Personen`} bei „${task.title}“ eingetragen`,
+  );
   return added;
 }
 
@@ -757,11 +761,10 @@ export function setTaskStatus(ctx: Ctx, id: string, raw: unknown): Undoable {
   follow(ctx, id, ctx.actor.id);
   touch(ctx, task);
   writeHistory(ctx, 'task', id, 'status', changes);
-  enqueue(
-    ctx.db,
-    ctx.now,
+  notifyAction(
+    ctx,
     statusMessages(task, to, ctx.actor.id, assigneeIds(ctx.db, id), followerIds(ctx.db, id), iso(ctx)),
-    (ctx.outbox ??= []),
+    `„${task.title}“ auf „${TASK_STATUS_LABEL[to]}“ gesetzt`,
   );
   if (to === 'erledigt')
     // die wartenden Aufgaben ändern ihren Status nicht automatisch – ihre Bearbeitenden erfahren es (4.1)
@@ -793,7 +796,11 @@ export function addAssignee(ctx: Ctx, taskId: string, memberId: string): Undoabl
   follow(ctx, taskId, memberId);
   touch(ctx, task);
   writeHistory(ctx, 'task', taskId, 'assignee_added', { assignee: { old: null, new: memberId } });
-  enqueue(ctx.db, ctx.now, assignmentMessages(task, memberId, ctx.actor.id, iso(ctx)), (ctx.outbox ??= []));
+  notifyAction(
+    ctx,
+    assignmentMessages(task, memberId, ctx.actor.id, iso(ctx)),
+    `${member.display_name} bei „${task.title}“ eingetragen`,
+  );
   return registerUndo(ctx, 'task', task, `${member.display_name} eingetragen`);
 }
 
@@ -905,9 +912,8 @@ export function addComment(ctx: Ctx, taskId: string, raw: unknown): { id: string
   ctx.db.comments.push(comment);
   const now_following = follow(ctx, taskId, ctx.actor.id);
   writeHistory(ctx, 'task', taskId, 'comment_added', { comment: { old: null, new: comment.id } });
-  enqueue(
-    ctx.db,
-    ctx.now,
+  notifyAction(
+    ctx,
     commentMessages(
       task,
       comment,
@@ -916,6 +922,7 @@ export function addComment(ctx: Ctx, taskId: string, raw: unknown): { id: string
       assigneeIds(ctx.db, taskId),
       followerIds(ctx.db, taskId),
     ),
+    `„${task.title}“ kommentiert`,
   );
   return { id: comment.id, now_following };
 }

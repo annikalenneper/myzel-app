@@ -118,6 +118,22 @@ describe('Ereignisse und Outbox (6.1, 6.2)', () => {
     expect((await api.demo!.myMessages()).some((m) => m.event_type === 'kommentar')).toBe(false);
   });
 
+  it('Phase 12: wer handelt, bekommt eine Bestätigung aus eigener Sicht – mit der Zahl der Benachrichtigten', async () => {
+    const { id } = await api.createTask({ title: 'Kabel kaufen', topic_id: await topicId() });
+    // ohne Betroffene keine Bestätigung
+    await api.setTaskStatus(id, { status: 'geplant', version: 1 });
+    expect((await api.demo!.myMessages()).filter((m) => m.event_type === 'eigene_aktion')).toEqual([]);
+    await api.addAssignee(id, await memberId('Jule'));
+    await api.addComment('task', id, 'Baumarkt hat welche');
+    const own = (await api.demo!.myMessages()).filter((m) => m.event_type === 'eigene_aktion');
+    // Mo hat nur Telegram
+    expect(own.map((m) => m.text).sort()).toEqual([
+      'Du hast Jule bei „Kabel kaufen“ eingetragen. 1 Person wird benachrichtigt.',
+      'Du hast „Kabel kaufen“ kommentiert. 1 Person wird benachrichtigt.',
+    ]);
+    expect(own.every((m) => m.channel === 'telegram' && m.link === `/agenda/${id}`)).toBe(true);
+  });
+
   it('„Blockade aufgehoben“ geht an die Bearbeitenden der wartenden Aufgabe', async () => {
     const tasks = await api.listTasks();
     const location = tasks.find((t) => t.title.startsWith('Location'))!;

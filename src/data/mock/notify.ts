@@ -8,6 +8,7 @@ import {
   consensusDeadlineMessages,
   DAILY_REMINDER_HOUR,
   dueReminderMessages,
+  ownActionMessage,
   MAX_SEND_ATTEMPTS,
   NOTIFICATION_GROUPS,
   type Message,
@@ -31,7 +32,14 @@ const BOT_URL = 'https://t.me/myzo_the_bot';
 
 /** Alles läuft über die Outbox; der dedupe_key verhindert Doppelversand (6.1). */
 /** `collect` sammelt die neuen Einträge, damit ein „Rückgängig“ sie zurückziehen kann. */
-export function enqueue(db: Db, now: Date, messages: readonly Message[], collect?: string[]): number {
+export function enqueue(
+  db: Db,
+  now: Date,
+  messages: readonly Message[],
+  collect?: string[],
+  /** wer tatsächlich eine Nachricht bekommt (Phase 12) */
+  reached?: Set<string>,
+): number {
   let added = 0;
   for (const m of messages) {
     const member = db.members.find((x) => x.id === m.member_id);
@@ -54,6 +62,7 @@ export function enqueue(db: Db, now: Date, messages: readonly Message[], collect
       const dedupe_key = `${m.dedupe_key}:${channel}`;
       const id = uuid();
       collect?.push(id);
+      reached?.add(member.id);
       db.notification_outbox.push({
         id,
         dedupe_key,
@@ -71,6 +80,14 @@ export function enqueue(db: Db, now: Date, messages: readonly Message[], collect
     }
   }
   return added;
+}
+
+/** Nachrichten einer Aktion; mit `what` dazu die Bestätigung für die handelnde Person (Phase 12) */
+export function notifyAction(ctx: Ctx, messages: readonly Message[], what?: string): void {
+  const reached = new Set<string>();
+  enqueue(ctx.db, ctx.now, messages, (ctx.outbox ??= []), reached);
+  if (what && messages[0])
+    enqueue(ctx.db, ctx.now, [ownActionMessage(ctx.actor.id, what, reached.size, messages[0])], ctx.outbox);
 }
 
 /**

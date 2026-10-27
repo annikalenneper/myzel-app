@@ -11,6 +11,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.10.0',
+    date: '2026-10-27',
+    items: [
+      'Fix: Push- und Telegram-Schalter im Profil funktionieren – alle starten mit allem an',
+      'Fix: Vorlauf für Fristerinnerungen lässt sich im Profil einstellen',
+      'Feat: Auf die Agenda mit Wahl „Stimmt das noch?“ oder „Aktion erforderlich“',
+      'Feat: Reaktionen an Kommentaren ❤️ 👍 👎 ❓ 😂 💀 🍀',
+      'Feat: Bestätigung eigener Aktionen – „Du hast … – n Personen werden benachrichtigt“',
+      'Feat: Agenda-Grundmenge „Nur Fragen“',
+      'Fix: Im Event heißt der Link „Alle Aufgaben und Fragen zum Event“',
+      'Fix: Kein „+“ im Profil',
+      'Fix: Leitfaden Polizei/Ordnungsamt ist eine Leitlinie',
+    ],
+  },
+  {
     version: '0.9.0',
     date: '2026-10-26',
     items: [

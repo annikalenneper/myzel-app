@@ -11,6 +11,7 @@ import {
   consensusDeadlineMessages,
   DAILY_REMINDER_HOUR,
   dueReminderMessages,
+  ownActionMessage,
   MAX_SEND_ATTEMPTS,
   NOTIFICATION_GROUPS,
   type Message,
@@ -81,6 +82,8 @@ export async function enqueue(
   now: Date,
   messages: readonly Message[],
   collect?: string[],
+  /** wer tatsächlich eine Nachricht bekommt (Phase 12: „n Personen werden benachrichtigt“) */
+  reached?: Set<string>,
 ): Promise<number> {
   if (messages.length === 0) return 0;
   const memberIds = [...new Set(messages.map((m) => m.member_id))];
@@ -158,17 +161,31 @@ export async function enqueue(
       .insertInto('notification_outbox')
       .values(part)
       .onConflict((oc) => oc.column('dedupe_key').doNothing())
-      .returning('id')
+      .returning(['id', 'member_id'])
       .execute();
     collect?.push(...inserted.map((r) => r.id));
+    for (const r of inserted) reached?.add(r.member_id);
     added += inserted.length;
   }
   return added;
 }
 
-/** Nachrichten einer Aktion: in derselben Transaktion, „Rückgängig“ zieht sie zurück */
-export const notify = (ctx: Ctx, messages: readonly Message[]) =>
-  enqueue(ctx.trx, ctx.now, messages, ctx.outbox);
+/**
+ * Nachrichten einer Aktion: in derselben Transaktion, „Rückgängig“ zieht sie zurück. Mit `what` bekommt die handelnde
+ * Person eine Bestätigung aus ihrer Sicht (Phase 12) – nur, wenn die Aktion überhaupt jemanden betrifft.
+ */
+export async function notify(ctx: Ctx, messages: readonly Message[], what?: string): Promise<number> {
+  const reached = new Set<string>();
+  const added = await enqueue(ctx.trx, ctx.now, messages, ctx.outbox, reached);
+  if (what && messages[0])
+    await enqueue(
+      ctx.trx,
+      ctx.now,
+      [ownActionMessage(ctx.actor.id, what, reached.size, messages[0])],
+      ctx.outbox,
+    );
+  return added;
+}
 
 /**
  * Fristerinnerungen (6.2): jeder Lauf ab 9 Uhr in Köln reiht ein, was heute ansteht; der dedupe_key (Aufgabe,

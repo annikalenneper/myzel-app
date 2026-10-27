@@ -373,7 +373,11 @@ export async function createAppointment(ctx: Ctx, raw: unknown): Promise<{ id: s
   });
   // nachgetragene Termine laden niemanden mehr ein
   if (!hasStarted(appointment, ctx.now))
-    await notify(ctx, invitationMessages(appointment, await activeIds(ctx.trx), ctx.actor.id));
+    await notify(
+      ctx,
+      invitationMessages(appointment, await activeIds(ctx.trx), ctx.actor.id),
+      `zu „${appointment.title}“ eingeladen`,
+    );
   return { id: appointment.id };
 }
 
@@ -433,7 +437,11 @@ export async function updateAppointment(ctx: Ctx, id: string, raw: unknown): Pro
   const moved = ['starts_at', 'ends_at', 'format', 'location', 'online_url'].some((k) => k in changes);
   if (!moved || a.status !== 'geplant' || hasStarted(a, ctx.now)) return { notified: 0 };
   const recipients = await rsvpRecipients(ctx, id);
-  await notify(ctx, changeMessages(a, 'verschoben', recipients, ctx.actor.id, iso(ctx)));
+  await notify(
+    ctx,
+    changeMessages(a, 'verschoben', recipients, ctx.actor.id, iso(ctx)),
+    `„${a.title}“ geändert`,
+  );
   return { notified: recipients.length };
 }
 
@@ -493,7 +501,11 @@ export async function cancelAppointment(
   await touchAppointment(ctx, a, { status: 'abgesagt' });
   await writeHistory(ctx, 'appointment', id, 'status', changes);
   const recipients = await rsvpRecipients(ctx, id);
-  await notify(ctx, changeMessages(a, 'abgesagt', recipients, ctx.actor.id, iso(ctx)));
+  await notify(
+    ctx,
+    changeMessages(a, 'abgesagt', recipients, ctx.actor.id, iso(ctx)),
+    `„${a.title}“ abgesagt`,
+  );
   return { notified: recipients.length };
 }
 

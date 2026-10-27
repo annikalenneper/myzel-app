@@ -270,6 +270,8 @@ export const NOTIFICATION_EVENTS = [
   // Umbau Phase 6 (F3): Entscheidung zum Bestätigen, letzter Tag der Frist
   'entscheidung_bestaetigen',
   'entscheidung_frist',
+  // Phase 12: Bestätigung eigener Aktionen – „Du hast … – n Personen werden benachrichtigt.“
+  'eigene_aktion',
 ] as const;
 export const notificationEventSchema = z.enum(NOTIFICATION_EVENTS);
 export type NotificationEvent = z.infer<typeof notificationEventSchema>;
