@@ -6,6 +6,7 @@ import { berlinDate, isOverdue } from '../../src/shared/rules/due';
 import { isActiveTaskStatus } from '../../src/shared/rules/taskStatus';
 import type { EventRow, HistoryEntry, Member, Task, Topic } from '../../src/shared/schema';
 import { notFound } from '../core/context';
+import { commentsOf } from './comments';
 import type { Database } from '../db/types';
 
 type Db = Kysely<Database>;
@@ -105,13 +106,7 @@ export async function getTask(db: Db, id: string): Promise<TaskDetail> {
       .where('tasks.archived_at', 'is', null)
       .orderBy('tasks.number')
       .execute(),
-    db
-      .selectFrom('comments')
-      .selectAll()
-      .where('task_id', '=', id)
-      .orderBy('created_at')
-      .orderBy('id')
-      .execute(),
+    commentsOf(db, 'task', id),
     historyOf(db, 'task', id),
   ]);
   return { ...item!, blockers, comments, history };

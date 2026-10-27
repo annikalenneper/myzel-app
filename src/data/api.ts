@@ -27,7 +27,8 @@ import type {
   AppointmentTypeUpdateInput,
   AppointmentUpdateInput,
   RsvpAnswer,
-  Comment,
+  CommentItem,
+  Reaction,
   CommentTarget,
   DecisionUpdateInput,
   DecisionVoteKind,
@@ -92,7 +93,7 @@ export interface TaskBlockerRef {
 
 export interface TaskDetail extends TaskListItem {
   blockers: TaskBlockerRef[];
-  comments: Comment[];
+  comments: CommentItem[];
   history: HistoryEntry[];
 }
 
@@ -130,7 +131,7 @@ export interface EventDetail extends EventListItem {
     status: Decision['status'];
     description: string | null;
   }[];
-  comments: Comment[];
+  comments: CommentItem[];
   history: HistoryEntry[];
   /** WF-VER-10 verknüpfte Partner */
   partners: {
@@ -172,7 +173,7 @@ export interface PartnerListItem extends Partner {
 /** S-24 Partner – Detail mit den Veranstaltungen, bei denen er beteiligt war (WF-VER-13) */
 export interface PartnerDetail extends PartnerListItem {
   events: { id: string; title: string; starts_at: string; status: EventStatus; role_note: string | null }[];
-  comments: Comment[];
+  comments: CommentItem[];
   history: HistoryEntry[];
 }
 
@@ -227,7 +228,7 @@ export interface DecisionDetail extends DecisionListItem {
   votes: { member_id: string; vote: DecisionVoteKind; voted_at: string }[];
   pending_ids: string[];
   documents: DocumentListItem[];
-  comments: Comment[];
+  comments: CommentItem[];
   history: HistoryEntry[];
 }
 
@@ -237,7 +238,7 @@ export interface QuestionListItem extends Question {
 }
 
 export interface QuestionDetail extends QuestionListItem {
-  comments: Comment[];
+  comments: CommentItem[];
   history: HistoryEntry[];
 }
 
@@ -320,7 +321,7 @@ export interface AppointmentDetail extends AppointmentListItem {
   /** tatsächliche Teilnahme */
   attendee_ids: string[];
   tasks: { id: string; title: string; status: TaskStatus; assignee_ids: string[] }[];
-  comments: Comment[];
+  comments: CommentItem[];
   history: HistoryEntry[];
 }
 
@@ -440,6 +441,8 @@ export interface MyzelApi {
     body: string,
   ): Promise<{ id: string; now_following: boolean }>;
   updateComment(commentId: string, body: string): Promise<void>;
+  /** Phase 12: Reaktion an einem Kommentar an- oder abschalten (eintragsweise) */
+  setReaction(commentId: string, reaction: Reaction, on: boolean): Promise<void>;
   archiveTask(id: string, version: number): Promise<Undoable>;
   restoreTask(id: string, version: number): Promise<void>;
   /** WF-ALL-09 Löschen (archivieren) für alle anderen Artefakte – mit Rückgängig (Phase 9) */

@@ -866,3 +866,26 @@ describe('Phase 9, Review: Gelöschtes bleibt, wie es ist', () => {
     expect((await api.listAppointments()).map((a) => a.id)).toContain(occurrence.id);
   });
 });
+
+describe('Phase 12: Reaktionen an Kommentaren', () => {
+  it('je Person und Art eine, an und aus; mehrere Personen werden gezählt', async () => {
+    const task = await newTask();
+    const { id } = await api.addComment('task', task.id, 'Wer bringt Kabel mit?');
+    await api.setReaction(id, 'daumen_hoch', true);
+    await api.setReaction(id, 'daumen_hoch', true);
+    await api.setReaction(id, 'kleeblatt', true);
+    await login('lea');
+    await api.setReaction(id, 'daumen_hoch', true);
+    const reactions = () => api.getTask(task.id).then((t) => t.comments[0]!.reactions);
+    const { member } = await ids();
+    // Reihenfolge der Arten wie in der Auswahl; Personen bei gleichem Zeitpunkt ohne feste Reihenfolge
+    const got = await reactions();
+    expect(got.map((r) => r.reaction)).toEqual(['daumen_hoch', 'kleeblatt']);
+    expect([...got[0]!.member_ids].sort()).toEqual([member('Mo').id, member('Lea').id].sort());
+    expect(got[1]!.member_ids).toEqual([member('Mo').id]);
+    await login('mo');
+    await api.setReaction(id, 'kleeblatt', false);
+    expect((await reactions()).map((r) => r.reaction)).toEqual(['daumen_hoch']);
+    await expectError(api.setReaction(id, 'einhorn' as never, true), 'validation');
+  });
+});

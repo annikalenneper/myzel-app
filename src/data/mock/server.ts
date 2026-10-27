@@ -62,6 +62,8 @@ import {
   type AppointmentType,
   type Decision,
   type DecisionVote,
+  type CommentReaction,
+  groupReactions,
   type MarkReason,
   type AppReport,
   type DocumentLink,
@@ -194,6 +196,8 @@ export interface Db {
   task_followers: TaskFollower[];
   task_blockers: TaskBlocker[];
   comments: Comment[];
+  /** Phase 12: Reaktionen an Kommentaren */
+  comment_reactions: CommentReaction[];
   plenum_marks: PlenumMark[];
   events: EventRow[];
   /** [P4] Detailbereiche (eine Zeile je Veranstaltung, angelegt beim ersten Speichern), Acts, Hauptverantwortliche */
@@ -246,6 +250,7 @@ export function emptyDb(): Db {
     task_followers: [],
     task_blockers: [],
     comments: [],
+    comment_reactions: [],
     plenum_marks: [],
     events: [],
     event_details: [],
@@ -414,7 +419,8 @@ export function getTask(db: Db, id: string): TaskDetail {
       .map((t) => ({ id: t.id, title: t.title, status: t.status })),
     comments: db.comments
       .filter((c) => c.task_id === id)
-      .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((c) => ({ ...c, reactions: groupReactions(db.comment_reactions, c.id) })),
     // neueste zuerst; bei gleichem Zeitstempel zählt die Reihenfolge des Eintragens
     history: db.history
       .map((h, index) => ({ h, index }))

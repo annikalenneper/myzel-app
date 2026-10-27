@@ -21,6 +21,7 @@ import type {
   NotificationChannel,
   NotificationEvent,
   Priority,
+  Reaction,
   TaskStatus,
 } from '../../src/shared/schema';
 
@@ -297,6 +298,13 @@ export interface NotificationPreferencesTable {
   enabled: boolean;
 }
 
+export interface CommentReactionsTable {
+  comment_id: string;
+  member_id: string;
+  reaction: Reaction;
+  created_at: CreatedAt;
+}
+
 export interface AppReportsTable {
   id: Generated<string>;
   kind: AppReportKind;
@@ -530,6 +538,7 @@ export interface Database {
   drive_sync_state: DriveSyncStateTable;
   app_reports: AppReportsTable;
   notification_preferences: NotificationPreferencesTable;
+  comment_reactions: CommentReactionsTable;
 }
 
 export type MemberRow = Selectable<MembersTable>;

@@ -112,6 +112,8 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   addComment: (ctx, [target, id, body]) =>
     comments.addComment(ctx, comments.commentTarget(target), s(id), body),
   updateComment: (ctx, [commentId, body]) => comments.updateComment(ctx, s(commentId), body),
+  setReaction: (ctx, [commentId, reaction, on]) =>
+    comments.setReaction(ctx, s(commentId), reaction, on === true),
   archiveTask: (ctx, [id, version]) => tasks.archiveTask(ctx, s(id), n(version)),
   restoreTask: (ctx, [id, version]) => tasks.restoreTask(ctx, s(id), n(version)),
   undo: (ctx, [token]) => undo(ctx, s(token)),

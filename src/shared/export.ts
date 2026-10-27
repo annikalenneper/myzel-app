@@ -9,6 +9,7 @@ import {
   appointmentSchema,
   appointmentSeriesSchema,
   appointmentTypeSchema,
+  commentReactionSchema,
   commentSchema,
   decisionSchema,
   decisionVoteSchema,
@@ -37,7 +38,8 @@ import {
 /** 2: Umbau 10/2026 – Markierungen nur an Entscheidungen, Ergebnisse einer Frage über decisions.source_question_id */
 // 4: Entscheidungen im Konsens – Status „offen“, consensus_until, decision_votes (16.4). Rückmeldungen aus der App
 // (16.5) sehen nur Admins – sie fehlen im Export wie die weiteren Login-Adressen.
-export const EXPORT_FORMAT_VERSION = 4;
+// 5: Reaktionen an Kommentaren (Phase 12)
+export const EXPORT_FORMAT_VERSION = 5;
 
 /** Felder, die nie in den Export gehören – auch nicht als alter oder neuer Wert in der Historie */
 export const EXPORT_EXCLUDED_FIELDS = [
@@ -72,6 +74,7 @@ export const exportSchema = z.object({
   task_followers: z.array(taskFollowerSchema),
   task_blockers: z.array(taskBlockerSchema),
   comments: z.array(commentSchema),
+  comment_reactions: z.array(commentReactionSchema),
   plenum_marks: z.array(plenumMarkSchema),
   events: z.array(eventSchema),
   event_details: z.array(eventDetailsSchema),
@@ -124,6 +127,7 @@ export function buildExport(db: ExportSource, now: Date): MyzelExport {
     task_followers: db.task_followers,
     task_blockers: db.task_blockers,
     comments: db.comments,
+    comment_reactions: db.comment_reactions,
     plenum_marks: db.plenum_marks,
     events: db.events,
     // Kontaktfelder bleiben leer: die Struktur passt weiter zum Schema, der Inhalt fehlt

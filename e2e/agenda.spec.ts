@@ -583,3 +583,14 @@ test('WF-AGE-03: „Aktion erforderlich“ steht auf der Karte, „Erledigt“ n
   await page.getByRole('button', { name: 'Erledigt' }).click();
   await expect(undoBar(page)).toContainText('Erledigt · von der Agenda genommen');
 });
+
+test('Reaktionen an Kommentaren: auswählen, Anzahl, zurücknehmen', async ({ page }) => {
+  await openTask(page, 'Getränke bei der Brauerei bestellen');
+  const comment = page.getByText('Denk an die Pfandkisten vom letzten Mal.').locator('xpath=..');
+  await comment.getByRole('button', { name: 'Reagieren' }).click();
+  await comment.getByRole('group', { name: 'Reaktion wählen' }).getByRole('button', { name: '🍀' }).click();
+  const chip = comment.getByRole('button', { name: /^🍀 1/ });
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  await chip.click();
+  await expect(comment.getByRole('button', { name: /^🍀/ })).toHaveCount(0);
+});

@@ -7,7 +7,14 @@ import { useMe } from '../app/session';
 import { useActions } from '../app/useActions';
 import { api } from '../data';
 import { formatCommentTime } from '../shared/format';
-import type { Comment, CommentTarget, Member } from '../shared/schema';
+import {
+  REACTION_EMOJI,
+  REACTIONS,
+  type CommentItem,
+  type CommentTarget,
+  type Member,
+  type Reaction,
+} from '../shared/schema';
 import { Avatar, cx, FieldError } from './bits';
 import { IconSend } from './icons';
 
@@ -21,7 +28,7 @@ export function CommentRow({
   act,
   wf,
 }: {
-  comment: Comment;
+  comment: CommentItem;
   author: Member | undefined;
   own: boolean;
   act: Act;
@@ -57,16 +64,18 @@ export function CommentRow({
             <span className="text-[15px] leading-[1.45] break-words whitespace-pre-wrap text-weich">
               {comment.body}
             </span>
-            {own && (
-              <button
-                type="button"
-                data-wf={wf}
-                onClick={() => setDraft(comment.body)}
-                className="hit h-[26px] self-start text-[12px] text-leise"
-              >
-                Bearbeiten
-              </button>
-            )}
+            <Reactions comment={comment} act={act} wf={wf}>
+              {own && (
+                <button
+                  type="button"
+                  data-wf={wf}
+                  onClick={() => setDraft(comment.body)}
+                  className="hit h-[26px] text-[12px] text-leise"
+                >
+                  Bearbeiten
+                </button>
+              )}
+            </Reactions>
           </>
         ) : (
           <div className="flex flex-col gap-2">
@@ -104,6 +113,94 @@ export function CommentRow({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Phase 12: Reaktionen unter einem Kommentar – vorhandene mit Anzahl (eigene hervorgehoben, antippen nimmt sie
+ * zurück), dazu „☺ +“ für die Auswahl ❤️ 👍 👎 ❓ 😂 💀 🍀.
+ */
+function Reactions({
+  comment,
+  act,
+  wf,
+  children,
+}: {
+  comment: CommentItem;
+  act: Act;
+  wf: string;
+  children?: ReactNode;
+}) {
+  const me = useMe();
+  const { memberById } = useLookups();
+  const [picking, setPicking] = useState(false);
+  const toggle = (reaction: Reaction, on: boolean) => {
+    setPicking(false);
+    void act(() => api.setReaction(comment.id, reaction, on), {});
+  };
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {comment.reactions.map(({ reaction, member_ids }) => {
+          const mine = member_ids.includes(me.id);
+          const names = member_ids.map((id) => memberById.get(id)?.display_name ?? 'Jemand').join(', ');
+          return (
+            <button
+              key={reaction}
+              type="button"
+              data-wf={wf}
+              aria-pressed={mine}
+              aria-label={`${REACTION_EMOJI[reaction]} ${member_ids.length}: ${names}`}
+              title={names}
+              onClick={() => toggle(reaction, !mine)}
+              className={cx(
+                'hit flex h-7 items-center gap-1 rounded-[14px] border px-2 text-[13px]',
+                mine ? 'border-violett bg-erhoeht text-text' : 'border-linie text-weich',
+              )}
+            >
+              <span aria-hidden>{REACTION_EMOJI[reaction]}</span>
+              <span className="font-mono text-[11px]">{member_ids.length}</span>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          data-wf={wf}
+          aria-label="Reagieren"
+          aria-expanded={picking}
+          onClick={() => setPicking(!picking)}
+          className="hit flex h-7 items-center rounded-[14px] border border-linie px-2 text-[13px] text-leise"
+        >
+          ☺ +
+        </button>
+        {children}
+      </div>
+      {picking && (
+        <div role="group" aria-label="Reaktion wählen" className="flex flex-wrap gap-1">
+          {REACTIONS.map((reaction) => {
+            const mine = comment.reactions.some(
+              (r) => r.reaction === reaction && r.member_ids.includes(me.id),
+            );
+            return (
+              <button
+                key={reaction}
+                type="button"
+                data-wf={wf}
+                aria-pressed={mine}
+                aria-label={REACTION_EMOJI[reaction]}
+                onClick={() => toggle(reaction, !mine)}
+                className={cx(
+                  'flex size-11 items-center justify-center rounded-full text-[20px]',
+                  mine ? 'bg-erhoeht' : 'bg-transparent',
+                )}
+              >
+                {REACTION_EMOJI[reaction]}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -226,7 +323,7 @@ export function CommentsSection({
 }: {
   target: CommentTarget;
   targetId: string;
-  comments: Comment[];
+  comments: CommentItem[];
   /** archiviert: nur lesen */
   archived?: boolean;
   wf?: string;
@@ -273,7 +370,7 @@ export function CommentsAndHistory({
 }: {
   target: CommentTarget;
   targetId: string;
-  comments: Comment[];
+  comments: CommentItem[];
   archived?: boolean;
   history: ReactNode;
   historyWf?: string;

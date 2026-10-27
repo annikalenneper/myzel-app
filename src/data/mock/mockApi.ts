@@ -36,7 +36,7 @@ export interface MockOptions {
   latency?: number;
 }
 
-const DB_KEY = 'myzel:mock:db:v16';
+const DB_KEY = 'myzel:mock:db:v17';
 const DEVICE_KEY = 'myzel:mock:geraet';
 const OUTAGE_KEY = 'myzel:mock:ausfall';
 const SESSION_KEY = 'myzel:mock:session';
@@ -248,6 +248,8 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     removeBlocker: (taskId, blockerId) => write((ctx) => server.removeBlocker(ctx, taskId, blockerId)),
     addComment: (target, id, body) => write((ctx) => comments.addComment(ctx, target, id, body)),
     updateComment: (commentId, body) => write((ctx) => comments.updateComment(ctx, commentId, body)),
+    setReaction: (commentId, reaction, on) =>
+      write((ctx) => comments.setReaction(ctx, commentId, reaction, on)),
     archiveTask: (id, version) => write((ctx) => server.archiveTask(ctx, id, version)),
     restoreTask: (id, version) => write((ctx) => server.restoreTask(ctx, id, version)),
     undo: (token) => write((ctx) => server.undo(ctx, token)),

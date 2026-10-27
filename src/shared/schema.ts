@@ -134,6 +134,53 @@ export const commentSchema = z.object({
 });
 export type Comment = z.infer<typeof commentSchema>;
 
+/** Phase 12: Reaktionen an Kommentaren (Reihenfolge wie in der Auswahl) */
+export const REACTIONS = [
+  'herz',
+  'daumen_hoch',
+  'daumen_runter',
+  'frage',
+  'lachen',
+  'totenkopf',
+  'kleeblatt',
+] as const;
+export const reactionSchema = z.enum(REACTIONS);
+export type Reaction = z.infer<typeof reactionSchema>;
+export const REACTION_EMOJI: Record<Reaction, string> = {
+  herz: '❤️',
+  daumen_hoch: '👍',
+  daumen_runter: '👎',
+  frage: '❓',
+  lachen: '😂',
+  totenkopf: '💀',
+  kleeblatt: '🍀',
+};
+
+export const commentReactionSchema = z.object({
+  comment_id: idSchema,
+  member_id: idSchema,
+  reaction: reactionSchema,
+  created_at: timestampSchema,
+});
+export type CommentReaction = z.infer<typeof commentReactionSchema>;
+
+/** Kommentar mit seinen Reaktionen, wie die Detailansichten ihn bekommen */
+export type CommentItem = Comment & { reactions: { reaction: Reaction; member_ids: string[] }[] };
+
+/** Reaktionen zu einem Kommentar zusammenfassen – in der Reihenfolge der Auswahl */
+export function groupReactions(
+  rows: readonly Pick<CommentReaction, 'comment_id' | 'member_id' | 'reaction' | 'created_at'>[],
+  commentId: string,
+): CommentItem['reactions'] {
+  return REACTIONS.map((reaction) => ({
+    reaction,
+    member_ids: rows
+      .filter((r) => r.comment_id === commentId && r.reaction === reaction)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((r) => r.member_id),
+  })).filter((g) => g.member_ids.length > 0);
+}
+
 /**
  * Entscheidung oder Fakt ausdrücklich auf der Agenda (16.1): „Stimmt das noch?“. Andere Arten stehen von selbst
  * auf der Agenda (offene Aufgaben und Fragen) oder gar nicht.

@@ -154,6 +154,9 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
           .where('id', '=', d.id)
           .execute();
     }
+    // Phase 12: Reaktionen an Kommentaren
+    if (data.comment_reactions.length)
+      await trx.insertInto('comment_reactions').values(data.comment_reactions).execute();
     // Schalter-Matrix der Benachrichtigungen (F-PRO-02)
     for (let i = 0; i < data.notification_preferences.length; i += 500)
       await trx

@@ -4,7 +4,10 @@
 import { AppError } from '../../shared/errors';
 import {
   commentBodySchema,
+  groupReactions,
+  reactionSchema,
   type Comment,
+  type CommentItem,
   type CommentTarget,
   type HistoryEntityType,
   type HistoryEntry,
@@ -25,10 +28,32 @@ const entities = (db: Db, target: CommentTarget): { id: string; archived_at: str
   })[target];
 
 /** Kommentare eines Artefakts, ältester zuerst */
-export function commentsOf(db: Db, target: CommentTarget, id: string): Comment[] {
+export function commentsOf(db: Db, target: CommentTarget, id: string): CommentItem[] {
   return db.comments
     .filter((c) => c[column(target)] === id)
-    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+    .map((c) => ({ ...c, reactions: groupReactions(db.comment_reactions, c.id) }));
+}
+
+/** Phase 12: Reaktion an oder aus – je Person und Art höchstens eine; kein Verlauf, kein Rückgängig (Annahme U25) */
+export function setReaction(ctx: Ctx, commentId: string, raw: unknown, on: boolean): void {
+  const reaction = parse(reactionSchema, raw);
+  if (!ctx.db.comments.some((c) => c.id === commentId)) throw notFound('Diesen Kommentar');
+  const me = ctx.actor.id;
+  const has = ctx.db.comment_reactions.some(
+    (r) => r.comment_id === commentId && r.member_id === me && r.reaction === reaction,
+  );
+  if (on && !has)
+    ctx.db.comment_reactions.push({
+      comment_id: commentId,
+      member_id: me,
+      reaction,
+      created_at: ctx.now.toISOString(),
+    });
+  if (!on)
+    ctx.db.comment_reactions = ctx.db.comment_reactions.filter(
+      (r) => !(r.comment_id === commentId && r.member_id === me && r.reaction === reaction),
+    );
 }
 
 function targetOf(comment: Comment): [CommentTarget, string] {

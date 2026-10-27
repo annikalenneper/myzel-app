@@ -5,7 +5,10 @@ import { AppError } from '../../src/shared/errors';
 import {
   COMMENT_TARGETS,
   commentBodySchema,
+  groupReactions,
+  reactionSchema,
   type Comment,
+  type CommentItem,
   type CommentTarget,
 } from '../../src/shared/schema';
 import { iso, notFound, parse, rule, writeHistory, type Ctx, type Db } from '../core/context';
@@ -27,15 +30,55 @@ export const commentTarget = (v: unknown): CommentTarget => {
   return v as CommentTarget;
 };
 
-/** Kommentare eines Artefakts, ältester zuerst */
-export async function commentsOf(trx: Db, target: CommentTarget, id: string): Promise<Comment[]> {
-  return trx
+/** Kommentare eines Artefakts, ältester zuerst, mit ihren Reaktionen (Phase 12) */
+export async function commentsOf(trx: Db, target: CommentTarget, id: string): Promise<CommentItem[]> {
+  const rows = await trx
     .selectFrom('comments')
     .selectAll()
     .where(column(target), '=', id)
     .orderBy('created_at')
     .orderBy('id')
     .execute();
+  return withReactions(trx, rows);
+}
+
+/** Reaktionen zu den Kommentaren – eine Abfrage für alle */
+export async function withReactions(trx: Db, rows: Comment[]): Promise<CommentItem[]> {
+  if (rows.length === 0) return [];
+  const reactions = await trx
+    .selectFrom('comment_reactions')
+    .selectAll()
+    .where(
+      'comment_id',
+      'in',
+      rows.map((c) => c.id),
+    )
+    .execute();
+  return rows.map((c) => ({ ...c, reactions: groupReactions(reactions, c.id) }));
+}
+
+/** Phase 12: Reaktion an oder aus – je Person und Art höchstens eine; kein Verlauf, kein Rückgängig (Annahme U25) */
+export async function setReaction(ctx: Ctx, commentId: string, raw: unknown, on: boolean): Promise<void> {
+  const reaction = parse(reactionSchema, raw);
+  const comment = await ctx.trx
+    .selectFrom('comments')
+    .select('id')
+    .where('id', '=', commentId)
+    .executeTakeFirst();
+  if (!comment) throw notFound('Diesen Kommentar');
+  if (on)
+    await ctx.trx
+      .insertInto('comment_reactions')
+      .values({ comment_id: commentId, member_id: ctx.actor.id, reaction, created_at: iso(ctx) })
+      .onConflict((oc) => oc.doNothing())
+      .execute();
+  else
+    await ctx.trx
+      .deleteFrom('comment_reactions')
+      .where('comment_id', '=', commentId)
+      .where('member_id', '=', ctx.actor.id)
+      .where('reaction', '=', reaction)
+      .execute();
 }
 
 async function openEntity(ctx: Ctx, target: CommentTarget, id: string): Promise<void> {
