@@ -156,7 +156,9 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
       Ohne Eintrag ist ein Schalter an – bestehende und neue Mitglieder starten mit allem an (Nutzerin, 27.10.2026;
       ersetzt „standardmäßig aus“ vom 22.10.2026). Die Tests der Matrix laufen jetzt auch gegen den Server
 - [ ] **Phase 12 – Verbesserungen (Nutzerin, 27.10.2026):**
-  - [ ] Dokumente „Code of Conduct“, „Polizei/Ordnungsamt“, „Sicherheitskonzept Outdoor“: Art „Leitlinie“ statt „Sonstiges“
+  - [x] Dokumente „Code of Conduct“, „Polizei/Ordnungsamt“, „Sicherheitskonzept Outdoor“: Art „Leitlinie“ statt „Sonstiges“
+        (Daten-Migration 20261031000002 mit Verlauf; live betrifft das den Leitfaden Polizei/Ordnungsamt, das
+        Sicherheitskonzept ist schon Leitlinie, ein Code of Conduct ist live noch nicht erfasst)
   - [x] Event: „Alle Aufgaben und Fragen zum Event ›“, pink wie „Zum Event“ in der Aufgabe
   - [ ] Auf die Agenda setzen mit Wahl „Stimmt das noch?“ oder „Aktion erforderlich“; die Frage steht auf der Karte, die
         Überschrift heißt „Entscheidungen & Fakten“
