@@ -3,12 +3,13 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ListDetailLayout } from '../../app/AppShell';
 import { BarOffset } from '../../app/feedback';
+import { useMe } from '../../app/session';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { EventListItem } from '../../data/api';
 import { EVENT_STATUS_COLOR, EVENT_STATUS_LABEL, EVENT_TYPE_LABEL } from '../../shared/labels';
 import { LONG_FOLLOW_UP_DAYS } from '../../shared/rules/eventDetails';
-import { cx, ListSkeleton, LoadError } from '../../ui/bits';
+import { Avatar, cx, ListSkeleton, LoadError } from '../../ui/bits';
 import { byMonth, DateBadge, MonthSection, TimeTabs, type TimeTab } from '../../ui/DatedList';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { EventDetail } from './EventDetail';
@@ -42,6 +43,10 @@ function EventList({ selectedId }: { selectedId: string | null }) {
   const [creating, setCreating] = useState(false);
 
   const [now] = useState(() => Date.now());
+  const me = useMe();
+  // anstehend: kommende, die nicht abgesagt sind; abgeschlossen: Status „Abgeschlossen“
+  const upcoming = (events ?? []).filter((e) => endOf(e) >= now && e.status !== 'abgesagt').length;
+  const closed = (events ?? []).filter((e) => e.status === 'abgeschlossen').length;
   // WF-VER-01: kommende aufsteigend, vergangene absteigend nach Datum
   const shown = (events ?? [])
     .filter((e) => (tab === 'kommend' ? endOf(e) >= now : endOf(e) < now))
@@ -50,10 +55,21 @@ function EventList({ selectedId }: { selectedId: string | null }) {
   return (
     <div className="flex min-h-dvh flex-col lg:min-h-0">
       <BarOffset px={92} />
-      <div className="flex flex-col gap-3.5 px-5 pt-6">
-        <div className="flex items-center justify-between">
-          <h1 className="m-0 text-[32px] leading-[1.15] font-bold tracking-[-1px]">Events</h1>
+      {/* Kopf wie Agenda und Termine: Logo, Suche, Profil, Überschrift mit Zahlen */}
+      <div className="flex flex-col gap-4 px-5 pt-5">
+        <div className="flex items-center lg:justify-end">
+          <img src="/myzel-logo.png" alt="Myzel" className="h-11 w-[66px] object-contain lg:hidden" />
+          <span className="flex-1" />
           <SearchButton first="events" />
+          <Link to="/profil" aria-label="Profil" className="hit ml-2.5 flex size-10 no-underline">
+            <Avatar member={me} size={40} fontSize={13} />
+          </Link>
+        </div>
+        <div className="flex flex-col gap-1">
+          <h1 className="m-0 text-[32px] leading-[1.15] font-bold tracking-[-1px]">Events</h1>
+          <div className="font-mono text-[12px] text-leise">
+            {events ? `${upcoming} ANSTEHEND · ${closed} ABGESCHLOSSEN` : ' '}
+          </div>
         </div>
         <TimeTabs value={tab} onChange={setTab} wf="WF-VER-01" />
       </div>

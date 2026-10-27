@@ -234,7 +234,7 @@ function Loaded({ event }: { event: Detail }) {
             data-wf="WF-AGE-02"
             onClick={() => showOnAgenda(event.id)}
             aria-label="Alle Aufgaben und Fragen zum Event"
-            className="-mt-2.5 -mb-1 flex min-h-11 flex-wrap items-center justify-between gap-x-3 text-left text-[14px] text-text"
+            className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5 text-left text-[14px] text-text"
           >
             <span className="text-pink">Alle Aufgaben und Fragen zum Event ›</span>
             <span className="font-mono text-[12px] text-leise">

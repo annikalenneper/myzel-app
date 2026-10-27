@@ -169,6 +169,9 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Reaktionen an Kommentaren: ❤️ 👍 👎 ❓ 😂 💀 🍀 (Migration 20261031000004, Export Version 5)
   - [x] Jeder Deploy: Version hochzählen, Changelog-Einträge „Feat: …“/„Fix: …“ (CLAUDE.md „Deploy“, Test prüft das
         Format)
+- [x] **Kleinigkeiten (Nutzerin, 27.10.2026):** Link „Alle Aufgaben und Fragen zum Event“ mit mehr Abstand; Events-Kopf
+      wie Agenda und Termine (Logo, Suche, Profil, „x ANSTEHEND · y ABGESCHLOSSEN“). Ausnahmsweise ohne neue Version
+      deployt (Nutzerin)
 - [ ] **Phase 11 – Archiv im Profil (geplant, F4; noch nicht umsetzen)**
   - [ ] Profil › „Archiv“: alles Gelöschte an einem Ort, gruppiert nach Art (Aufgaben, Veranstaltungen, Termine,
         Entscheidungen & Fakten, Fragen, Dokumente, Partner), zuletzt Gelöschtes zuerst, mit „gelöscht von … am …“

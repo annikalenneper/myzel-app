@@ -23,6 +23,9 @@ test('WF-VER-01: kommend und vergangen nach Datum, mit Status und Fortschritt', 
   await expect(cards.nth(0)).toContainText('Siebdruck-Workshop');
   await expect(cards.nth(0)).toContainText('Bestätigt');
   await expect(cards.nth(0)).toContainText('3/4');
+  // Kopf wie Agenda und Termine: Logo und Zahlen
+  await expect(page.getByRole('img', { name: 'Myzel' }).first()).toBeVisible();
+  await expect(page.getByText(/^\d+ ANSTEHEND · \d+ ABGESCHLOSSEN$/)).toBeVisible();
   // Phase 9: wie die Termine nach Monat gruppiert, die Karte zeigt Wochentag und Tag
   await expect(page.getByRole('tabpanel').getByRole('heading', { level: 2 }).first()).toHaveText(
     /^[A-ZÄ]+ \d{4}$/,
