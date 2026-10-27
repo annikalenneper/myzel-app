@@ -1,4 +1,5 @@
 // Phase 6 – Benachrichtigungs-Einstellungen: Schalter-Matrix, eigene Statusänderungen, Vorlauf (F-PRO-02, WF-PRO-04)
+// Mit MYZEL_API=server laufen dieselben Tests gegen die echten Server-Funktionen auf PGlite.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../shared/errors';
 import type { MyzelApi } from '../api';
@@ -28,7 +29,10 @@ const juleGets = async (event: string) => {
 
 beforeEach(async () => {
   clock = new Date(2026, 9, 11, 12);
-  api = createMockApi({ storage: memoryStorage(), now: () => clock });
+  api =
+    process.env.MYZEL_API === 'server'
+      ? await (await import('../../../server/api/serverApi')).createServerApi({ now: () => clock })
+      : createMockApi({ storage: memoryStorage(), now: () => clock });
   await login('mo');
 });
 

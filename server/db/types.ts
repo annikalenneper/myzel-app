@@ -286,6 +286,14 @@ export interface DecisionsTable {
   version: Generated<number>;
 }
 
+/** Schalter-Matrix (F-PRO-02): fehlt eine Zeile, ist der Kanal für dieses Ereignis aus */
+export interface NotificationPreferencesTable {
+  member_id: string;
+  event_type: NotificationEvent;
+  channel: NotificationChannel;
+  enabled: boolean;
+}
+
 export interface AppReportsTable {
   id: Generated<string>;
   kind: AppReportKind;
@@ -518,6 +526,7 @@ export interface Database {
   drive_items: DriveItemsTable;
   drive_sync_state: DriveSyncStateTable;
   app_reports: AppReportsTable;
+  notification_preferences: NotificationPreferencesTable;
 }
 
 export type MemberRow = Selectable<MembersTable>;

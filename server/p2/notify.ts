@@ -16,8 +16,24 @@ import {
   type Message,
 } from '../../src/shared/rules/notifications';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
-import { NOTIFICATION_CHANNELS, type JobRun, type NotificationChannel } from '../../src/shared/schema';
-import { parse, requireAdmin, rule, type Ctx, type ReadCtx, type Trx } from '../core/context';
+import { AppError } from '../../src/shared/errors';
+import {
+  NOTIFICATION_CHANNELS,
+  reminderLeadSchema,
+  type JobRun,
+  type NotificationChannel,
+  type NotificationEvent,
+} from '../../src/shared/schema';
+import {
+  parse,
+  requireAdmin,
+  rule,
+  updatedOne,
+  writeHistory,
+  type Ctx,
+  type ReadCtx,
+  type Trx,
+} from '../core/context';
 import type { Database } from '../db/types';
 import { settleOpenDecisions } from '../p3/knowledge';
 import { weeklyRebuild } from '../p5/drive';
@@ -90,9 +106,24 @@ export async function enqueue(
     .execute();
   const hasPush = new Set(recipients.filter((r) => r.push).map((r) => r.id));
   const hasTelegram = new Set(recipients.filter((r) => r.telegram).map((r) => r.id));
-  // ohne eingeschalteten Kanal gibt es nichts zu verschicken – auch keine Prüfung auf Doppelte
   const reachable = new Set([...hasPush, ...hasTelegram]);
-  const wanted = messages.filter((m) => reachable.has(m.member_id));
+  if (!messages.some((m) => reachable.has(m.member_id))) return 0;
+  // Schalter-Matrix (F-PRO-02): je Ereignis und Kanal; ohne Eintrag aus
+  const switchedOn = new Set(
+    (
+      await trx
+        .selectFrom('notification_preferences')
+        .select(['member_id', 'event_type', 'channel'])
+        .where('member_id', 'in', [...reachable])
+        .where('enabled', '=', true)
+        .execute()
+    ).map((p) => `${p.member_id}:${p.event_type}:${p.channel}`),
+  );
+  const on = (m: Message, channel: NotificationChannel) =>
+    (channel === 'push' ? hasPush : hasTelegram).has(m.member_id) &&
+    switchedOn.has(`${m.member_id}:${m.event_type}:${channel}`);
+  // ohne eingeschalteten Kanal gibt es nichts zu verschicken – auch keine Prüfung auf Doppelte
+  const wanted = messages.filter((m) => on(m, 'push') || on(m, 'telegram'));
   if (wanted.length === 0) return 0;
   // je Anlass nur einmal: wer später einen weiteren Kanal einschaltet, bekommt nichts nachgeliefert
   const allKeys = wanted.flatMap((m) => NOTIFICATION_CHANNELS.map((c) => `${m.dedupe_key}:${c}`));
@@ -109,9 +140,7 @@ export async function enqueue(
   for (const m of wanted) {
     if (known.has(m.dedupe_key)) continue;
     known.add(m.dedupe_key);
-    const channels: NotificationChannel[] = [];
-    if (hasPush.has(m.member_id)) channels.push('push');
-    if (hasTelegram.has(m.member_id)) channels.push('telegram');
+    const channels = NOTIFICATION_CHANNELS.filter((c) => on(m, c));
     for (const channel of channels)
       rows.push({
         dedupe_key: `${m.dedupe_key}:${channel}`,
@@ -531,7 +560,7 @@ export async function notificationSettings(
   botUsername: string | null,
 ): Promise<NotificationSettings> {
   const me = ctx.actor.id;
-  const [push, link, code] = await Promise.all([
+  const [push, link, code, prefs] = await Promise.all([
     endpoint
       ? ctx.trx
           .selectFrom('push_subscriptions')
@@ -549,13 +578,23 @@ export async function notificationSettings(
       .where('expires_at', '>', ctx.now.toISOString())
       .orderBy('expires_at', 'desc')
       .executeTakeFirst(),
+    ctx.trx
+      .selectFrom('notification_preferences')
+      .select(['event_type', 'channel'])
+      .where('member_id', '=', me)
+      .where('enabled', '=', true)
+      .execute(),
   ]);
   return {
     push: !!push,
     telegram: link ? 'verbunden' : code ? 'wartet' : 'aus',
     telegram_url: code && botUsername ? botLink(botUsername, code.code) : null,
-    // [P6] Schalter-Matrix: bis dahin alles an
-    matrix: NOTIFICATION_GROUPS.map((g) => ({ key: g.key, push: true, telegram: true })),
+    // eine Zeile gilt als an, solange eines ihrer Ereignisse an ist – gesetzt wird immer die ganze Zeile
+    matrix: NOTIFICATION_GROUPS.map((g) => ({
+      key: g.key,
+      push: g.events.some((e) => prefs.some((p) => p.event_type === e && p.channel === 'push')),
+      telegram: g.events.some((e) => prefs.some((p) => p.event_type === e && p.channel === 'telegram')),
+    })),
     reminder_lead_days: ctx.actor.reminder_lead_days,
   };
 }
@@ -570,6 +609,7 @@ async function dropWaiting(
   memberId: string,
   channel: NotificationChannel,
   exceptId?: string,
+  events?: readonly NotificationEvent[],
 ): Promise<void> {
   await trx
     .updateTable('notification_outbox')
@@ -578,7 +618,51 @@ async function dropWaiting(
     .where('channel', '=', channel)
     .where('status', '=', 'wartet')
     .$if(!!exceptId, (q) => q.where('id', '<>', exceptId!))
+    .$if(!!events, (q) => q.where('event_type', 'in', events!))
     .execute();
+}
+
+/**
+ * WF-PRO-04: eine Zeile der Matrix für einen Kanal an- oder abschalten – wirkt sofort, auch auf Nachrichten, die noch
+ * auf den nächsten Joblauf warten. Eine Abfrage für alle Ereignisse der Zeile.
+ */
+export async function setNotificationPreference(
+  ctx: Ctx,
+  rawGroup: unknown,
+  rawChannel: unknown,
+  rawEnabled: unknown,
+): Promise<void> {
+  const def = NOTIFICATION_GROUPS.find((g) => g.key === rawGroup);
+  const channel = NOTIFICATION_CHANNELS.find((c) => c === rawChannel);
+  if (!def || !channel || typeof rawEnabled !== 'boolean')
+    throw new AppError('validation', 'Diese Einstellung gibt es nicht.');
+  await ctx.trx
+    .insertInto('notification_preferences')
+    .values(
+      def.events.map((event_type) => ({ member_id: ctx.actor.id, event_type, channel, enabled: rawEnabled })),
+    )
+    .onConflict((oc) =>
+      oc.columns(['member_id', 'event_type', 'channel']).doUpdateSet({ enabled: rawEnabled }),
+    )
+    .execute();
+  if (!rawEnabled) await dropWaiting(ctx.trx, ctx.actor.id, channel, undefined, def.events);
+}
+
+/** WF-PRO-04: Vorlauf für Fristerinnerungen (1, 3 oder 7 Tage) */
+export async function setReminderLeadDays(ctx: Ctx, raw: unknown): Promise<void> {
+  const value = parse(reminderLeadSchema, raw);
+  const me = ctx.actor;
+  if (me.reminder_lead_days === value) return;
+  const result = await ctx.trx
+    .updateTable('members')
+    .set({ reminder_lead_days: value, version: me.version + 1, updated_at: ctx.now.toISOString() })
+    .where('id', '=', me.id)
+    .where('version', '=', me.version)
+    .executeTakeFirst();
+  await updatedOne(ctx, result, 'member', me);
+  await writeHistory(ctx, 'member', me.id, 'updated', {
+    reminder_lead_days: { old: me.reminder_lead_days, new: value },
+  });
 }
 
 /**

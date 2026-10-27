@@ -84,6 +84,7 @@ export default defineConfig({
             'src/data/mock/grundfunktionen.test.ts',
             'src/data/mock/konsens.test.ts',
             'src/data/mock/rueckmeldung.test.ts',
+            'src/data/mock/preferences.test.ts',
           ],
           env: { MYZEL_API: 'server', TZ: 'Europe/Berlin' },
         },

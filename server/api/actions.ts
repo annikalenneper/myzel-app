@@ -139,6 +139,10 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   removePushSubscription: (ctx, [endpoint]) => notify.removePushSubscription(ctx, endpoint),
   startTelegramLink: (ctx) => notify.startTelegramLink(ctx, botUsername()),
   unlinkTelegram: (ctx) => notify.unlinkTelegram(ctx),
+  // Schalter-Matrix und Vorlauf (F-PRO-02, WF-PRO-04)
+  setNotificationPreference: (ctx, [group, channel, enabled]) =>
+    notify.setNotificationPreference(ctx, group, channel, enabled),
+  setReminderLeadDays: (ctx, [days]) => notify.setReminderLeadDays(ctx, days),
 
   // [P3] Termine, Terminarten (Lesen über die handelnde Person: eigene Zusage)
   createAppointmentType: (ctx, [input]) => appts.createAppointmentType(ctx, input),

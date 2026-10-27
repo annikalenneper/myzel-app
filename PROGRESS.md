@@ -150,6 +150,11 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
 
 - [x] **Kleinigkeiten (Nutzerin, 26.10.2026):** kein „+“ im Profil und in der Verwaltung; Grundmenge der Agenda um
       „Nur Fragen“ erweitert – zeigt offene Fragen und „Stimmt das noch?“, keine Aufgaben, ohne Status-Filter
+- [x] **Fix Benachrichtigungs-Einstellungen (Nutzerin, 27.10.2026):** Schalter-Matrix (Push/Telegram je Ereignis) und
+      Vorlauf der Fristerinnerungen gab es nur in der Testdaten-Schicht – live kam „kommt mit einer späteren Phase“. Jetzt
+      auf dem Server (Migration 20261031000001, Tabelle `notification_preferences`); der Versand beachtet die Schalter.
+      Bestehende Mitglieder bekommen alle Schalter „an“ (bisher hat der Server alles verschickt), neue starten mit „aus“
+      (Rückmeldung 22.10.2026). Die Tests der Matrix laufen jetzt auch gegen den Server
 - [ ] **Phase 11 – Archiv im Profil (geplant, F4; noch nicht umsetzen)**
   - [ ] Profil › „Archiv“: alles Gelöschte an einem Ort, gruppiert nach Art (Aufgaben, Veranstaltungen, Termine,
         Entscheidungen & Fakten, Fragen, Dokumente, Partner), zuletzt Gelöschtes zuerst, mit „gelöscht von … am …“

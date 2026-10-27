@@ -154,6 +154,12 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
           .where('id', '=', d.id)
           .execute();
     }
+    // Schalter-Matrix der Benachrichtigungen (F-PRO-02)
+    for (let i = 0; i < data.notification_preferences.length; i += 500)
+      await trx
+        .insertInto('notification_preferences')
+        .values(data.notification_preferences.slice(i, i + 500))
+        .execute();
     // Umbau Phase 8: Rückmeldungen aus der App (16.5)
     if (data.app_reports.length) await trx.insertInto('app_reports').values(data.app_reports).execute();
     // Umbau Phase 6: Stimmen zu offenen Entscheidungen (16.4)
