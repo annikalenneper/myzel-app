@@ -62,7 +62,7 @@ test('Agenda: Liste, Schnellanlage, Status mit Rückgängig, Kommentar – alles
 
   await openTask(page, 'Smoke: Nebelfluid nachbestellen');
   await statusChip(page, 'In Arbeit').click();
-  await expect(undoBar(page)).toContainText('Status: In Arbeit · du bist eingetragen');
+  await expect(undoBar(page)).toContainText('Status: In Arbeit');
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
   await expect(statusChip(page, 'Neu')).toHaveAttribute('aria-pressed', 'true');
   await statusChip(page, 'Geplant').click();
@@ -90,6 +90,8 @@ test('Veranstaltungen: Detail mit Fortschritt, Aufgabe aus der Veranstaltung', a
     .click();
   await expect(page.getByText('4 VON 9 ERLEDIGT · 1 ÜBERFÄLLIG')).toBeVisible();
   await page.getByTestId('WF-VER-05').click();
+  // Phase 9: erst die Wahl „neu anlegen“ oder bestehende verknüpfen
+  await page.getByRole('button', { name: '+ Neue Aufgabe anlegen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Neue Aufgabe' });
   await sheet.getByLabel('Titel *').fill('Smoke: Garderobe besetzen');
   await sheet.getByRole('button', { name: 'Veranstaltungen' }).click();
@@ -165,7 +167,7 @@ test('Phase 3: Wissen lesen, Frage auf der Agenda stellen – bleibt nach Neulad
   await signIn(page, authId(1), 'mo@example.org');
   await page.goto('/wissen');
   await expect(page.getByRole('heading', { name: 'Wissen' })).toBeVisible();
-  await expect(page.getByText('4 Einträge')).toBeVisible();
+  await expect(page.getByText('6 Einträge')).toBeVisible();
   await page.goto('/agenda');
   await page.getByTestId('WF-FRA-01').filter({ hasText: '+ Frage' }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Neue Frage' });

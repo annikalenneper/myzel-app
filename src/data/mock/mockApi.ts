@@ -328,6 +328,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     updateAppointment: (id, input) => write((ctx) => appts.updateAppointment(ctx, id, input)),
     setRsvp: (id, answer) => write((ctx) => appts.setRsvp(ctx, id, answer)),
     cancelAppointment: (id, version) => write((ctx) => appts.cancelAppointment(ctx, id, version)),
+    inviteToAppointment: (id, memberIds) => write((ctx) => appts.inviteMore(ctx, id, memberIds)),
     markAppointmentHappened: (id, attendeeIds, version) =>
       write((ctx) => appts.markHappened(ctx, id, attendeeIds, version)),
     setAttendee: (id, memberId, present) => write((ctx) => appts.setAttendee(ctx, id, memberId, present)),

@@ -116,6 +116,8 @@ export function entityHistorySentence(entry: HistoryEntry, noun: EntityNoun, loo
         ? `${who} hat ${person} als anwesend eingetragen${late}.`
         : `${who} hat ${person} als nicht anwesend eingetragen${late}.`;
     }
+    case 'invited':
+      return `${who} hat ${look.memberName(String(c.invitee?.new ?? ''))} eingeladen.`;
     case 'protocol':
       return `${who} hat das Protokoll geändert.`;
     case 'closed':

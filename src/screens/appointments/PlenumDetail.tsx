@@ -33,6 +33,7 @@ import { ConfirmDialog } from '../knowledge/DetailParts';
 import { DocumentPickSheet } from '../knowledge/DocumentPickSheet';
 import { TopBar } from './AppointmentDetail';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
+import { Invitees } from './Invitees';
 import { rsvpButton, useRsvp } from './AppointmentsScreen';
 
 type Tab = 'ergebnis' | 'protokoll';
@@ -271,6 +272,7 @@ function Loaded({ p }: { p: Detail }) {
                 {p.yes_ids.length} kommen · {p.no_ids.length} nicht · {p.open_ids.length} offen
               </span>
             </div>
+            <Invitees a={p} />
             {canRsvp(p, now) && (
               <div className="grid grid-cols-2 gap-2">
                 <button

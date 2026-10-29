@@ -73,6 +73,10 @@ export function invitedIds(
   return activeMemberIds.filter((id) => chosen.has(id));
 }
 
+/** „Weitere einladen“ (WF-TER-12): nur bei Auswahl, solange der Termin geplant ist und nicht begonnen hat. */
+export const canInviteMore = (a: Timed, inviteeIds: readonly string[], now: Date) =>
+  inviteeIds.length > 0 && canRsvp(a, now);
+
 /** Termin-Einladung: an alle Eingeladenen außer der anlegenden Person (6.2). */
 export function invitationMessages(
   a: AppointmentRef,

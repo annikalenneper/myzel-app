@@ -2,6 +2,7 @@
 import { AppError } from '../../shared/errors';
 import {
   canMarkHappened,
+  canInviteMore,
   canRsvp,
   changeMessages,
   hasStarted,
@@ -390,6 +391,30 @@ function replaceAttendees(ctx: Ctx, id: string, memberIds: readonly string[]): v
   ctx.db.appointment_attendees = ctx.db.appointment_attendees
     .filter((x) => x.appointment_id !== id)
     .concat(unique.map((member_id) => ({ appointment_id: id, member_id })));
+}
+
+/** WF-TER-12: weitere Personen einladen – eintragsweise, sie bekommen die Einladung; ohne Rückgängig */
+export function inviteMore(ctx: Ctx, id: string, memberIds: readonly string[]): { notified: number } {
+  const a = notArchived(findAppointment(ctx.db, id));
+  const current = inviteeIds(ctx.db, id);
+  if (current.length === 0) throw rule('Zu diesem Termin sind schon alle eingeladen.');
+  if (!canInviteMore(a, current, ctx.now)) throw rule('Zu diesem Termin lässt sich niemand mehr einladen.');
+  const active = new Set(activeIds(ctx.db));
+  const ids = [...new Set(memberIds)];
+  if (ids.some((m) => !active.has(m)))
+    throw new AppError('validation', 'Diese Person lässt sich nicht einladen.', { field: 'invitee_ids' });
+  const added = ids.filter((m) => m !== a.created_by && !current.includes(m));
+  if (added.length === 0)
+    throw new AppError('validation', 'Bitte mindestens eine weitere Person auswählen.', {
+      field: 'invitee_ids',
+    });
+  for (const member_id of added) {
+    ctx.db.appointment_invitees.push({ appointment_id: id, member_id });
+    writeHistory(ctx, 'appointment', id, 'invited', { invitee: { old: null, new: member_id } });
+  }
+  const messages = invitationMessages(a, added, ctx.actor.id);
+  notifyAction(ctx, messages, `zu „${a.title}“ eingeladen`);
+  return { notified: messages.length };
 }
 
 /** WF-TER-06: „Hat stattgefunden“ mit Teilnahme – erst nach Beginn */

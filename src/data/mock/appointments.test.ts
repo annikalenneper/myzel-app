@@ -147,6 +147,49 @@ describe('Termin anlegen (WF-TER-02, WF-PLE-01)', () => {
   });
 });
 
+describe('Weitere einladen (WF-TER-12)', () => {
+  it('lädt nachträglich ein – nur bei Auswahl, nur neue Personen, mit Verlauf', async () => {
+    const bautag = await type('Bautag');
+    const [jule, lea, kim] = [await member('Jule'), await member('Lea'), await member('Kim')];
+    const base = {
+      type_id: bautag.id,
+      starts_at: inDays(20, 10),
+      format: 'vor_ort',
+      location: 'Lager',
+    } as const;
+    const all = await api.createAppointment({ ...base, title: 'Für alle' });
+    await expectError(api.inviteToAppointment(all.id, [lea.id]), 'rule');
+    const { id } = await api.createAppointment({ ...base, title: 'Kleiner Bautag', invitee_ids: [jule.id] });
+    await expectError(api.inviteToAppointment(id, [jule.id]), 'validation', 'invitee_ids');
+    expect(await api.inviteToAppointment(id, [lea.id, kim.id, jule.id])).toEqual({ notified: 2 });
+    const detail = await api.getAppointment(id);
+    expect([...detail.invitee_ids].sort()).toEqual([jule.id, lea.id, kim.id].sort());
+    expect(detail.open_ids).toContain(lea.id);
+    expect(detail.history.filter((h) => h.action === 'invited')).toHaveLength(2);
+    await login('lea');
+    const invitations = (await api.demo!.myMessages()).filter(
+      (m) => m.event_type === 'termin_einladung' && m.text.startsWith('Kleiner Bautag'),
+    );
+    expect(invitations).toHaveLength(1);
+    await login('mo');
+  });
+
+  it('nach Beginn lässt sich niemand mehr einladen', async () => {
+    const bautag = await type('Bautag');
+    const [jule, lea] = [await member('Jule'), await member('Lea')];
+    const { id } = await api.createAppointment({
+      type_id: bautag.id,
+      title: 'Bald',
+      starts_at: inDays(1, 10),
+      format: 'vor_ort',
+      location: 'Lager',
+      invitee_ids: [jule.id],
+    });
+    clock = new Date(clock.getTime() + 2 * 86_400_000);
+    await expectError(api.inviteToAppointment(id, [lea.id]), 'rule');
+  });
+});
+
 describe('Zu- und Absage (WF-TER-03)', () => {
   it('speichert, ändert und nimmt zurück – mit Rückgängig', async () => {
     const bautag = await appointment('Bautag Oktober');

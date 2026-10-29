@@ -156,6 +156,8 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   updateAppointment: (ctx, [id, input]) => appts.updateAppointment(ctx, s(id), input),
   setRsvp: (ctx, [id, answer]) => appts.setRsvp(ctx, s(id), (answer ?? null) as RsvpAnswer | null),
   cancelAppointment: (ctx, [id, version]) => appts.cancelAppointment(ctx, s(id), n(version)),
+  inviteToAppointment: (ctx, [id, memberIds]) =>
+    appts.inviteMore(ctx, s(id), Array.isArray(memberIds) ? memberIds.map(s) : []),
   markAppointmentHappened: (ctx, [id, attendees, version]) =>
     appts.markHappened(ctx, s(id), attendees as unknown[], n(version)),
   setAttendee: (ctx, [id, memberId, present]) => appts.setAttendee(ctx, s(id), s(memberId), present === true),

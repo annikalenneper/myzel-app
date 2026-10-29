@@ -90,7 +90,7 @@ test('WF-TER-02: Terminart belegt vor; Ort bzw. Link sind je nach Format Pflicht
   await expect(created).toContainText('0 ✓');
 });
 
-test('WF-TER-12: nur einzelne Personen einladen', async ({ page }) => {
+test('WF-TER-12: nur einzelne Personen einladen, später weitere', async ({ page }) => {
   await open(page);
   await createNew(page, 'Termin');
   const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
@@ -109,6 +109,14 @@ test('WF-TER-12: nur einzelne Personen einladen', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Kleiner Bautag' })).toBeVisible();
   await expect(page.getByText('Eingeladen: Mo, Jule')).toBeVisible();
   await expect(page.getByText(/Offen · 2/i)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Weitere einladen' }).click();
+  const more = page.getByRole('dialog', { name: 'Weitere einladen' });
+  await more.getByRole('button', { name: 'Lea' }).click();
+  await more.getByRole('button', { name: 'Einladen' }).click();
+  await expect(more).toBeHidden();
+  await expect(page.getByText('Eingeladen: Mo, Jule, Lea')).toBeVisible();
+  await expect(page.getByText(/Offen · 3/i)).toBeVisible();
 });
 
 test('WF-PLE-01: Plenum anlegen mit Hinweis zum Ergebnis', async ({ page }) => {

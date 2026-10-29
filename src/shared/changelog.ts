@@ -11,6 +11,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.11.0',
+    date: '2026-10-29',
+    items: [
+      'Feat: Termine nur für einzelne Personen – nur sie bekommen die Einladung',
+      'Feat: „Weitere einladen“ im Termin, falls jemand fehlt',
+    ],
+  },
+  {
     version: '0.10.0',
     date: '2026-10-27',
     items: [

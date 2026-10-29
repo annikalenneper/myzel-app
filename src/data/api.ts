@@ -509,6 +509,8 @@ export interface MyzelApi {
   updateAppointment(id: string, input: AppointmentUpdateInput): Promise<{ notified: number }>;
   setRsvp(id: string, answer: RsvpAnswer | null): Promise<Undoable>;
   cancelAppointment(id: string, version: number): Promise<{ notified: number }>;
+  /** WF-TER-12: weitere Personen einladen, nur wenn beim Anlegen ausgewählt wurde */
+  inviteToAppointment(id: string, memberIds: string[]): Promise<{ notified: number }>;
   markAppointmentHappened(id: string, attendeeIds: string[], version: number): Promise<Undoable>;
   setAttendee(id: string, memberId: string, present: boolean): Promise<void>;
   // Serien [P6] (WF-TER-09, -10): Einzeltermine entstehen im Joblauf 3 Monate im Voraus

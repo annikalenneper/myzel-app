@@ -9,6 +9,7 @@ import type {
 import { AppError } from '../../src/shared/errors';
 import {
   canMarkHappened,
+  canInviteMore,
   canRsvp,
   changeMessages,
   hasStarted,
@@ -433,6 +434,37 @@ async function rsvpRecipients(ctx: Ctx, a: AppointmentRow): Promise<string[]> {
   return yesAndOpen(rsvps, people, invitedIds(people, invitees, a.created_by)).filter(
     (m) => m !== ctx.actor.id,
   );
+}
+
+/** WF-TER-12: weitere Personen einladen – eintragsweise, sie bekommen die Einladung; ohne Rückgängig */
+export async function inviteMore(
+  ctx: Ctx,
+  id: string,
+  memberIds: readonly string[],
+): Promise<{ notified: number }> {
+  // erst den Termin sperren: gleichzeitiges Einladen läuft nacheinander
+  const a = await findAppointment(ctx.trx, id);
+  const [current, people] = await Promise.all([inviteeIds(ctx.trx, id), activeIds(ctx.trx)]);
+  if (current.length === 0) throw rule('Zu diesem Termin sind schon alle eingeladen.');
+  if (!canInviteMore(a, current, ctx.now)) throw rule('Zu diesem Termin lässt sich niemand mehr einladen.');
+  const active = new Set(people);
+  const ids = [...new Set(memberIds)];
+  if (ids.some((m) => !active.has(m)))
+    throw new AppError('validation', 'Diese Person lässt sich nicht einladen.', { field: 'invitee_ids' });
+  const added = ids.filter((m) => m !== a.created_by && !current.includes(m));
+  if (added.length === 0)
+    throw new AppError('validation', 'Bitte mindestens eine weitere Person auswählen.', {
+      field: 'invitee_ids',
+    });
+  await ctx.trx
+    .insertInto('appointment_invitees')
+    .values(added.map((member_id) => ({ appointment_id: id, member_id })))
+    .execute();
+  for (const member_id of added)
+    await writeHistory(ctx, 'appointment', id, 'invited', { invitee: { old: null, new: member_id } });
+  const messages = invitationMessages(a, added, ctx.actor.id);
+  await notify(ctx, messages, `zu „${a.title}“ eingeladen`);
+  return { notified: messages.length };
 }
 
 /** WF-TER-04: bearbeiten/verschieben; bei Zeit oder Ort geändert: Nachricht an Zusagen und ohne Antwort */
