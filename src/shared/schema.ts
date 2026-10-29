@@ -443,6 +443,10 @@ export const appointmentRsvpSchema = z.object({
 });
 export type AppointmentRsvp = z.infer<typeof appointmentRsvpSchema>;
 
+/** Phase 12: beim Anlegen ausgewählte Personen; ohne Einträge sind alle aktiven Mitglieder eingeladen */
+export const appointmentInviteeSchema = z.object({ appointment_id: idSchema, member_id: idSchema });
+export type AppointmentInvitee = z.infer<typeof appointmentInviteeSchema>;
+
 /** tatsächliche Teilnahme */
 export const appointmentAttendeeSchema = z.object({ appointment_id: idSchema, member_id: idSchema });
 export type AppointmentAttendee = z.infer<typeof appointmentAttendeeSchema>;
@@ -740,7 +744,11 @@ const placeIssues = (v: AppointmentPlace, ctx: z.RefinementCtx) => {
     ctx.addIssue({ code: 'custom', path: ['online_url'], message: 'Der Link muss mit https:// beginnen.' });
 };
 export const appointmentCreateSchema = z
-  .object(appointmentFields)
+  .object({
+    ...appointmentFields,
+    /** leer: alle aktiven Mitglieder einladen, sonst nur diese Personen (Phase 12) */
+    invitee_ids: z.array(idSchema).default([]),
+  })
   .refine(endsAfterStart, endsAfterStartIssue)
   .superRefine(placeIssues);
 export type AppointmentCreateInput = z.input<typeof appointmentCreateSchema>;

@@ -210,6 +210,15 @@ function Loaded({ a }: { a: Detail }) {
               </div>
             ))}
           </div>
+          {/* WF-TER-12: nur ausgewählte Personen eingeladen */}
+          {a.invitee_ids.length > 0 && (
+            <span className="text-[13px] leading-[1.4] text-leise">
+              Eingeladen:{' '}
+              {[a.created_by, ...a.invitee_ids]
+                .map((id) => memberById.get(id)?.display_name ?? 'Unbekannt')
+                .join(', ')}
+            </span>
+          )}
         </div>
 
         {/* WF-TER-07 Aufgaben am Termin */}

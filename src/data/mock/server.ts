@@ -56,6 +56,7 @@ import {
   type HistoryEntry,
   type Appointment,
   type AppointmentAttendee,
+  type AppointmentInvitee,
   type AppointmentRsvp,
   type AppointmentSeries,
   type AppointmentStatus,
@@ -218,6 +219,8 @@ export interface Db {
   appointment_series: AppointmentSeries[];
   appointment_rsvps: AppointmentRsvp[];
   appointment_attendees: AppointmentAttendee[];
+  /** Phase 12: beim Anlegen ausgewählte Personen (leer: alle eingeladen) */
+  appointment_invitees: AppointmentInvitee[];
   decisions: Decision[];
   /** [Umbau Phase 6] Stimmen zu offenen Entscheidungen (16.4) */
   decision_votes: DecisionVote[];
@@ -267,6 +270,7 @@ export function emptyDb(): Db {
     appointment_series: [],
     appointment_rsvps: [],
     appointment_attendees: [],
+    appointment_invitees: [],
     decisions: [],
     decision_votes: [],
     app_reports: [],

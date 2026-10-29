@@ -6,6 +6,7 @@ import {
   changeMessages,
   hasStarted,
   invitationMessages,
+  invitedIds,
   yesAndOpen,
 } from '../../shared/rules/appointments';
 import { ruleLabel } from '../../shared/rules/series';
@@ -39,6 +40,21 @@ import {
 const uuid = () => crypto.randomUUID();
 const iso = (ctx: Ctx) => ctx.now.toISOString();
 export const activeIds = (db: Db) => db.members.filter((m) => m.active && !m.is_system).map((m) => m.id);
+
+const inviteeIds = (db: Db, id: string) =>
+  db.appointment_invitees.filter((x) => x.appointment_id === id).map((x) => x.member_id);
+
+/** Eingeladene aktive Mitglieder: alle oder die beim Anlegen ausgewählten (Phase 12) */
+export const invitedOf = (db: Db, a: Pick<Appointment, 'id' | 'created_by'>) =>
+  invitedIds(activeIds(db), inviteeIds(db, a.id), a.created_by);
+
+/** Zusagen und Eingeladene ohne Antwort, ohne die handelnde Person */
+export const rsvpRecipients = (ctx: Ctx, a: Pick<Appointment, 'id' | 'created_by'>) =>
+  yesAndOpen(
+    ctx.db.appointment_rsvps.filter((r) => r.appointment_id === a.id),
+    activeIds(ctx.db),
+    invitedOf(ctx.db, a),
+  ).filter((m) => m !== ctx.actor.id);
 
 // ── Terminarten (nur Admins, WF-ADM-06) ─────────────────────────────────────
 
@@ -179,7 +195,8 @@ export function getAppointment(db: Db, id: string, meId: string): AppointmentDet
     ...listItem(db, a, meId),
     yes_ids: rsvps.filter((r) => r.answer === 'ja').map((r) => r.member_id),
     no_ids: rsvps.filter((r) => r.answer === 'nein').map((r) => r.member_id),
-    open_ids: activeIds(db).filter((m) => !answered.has(m)),
+    invitee_ids: inviteeIds(db, id),
+    open_ids: invitedOf(db, a).filter((m) => !answered.has(m)),
     attendee_ids: db.appointment_attendees.filter((x) => x.appointment_id === id).map((x) => x.member_id),
     tasks: db.tasks
       .filter((t) => t.appointment_id === id && !t.archived_at)
@@ -207,10 +224,22 @@ export function checkRefs(
   return type;
 }
 
-/** WF-TER-02 / WF-PLE-01: Status geplant; Einladung an alle aktiven Mitglieder */
+/** Nur aktive Mitglieder lassen sich einladen; die anlegende Person ist ohnehin dabei */
+function checkInvitees(ctx: Ctx, ids: readonly string[]): string[] {
+  const active = new Set(activeIds(ctx.db));
+  const unique = [...new Set(ids)].filter((m) => m !== ctx.actor.id);
+  if (unique.some((m) => !active.has(m)))
+    throw new AppError('validation', 'Diese Person lässt sich nicht einladen.', { field: 'invitee_ids' });
+  if (ids.length > 0 && unique.length === 0)
+    throw new AppError('validation', 'Bitte mindestens eine Person auswählen.', { field: 'invitee_ids' });
+  return unique;
+}
+
+/** WF-TER-02 / WF-PLE-01: Status geplant; Einladung an alle aktiven Mitglieder oder an ausgewählte (WF-TER-12) */
 export function createAppointment(ctx: Ctx, raw: unknown): { id: string } {
   const input = parse(appointmentCreateSchema, raw);
   const type = checkRefs(ctx, input, true);
+  const invitees = checkInvitees(ctx, input.invitee_ids);
   const now = iso(ctx);
   const appointment: Appointment = {
     id: uuid(),
@@ -238,14 +267,17 @@ export function createAppointment(ctx: Ctx, raw: unknown): { id: string } {
     version: 1,
   };
   ctx.db.appointments.push(appointment);
+  for (const member_id of invitees)
+    ctx.db.appointment_invitees.push({ appointment_id: appointment.id, member_id });
   writeHistory(ctx, 'appointment', appointment.id, 'created', {
     title: { old: null, new: appointment.title },
+    ...(invitees.length ? { invitees: { old: null, new: invitees.length } } : {}),
   });
   // nachgetragene Termine laden niemanden mehr ein
   if (!hasStarted(appointment, ctx.now))
     notifyAction(
       ctx,
-      invitationMessages(appointment, activeIds(ctx.db), ctx.actor.id),
+      invitationMessages(appointment, invitedOf(ctx.db, appointment), ctx.actor.id),
       `zu „${appointment.title}“ eingeladen`,
     );
   return { id: appointment.id };
@@ -292,10 +324,7 @@ export function updateAppointment(ctx: Ctx, id: string, raw: unknown): { notifie
   // Zusagen bleiben erhalten; benachrichtigt wird nur, was noch bevorsteht
   const moved = ['starts_at', 'ends_at', 'format', 'location', 'online_url'].some((k) => k in changes);
   if (!moved || a.status !== 'geplant' || hasStarted(a, ctx.now)) return { notified: 0 };
-  const recipients = yesAndOpen(
-    ctx.db.appointment_rsvps.filter((r) => r.appointment_id === id),
-    activeIds(ctx.db),
-  ).filter((m) => m !== ctx.actor.id);
+  const recipients = rsvpRecipients(ctx, a);
   notifyAction(
     ctx,
     changeMessages(a, 'verschoben', recipients, ctx.actor.id, iso(ctx)),
@@ -344,10 +373,7 @@ export function cancelAppointment(ctx: Ctx, id: string, version: number): { noti
   a.status = 'abgesagt';
   touch(ctx, a);
   writeHistory(ctx, 'appointment', id, 'status', changes);
-  const recipients = yesAndOpen(
-    ctx.db.appointment_rsvps.filter((r) => r.appointment_id === id),
-    activeIds(ctx.db),
-  ).filter((m) => m !== ctx.actor.id);
+  const recipients = rsvpRecipients(ctx, a);
   notifyAction(
     ctx,
     changeMessages(a, 'abgesagt', recipients, ctx.actor.id, iso(ctx)),

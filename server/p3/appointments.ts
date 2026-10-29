@@ -13,6 +13,7 @@ import {
   changeMessages,
   hasStarted,
   invitationMessages,
+  invitedIds,
   yesAndOpen,
 } from '../../src/shared/rules/appointments';
 import { z } from 'zod';
@@ -58,6 +59,15 @@ export async function activeIds(trx: Db): Promise<string[]> {
     .orderBy('id')
     .execute();
   return rows.map((r) => r.id);
+}
+
+async function inviteeIds(trx: Db, id: string): Promise<string[]> {
+  const rows = await trx
+    .selectFrom('appointment_invitees')
+    .select('member_id')
+    .where('appointment_id', '=', id)
+    .execute();
+  return rows.map((r) => r.member_id);
 }
 
 // ── Terminarten (nur Admins, WF-ADM-06) ─────────────────────────────────────
@@ -270,7 +280,7 @@ export async function listAppointments(ctx: ReadCtx): Promise<AppointmentListIte
 
 export async function getAppointment(trx: Db, id: string, meId: string): Promise<AppointmentDetail> {
   const a = await findAppointment(trx, id, false);
-  const [[item], rsvps, attendees, tasks, people, comments, history] = await Promise.all([
+  const [[item], rsvps, attendees, tasks, people, invitees, comments, history] = await Promise.all([
     listItems(trx, [a], meId),
     trx.selectFrom('appointment_rsvps').selectAll().where('appointment_id', '=', id).execute(),
     trx.selectFrom('appointment_attendees').select('member_id').where('appointment_id', '=', id).execute(),
@@ -283,6 +293,7 @@ export async function getAppointment(trx: Db, id: string, meId: string): Promise
       .orderBy('id')
       .execute(),
     activeIds(trx),
+    inviteeIds(trx, id),
     commentsOf(trx, 'appointment', id),
     historyOf(trx, 'appointment', id),
   ]);
@@ -303,7 +314,8 @@ export async function getAppointment(trx: Db, id: string, meId: string): Promise
     ...item!,
     yes_ids: rsvps.filter((r) => r.answer === 'ja').map((r) => r.member_id),
     no_ids: rsvps.filter((r) => r.answer === 'nein').map((r) => r.member_id),
-    open_ids: people.filter((m) => !answered.has(m)),
+    invitee_ids: invitees,
+    open_ids: invitedIds(people, invitees, a.created_by).filter((m) => !answered.has(m)),
     attendee_ids: attendees.map((x) => x.member_id),
     tasks: tasks.map((t) => ({
       ...t,
@@ -340,10 +352,22 @@ async function checkRefs(
   return type;
 }
 
-/** WF-TER-02 / WF-PLE-01: Status geplant; Einladung an alle aktiven Mitglieder */
+/** Nur aktive Mitglieder lassen sich einladen; die anlegende Person ist ohnehin dabei */
+function checkInvitees(ctx: Ctx, people: readonly string[], ids: readonly string[]): string[] {
+  const active = new Set(people);
+  const unique = [...new Set(ids)].filter((m) => m !== ctx.actor.id);
+  if (unique.some((m) => !active.has(m)))
+    throw new AppError('validation', 'Diese Person lässt sich nicht einladen.', { field: 'invitee_ids' });
+  if (ids.length > 0 && unique.length === 0)
+    throw new AppError('validation', 'Bitte mindestens eine Person auswählen.', { field: 'invitee_ids' });
+  return unique;
+}
+
+/** WF-TER-02 / WF-PLE-01: Status geplant; Einladung an alle aktiven Mitglieder oder an ausgewählte (WF-TER-12) */
 export async function createAppointment(ctx: Ctx, raw: unknown): Promise<{ id: string }> {
   const input = parse(appointmentCreateSchema, raw);
-  const type = await checkRefs(ctx, input, true);
+  const [type, people] = await Promise.all([checkRefs(ctx, input, true), activeIds(ctx.trx)]);
+  const invitees = checkInvitees(ctx, people, input.invitee_ids);
   const now = iso(ctx);
   const appointment = await ctx.trx
     .insertInto('appointments')
@@ -368,14 +392,20 @@ export async function createAppointment(ctx: Ctx, raw: unknown): Promise<{ id: s
     })
     .returningAll()
     .executeTakeFirstOrThrow();
+  if (invitees.length)
+    await ctx.trx
+      .insertInto('appointment_invitees')
+      .values(invitees.map((member_id) => ({ appointment_id: appointment.id, member_id })))
+      .execute();
   await writeHistory(ctx, 'appointment', appointment.id, 'created', {
     title: { old: null, new: appointment.title },
+    ...(invitees.length ? { invitees: { old: null, new: invitees.length } } : {}),
   });
   // nachgetragene Termine laden niemanden mehr ein
   if (!hasStarted(appointment, ctx.now))
     await notify(
       ctx,
-      invitationMessages(appointment, await activeIds(ctx.trx), ctx.actor.id),
+      invitationMessages(appointment, invitedIds(people, invitees, ctx.actor.id), ctx.actor.id),
       `zu „${appointment.title}“ eingeladen`,
     );
   return { id: appointment.id };
@@ -393,13 +423,16 @@ async function touchAppointment(ctx: Ctx, a: AppointmentRow, set: Partial<Appoin
 }
 export { touchAppointment };
 
-async function rsvpRecipients(ctx: Ctx, id: string): Promise<string[]> {
-  const rsvps = await ctx.trx
-    .selectFrom('appointment_rsvps')
-    .selectAll()
-    .where('appointment_id', '=', id)
-    .execute();
-  return yesAndOpen(rsvps, await activeIds(ctx.trx)).filter((m) => m !== ctx.actor.id);
+/** Zusagen und Eingeladene ohne Antwort, ohne die handelnde Person */
+async function rsvpRecipients(ctx: Ctx, a: AppointmentRow): Promise<string[]> {
+  const [rsvps, people, invitees] = await Promise.all([
+    ctx.trx.selectFrom('appointment_rsvps').selectAll().where('appointment_id', '=', a.id).execute(),
+    activeIds(ctx.trx),
+    inviteeIds(ctx.trx, a.id),
+  ]);
+  return yesAndOpen(rsvps, people, invitedIds(people, invitees, a.created_by)).filter(
+    (m) => m !== ctx.actor.id,
+  );
 }
 
 /** WF-TER-04: bearbeiten/verschieben; bei Zeit oder Ort geändert: Nachricht an Zusagen und ohne Antwort */
@@ -436,7 +469,7 @@ export async function updateAppointment(ctx: Ctx, id: string, raw: unknown): Pro
   // Zusagen bleiben erhalten; benachrichtigt wird nur, was noch bevorsteht
   const moved = ['starts_at', 'ends_at', 'format', 'location', 'online_url'].some((k) => k in changes);
   if (!moved || a.status !== 'geplant' || hasStarted(a, ctx.now)) return { notified: 0 };
-  const recipients = await rsvpRecipients(ctx, id);
+  const recipients = await rsvpRecipients(ctx, a);
   await notify(
     ctx,
     changeMessages(a, 'verschoben', recipients, ctx.actor.id, iso(ctx)),
@@ -500,7 +533,7 @@ export async function cancelAppointment(
   const changes: HistoryChanges = { status: { old: a.status, new: 'abgesagt' } };
   await touchAppointment(ctx, a, { status: 'abgesagt' });
   await writeHistory(ctx, 'appointment', id, 'status', changes);
-  const recipients = await rsvpRecipients(ctx, id);
+  const recipients = await rsvpRecipients(ctx, a);
   await notify(
     ctx,
     changeMessages(a, 'abgesagt', recipients, ctx.actor.id, iso(ctx)),

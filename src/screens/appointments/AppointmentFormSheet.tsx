@@ -1,8 +1,10 @@
 // S-31 Termin anlegen (WF-TER-02; mit Terminart Plenum = WF-PLE-01; als Serie WF-TER-09) und
-// bearbeiten/verschieben (WF-TER-04; Serientermin: nur dieser oder die ganze Serie, WF-TER-10)
+// bearbeiten/verschieben (WF-TER-04; Serientermin: nur dieser oder die ganze Serie, WF-TER-10);
+// beim Anlegen alle oder einzelne Personen einladen (WF-TER-12)
 import { useState } from 'react';
 import { useFeedback } from '../../app/feedback';
 import { useLookups } from '../../app/lookups';
+import { useMe } from '../../app/session';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { AppointmentDetail } from '../../data/api';
@@ -30,7 +32,9 @@ export function AppointmentFormSheet({
   onCreated?: (id: string) => void;
 }) {
   const { run } = useFeedback();
-  const { topicName, events } = useLookups();
+  const { topicName, events, activeMembers } = useLookups();
+  const me = useMe();
+  const others = activeMembers.filter((m) => m.id !== me.id);
   const { data: allTypes } = useData('appointment-types', () => api.listAppointmentTypes());
   const types = (allTypes ?? []).filter((t) => !t.archived_at);
   const wf = appointment ? 'WF-TER-04' : 'WF-TER-02';
@@ -53,6 +57,8 @@ export function AppointmentFormSheet({
   const [until, setUntil] = useState('');
   /** [P6] Serientermin bearbeiten: nur diesen oder die ganze Serie (WF-TER-10) */
   const [scope, setScope] = useState<'one' | 'series'>('one');
+  /** WF-TER-12: leer = alle aktiven Mitglieder einladen */
+  const [inviteeIds, setInviteeIds] = useState<string[]>([]);
   const isSeries = !appointment && !!repeat;
   // eine Serie hat Uhrzeiten, kein mehrtägiges Ende
   const multiDay = isSeries && !!endsAt && endsAt.slice(0, 10) !== startsAt.slice(0, 10);
@@ -152,7 +158,8 @@ export function AppointmentFormSheet({
       );
       if (result) onClose();
     } else {
-      const created = await run(() => api.createAppointment(input), {
+      const invitee_ids = inPast ? [] : inviteeIds;
+      const created = await run(() => api.createAppointment({ ...input, invitee_ids }), {
         success: inPast ? 'Termin nachgetragen' : 'Termin angelegt – Einladung geht raus',
         onInvalid,
       });
@@ -396,6 +403,38 @@ export function AppointmentFormSheet({
         {!isSeries && (
           <TextField label="Beschreibung" wf={wf} value={description} onChange={setDescription} />
         )}
+        {!appointment && !isSeries && !inPast && (
+          <div className="flex flex-col gap-2">
+            <span id="termin-einladen" className="label-mono">
+              Einladen
+            </span>
+            <div role="group" aria-labelledby="termin-einladen" className="flex flex-wrap gap-2">
+              <Pill
+                data-wf="WF-TER-12"
+                on={inviteeIds.length === 0}
+                onClick={() => setInviteeIds([])}
+                className="font-medium"
+              >
+                Alle
+              </Pill>
+              {others.map((m) => (
+                <Pill
+                  key={m.id}
+                  data-wf="WF-TER-12"
+                  on={inviteeIds.includes(m.id)}
+                  onClick={() =>
+                    setInviteeIds((ids) =>
+                      ids.includes(m.id) ? ids.filter((id) => id !== m.id) : [...ids, m.id],
+                    )
+                  }
+                >
+                  {m.display_name}
+                </Pill>
+              ))}
+            </div>
+            <FieldError>{fieldError('invitee_ids')}</FieldError>
+          </div>
+        )}
         <FieldError>
           {error &&
             ![
@@ -408,6 +447,7 @@ export function AppointmentFormSheet({
               'rrule',
               'location',
               'online_url',
+              'invitee_ids',
             ].includes(error.field ?? '') &&
             error.message}
         </FieldError>
@@ -424,7 +464,9 @@ export function AppointmentFormSheet({
               ? SERIES_HINT
               : inPast
                 ? 'Liegt in der Vergangenheit: Der Termin wird nachgetragen, niemand bekommt eine Einladung.'
-                : 'Alle aktiven Mitglieder bekommen eine Einladung und können zu- oder absagen.'}
+                : inviteeIds.length === 0
+                  ? 'Alle aktiven Mitglieder bekommen eine Einladung und können zu- oder absagen.'
+                  : `Nur ${inviteeIds.length === 1 ? 'die ausgewählte Person bekommt' : `die ${inviteeIds.length} ausgewählten Personen bekommen`} eine Einladung. Alle anderen sehen den Termin trotzdem und können zusagen.`}
           </span>
         )}
         {appointment ? (

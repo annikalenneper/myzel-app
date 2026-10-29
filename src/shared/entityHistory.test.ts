@@ -37,6 +37,15 @@ describe('Verlauf: vorher → nachher (16.3)', () => {
     );
   });
 
+  it('Termin nur für ausgewählte Personen angelegt (WF-TER-12)', () => {
+    expect(entityHistorySentence(entry('created', { invitees: { old: null, new: 2 } }), 'Termin', look)).toBe(
+      'Mo hat den Termin angelegt und 2 Personen eingeladen.',
+    );
+    expect(entityHistorySentence(entry('created', { title: { old: null, new: 'X' } }), 'Termin', look)).toBe(
+      'Mo hat den Termin angelegt.',
+    );
+  });
+
   it('geleerte Beschreibung nennt den alten Stand; bearbeitete Kommentare zeigen alt und neu', () => {
     expect(describeFieldChanges({ description: { old: 'Weg damit', new: '' } })).toBe(
       'die Beschreibung entfernt (vorher: „Weg damit“)',

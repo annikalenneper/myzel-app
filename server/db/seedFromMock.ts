@@ -133,6 +133,8 @@ export async function seedFromMock(db: Kysely<Database>, now: Date): Promise<voi
       await trx.insertInto('appointment_rsvps').values(data.appointment_rsvps).execute();
     if (data.appointment_attendees.length)
       await trx.insertInto('appointment_attendees').values(data.appointment_attendees).execute();
+    if (data.appointment_invitees.length)
+      await trx.insertInto('appointment_invitees').values(data.appointment_invitees).execute();
     for (const t of data.tasks.filter((x) => x.appointment_id || x.origin_plenum_id))
       await trx
         .updateTable('tasks')

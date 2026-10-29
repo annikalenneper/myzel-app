@@ -5,6 +5,7 @@ import { stringify } from 'yaml';
 import { z } from 'zod';
 import {
   appointmentAttendeeSchema,
+  appointmentInviteeSchema,
   appointmentRsvpSchema,
   appointmentSchema,
   appointmentSeriesSchema,
@@ -39,7 +40,8 @@ import {
 // 4: Entscheidungen im Konsens – Status „offen“, consensus_until, decision_votes (16.4). Rückmeldungen aus der App
 // (16.5) sehen nur Admins – sie fehlen im Export wie die weiteren Login-Adressen.
 // 5: Reaktionen an Kommentaren (Phase 12)
-export const EXPORT_FORMAT_VERSION = 5;
+// 6: Einladungen an einzelne Personen (appointment_invitees, Phase 12)
+export const EXPORT_FORMAT_VERSION = 6;
 
 /** Felder, die nie in den Export gehören – auch nicht als alter oder neuer Wert in der Historie */
 export const EXPORT_EXCLUDED_FIELDS = [
@@ -90,6 +92,7 @@ export const exportSchema = z.object({
   appointments: z.array(appointmentSchema),
   appointment_rsvps: z.array(appointmentRsvpSchema),
   appointment_attendees: z.array(appointmentAttendeeSchema),
+  appointment_invitees: z.array(appointmentInviteeSchema),
   decisions: z.array(decisionSchema),
   decision_votes: z.array(decisionVoteSchema),
   questions: z.array(questionSchema),
@@ -144,6 +147,7 @@ export function buildExport(db: ExportSource, now: Date): MyzelExport {
     appointments: db.appointments,
     appointment_rsvps: db.appointment_rsvps,
     appointment_attendees: db.appointment_attendees,
+    appointment_invitees: db.appointment_invitees,
     decisions: db.decisions,
     decision_votes: db.decision_votes,
     questions: db.questions,

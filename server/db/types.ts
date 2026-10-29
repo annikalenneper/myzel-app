@@ -239,6 +239,11 @@ export interface AppointmentRsvpsTable {
   answered_at: Timestamp;
 }
 
+export interface AppointmentInviteesTable {
+  appointment_id: string;
+  member_id: string;
+}
+
 export interface AppointmentAttendeesTable {
   appointment_id: string;
   member_id: string;
@@ -521,6 +526,7 @@ export interface Database {
   appointments: AppointmentsTable;
   appointment_rsvps: AppointmentRsvpsTable;
   appointment_attendees: AppointmentAttendeesTable;
+  appointment_invitees: AppointmentInviteesTable;
   documents: DocumentsTable;
   document_links: DocumentLinksTable;
   decisions: DecisionsTable;

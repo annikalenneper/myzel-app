@@ -8,7 +8,7 @@
     },
     "version": {
       "type": "number",
-      "const": 5
+      "const": 6
     },
     "exported_at": {
       "type": "string",
@@ -1962,6 +1962,29 @@
         "additionalProperties": false
       }
     },
+    "appointment_invitees": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "appointment_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "member_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "appointment_id",
+          "member_id"
+        ],
+        "additionalProperties": false
+      }
+    },
     "decisions": {
       "type": "array",
       "items": {
@@ -2573,6 +2596,7 @@
     "appointments",
     "appointment_rsvps",
     "appointment_attendees",
+    "appointment_invitees",
     "decisions",
     "decision_votes",
     "questions",

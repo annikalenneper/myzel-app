@@ -5,7 +5,7 @@
 import { sql, type ExpressionBuilder, type Kysely } from 'kysely';
 import { z } from 'zod';
 import type { NotificationSettings, SystemStatus } from '../../src/data/api';
-import { appointmentReminderMessages, yesAndOpen } from '../../src/shared/rules/appointments';
+import { appointmentReminderMessages, invitedIds, yesAndOpen } from '../../src/shared/rules/appointments';
 import { berlinDate, berlinHour } from '../../src/shared/rules/due';
 import {
   consensusDeadlineMessages,
@@ -239,29 +239,28 @@ async function enqueueAppointmentReminders(db: Db, now: Date): Promise<number> {
       .where('starts_at', '<=', soon)
       .execute();
     if (appointments.length === 0) return 0;
-    const [people, rsvps] = await Promise.all([
+    const ids = appointments.map((a) => a.id);
+    const [people, rsvps, invitees] = await Promise.all([
       trx
         .selectFrom('members')
         .select('id')
         .where('active', '=', true)
         .where('is_system', '=', false)
         .execute(),
-      trx
-        .selectFrom('appointment_rsvps')
-        .selectAll()
-        .where(
-          'appointment_id',
-          'in',
-          appointments.map((a) => a.id),
-        )
-        .execute(),
+      trx.selectFrom('appointment_rsvps').selectAll().where('appointment_id', 'in', ids).execute(),
+      trx.selectFrom('appointment_invitees').selectAll().where('appointment_id', 'in', ids).execute(),
     ]);
-    const ids = people.map((p) => p.id);
+    const memberIds = people.map((p) => p.id);
     const items = appointments.map((appointment) => ({
       appointment,
       recipientIds: yesAndOpen(
         rsvps.filter((r) => r.appointment_id === appointment.id),
-        ids,
+        memberIds,
+        invitedIds(
+          memberIds,
+          invitees.filter((x) => x.appointment_id === appointment.id).map((x) => x.member_id),
+          appointment.created_by,
+        ),
       ),
     }));
     return enqueue(trx, now, appointmentReminderMessages(items, now));

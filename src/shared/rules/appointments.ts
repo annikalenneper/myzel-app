@@ -59,7 +59,21 @@ export function whenText(iso: string): string {
 
 type AppointmentRef = Pick<Appointment, 'id' | 'title' | 'starts_at' | 'format' | 'online_url'>;
 
-/** Termin-Einladung: an alle aktiven Mitglieder außer der anlegenden Person (6.2). */
+/**
+ * Eingeladen sind alle aktiven Mitglieder oder – wenn beim Anlegen Personen ausgewählt wurden – nur diese und die
+ * anlegende Person (Phase 12).
+ */
+export function invitedIds(
+  activeMemberIds: readonly string[],
+  inviteeIds: readonly string[],
+  createdBy: string,
+): string[] {
+  if (inviteeIds.length === 0) return [...activeMemberIds];
+  const chosen = new Set([...inviteeIds, createdBy]);
+  return activeMemberIds.filter((id) => chosen.has(id));
+}
+
+/** Termin-Einladung: an alle Eingeladenen außer der anlegenden Person (6.2). */
 export function invitationMessages(
   a: AppointmentRef,
   memberIds: readonly string[],
@@ -76,13 +90,18 @@ export function invitationMessages(
     }));
 }
 
-/** Wer bei Absage, Verschiebung und Erinnerung Bescheid bekommt: Zusagen und alle ohne Antwort. */
+/**
+ * Wer bei Absage, Verschiebung und Erinnerung Bescheid bekommt: Zusagen und alle Eingeladenen ohne Antwort
+ * (ohne Auswahl sind alle aktiven Mitglieder eingeladen).
+ */
 export function yesAndOpen(
   rsvps: readonly Pick<AppointmentRsvp, 'member_id' | 'answer'>[],
   activeMemberIds: readonly string[],
+  invited: readonly string[] = activeMemberIds,
 ): string[] {
-  const declined = new Set(rsvps.filter((r) => r.answer === 'nein').map((r) => r.member_id));
-  return activeMemberIds.filter((id) => !declined.has(id));
+  const answers = new Map(rsvps.map((r) => [r.member_id, r.answer]));
+  const isInvited = new Set(invited);
+  return activeMemberIds.filter((id) => (answers.has(id) ? answers.get(id) === 'ja' : isInvited.has(id)));
 }
 
 export function changeMessages(

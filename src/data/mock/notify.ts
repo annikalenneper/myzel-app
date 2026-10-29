@@ -1,7 +1,7 @@
 // Testdaten-Schicht, Phase 2: Outbox, Joblauf, Push-Abos und Telegram-Verknüpfung (ANFORDERUNGEN 3.11, 6).
 // Verschickt wird hier nichts – „gesendet“ heißt nur, dass der Joblauf die Nachricht abgearbeitet hat.
 import { AppError } from '../../shared/errors';
-import { appointmentReminderMessages, yesAndOpen } from '../../shared/rules/appointments';
+import { appointmentReminderMessages, invitedIds, yesAndOpen } from '../../shared/rules/appointments';
 import { toIsoDate } from '../../shared/rules/due';
 import {
   channelEnabled,
@@ -121,6 +121,13 @@ export function runJob(db: Db, now: Date): JobRun {
           recipientIds: yesAndOpen(
             db.appointment_rsvps.filter((r) => r.appointment_id === appointment.id),
             people,
+            invitedIds(
+              people,
+              db.appointment_invitees
+                .filter((x) => x.appointment_id === appointment.id)
+                .map((x) => x.member_id),
+              appointment.created_by,
+            ),
           ),
         })),
       now,

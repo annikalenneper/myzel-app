@@ -2,7 +2,7 @@
 // Mit MYZEL_API=server laufen dieselben Tests gegen die echten Server-Funktionen auf PGlite (Schritt C, Phase 3).
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../shared/errors';
-import { appointmentReminderMessages, yesAndOpen } from '../../shared/rules/appointments';
+import { appointmentReminderMessages, invitedIds, yesAndOpen } from '../../shared/rules/appointments';
 import type { MyzelApi } from '../api';
 import { createMockApi, type KeyValueStorage } from './mockApi';
 
@@ -101,6 +101,49 @@ describe('Termin anlegen (WF-TER-02, WF-PLE-01)', () => {
     expect(invitation[0]!.text).toMatch(/^Plenum Dezember am .* \(online\) – kommst du\?$/);
     await login('mo');
     expect((await api.demo!.myMessages()).some((m) => m.event_type === 'termin_einladung')).toBe(false);
+  });
+
+  it('lädt auf Wunsch nur ausgewählte Personen ein (WF-TER-12)', async () => {
+    const bautag = await type('Bautag');
+    const [mo, jule] = [await member('Mo'), await member('Jule')];
+    const base = {
+      type_id: bautag.id,
+      starts_at: inDays(20, 10),
+      format: 'vor_ort',
+      location: 'Lager',
+    } as const;
+    await expectError(
+      api.createAppointment({ ...base, title: 'Nur ich', invitee_ids: [mo.id] }),
+      'validation',
+      'invitee_ids',
+    );
+    const { id } = await api.createAppointment({ ...base, title: 'Kleiner Bautag', invitee_ids: [jule.id] });
+    const created = await api.getAppointment(id);
+    expect(created.invitee_ids).toEqual([jule.id]);
+    expect([...created.open_ids].sort()).toEqual([mo.id, jule.id].sort());
+    const invited = async (name: string) => {
+      await login(name);
+      return (await api.demo!.myMessages()).some((m) => m.text.startsWith('Kleiner Bautag am'));
+    };
+    expect([await invited('jule'), await invited('lea')]).toEqual([true, false]);
+    // wer nicht eingeladen ist, sieht den Termin trotzdem und kann zusagen – dann kommt auch die Absage
+    await api.setRsvp(id, 'ja');
+    await login('kim');
+    await api.setRsvp(id, 'nein');
+    await login('mo');
+    await api.cancelAppointment(id, (await api.getAppointment(id)).version);
+    const cancelled = async (name: string) => {
+      await login(name);
+      return (await api.demo!.myMessages()).some(
+        (m) => m.event_type === 'termin_geaendert' && m.text.startsWith('Kleiner Bautag'),
+      );
+    };
+    expect([await cancelled('jule'), await cancelled('lea'), await cancelled('kim')]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    await login('mo');
   });
 });
 
@@ -310,5 +353,16 @@ describe('Termin-Erinnerungen (6.2)', () => {
         ['a', 'b', 'c'],
       ),
     ).toEqual(['a', 'c']);
+    // nur ausgewählte eingeladen: wer zusagt, bekommt trotzdem Bescheid
+    expect(
+      yesAndOpen(
+        [
+          { member_id: 'a', answer: 'ja' },
+          { member_id: 'c', answer: 'nein' },
+        ],
+        ['a', 'b', 'c', 'd'],
+        invitedIds(['a', 'b', 'c', 'd'], ['b', 'c'], 'd'),
+      ),
+    ).toEqual(['a', 'b', 'd']);
   });
 });

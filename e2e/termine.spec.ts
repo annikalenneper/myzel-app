@@ -90,6 +90,27 @@ test('WF-TER-02: Terminart belegt vor; Ort bzw. Link sind je nach Format Pflicht
   await expect(created).toContainText('0 ✓');
 });
 
+test('WF-TER-12: nur einzelne Personen einladen', async ({ page }) => {
+  await open(page);
+  await createNew(page, 'Termin');
+  const sheet = page.getByRole('dialog', { name: 'Neuer Termin' });
+  await sheet.getByRole('button', { name: 'Bautag' }).click();
+  await sheet.getByLabel('Titel *').fill('Kleiner Bautag');
+  await sheet.getByLabel('Beginn *').fill(localInput(20, '10:00'));
+  const invite = sheet.getByRole('group', { name: 'Einladen' });
+  await expect(invite.getByRole('button', { name: 'Alle' })).toHaveAttribute('aria-pressed', 'true');
+  await invite.getByRole('button', { name: 'Jule' }).click();
+  await expect(invite.getByRole('button', { name: 'Alle' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(sheet).toContainText('Nur die ausgewählte Person bekommt eine Einladung.');
+  await sheet.locator('button[type=submit]').click();
+  await expect(sheet).toBeHidden();
+
+  await card(page, 'Kleiner Bautag').getByRole('link').click();
+  await expect(page.getByRole('heading', { name: 'Kleiner Bautag' })).toBeVisible();
+  await expect(page.getByText('Eingeladen: Mo, Jule')).toBeVisible();
+  await expect(page.getByText(/Offen · 2/i)).toBeVisible();
+});
+
 test('WF-PLE-01: Plenum anlegen mit Hinweis zum Ergebnis', async ({ page }) => {
   await open(page);
   await createNew(page, 'Termin');

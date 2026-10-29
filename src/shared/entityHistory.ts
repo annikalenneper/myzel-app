@@ -92,7 +92,10 @@ export function entityHistorySentence(entry: HistoryEntry, noun: EntityNoun, loo
     noun === 'Veranstaltung' ? 'die Veranstaltung' : noun === 'Termin' ? 'den Termin' : 'den Partner';
   switch (entry.action) {
     case 'created':
-      return `${who} hat ${the} angelegt.`;
+      // WF-TER-12: nur ausgewählte Personen eingeladen
+      return typeof c.invitees?.new === 'number'
+        ? `${who} hat ${the} angelegt und ${c.invitees.new === 1 ? 'eine Person' : `${c.invitees.new} Personen`} eingeladen.`
+        : `${who} hat ${the} angelegt.`;
     case 'updated': {
       const fields = describeFieldChanges(c, look);
       return fields ? `${who} hat ${fields}.` : `${who} hat ${the} geändert.`;

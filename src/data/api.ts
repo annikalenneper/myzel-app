@@ -316,7 +316,9 @@ export interface AppointmentListItem extends Appointment {
 export interface AppointmentDetail extends AppointmentListItem {
   yes_ids: string[];
   no_ids: string[];
-  /** aktive Mitglieder ohne Antwort */
+  /** beim Anlegen ausgewählte Personen; leer: alle aktiven Mitglieder eingeladen (Phase 12) */
+  invitee_ids: string[];
+  /** eingeladene aktive Mitglieder ohne Antwort */
   open_ids: string[];
   /** tatsächliche Teilnahme */
   attendee_ids: string[];
