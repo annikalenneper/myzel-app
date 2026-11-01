@@ -36,7 +36,7 @@ export interface MockOptions {
   latency?: number;
 }
 
-const DB_KEY = 'myzel:mock:db:v18';
+const DB_KEY = 'myzel:mock:db:v19';
 const DEVICE_KEY = 'myzel:mock:geraet';
 const OUTAGE_KEY = 'myzel:mock:ausfall';
 const SESSION_KEY = 'myzel:mock:session';
@@ -262,8 +262,9 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     addBooking: (eventId, input) => write((ctx) => events.addBooking(ctx, eventId, input)),
     updateBooking: (id, input) => write((ctx) => events.updateBooking(ctx, id, input)),
     removeBooking: (id) => write((ctx) => events.removeBooking(ctx, id)),
-    addEventLead: (eventId, memberId) => write((ctx) => events.addLead(ctx, eventId, memberId)),
-    removeEventLead: (eventId, memberId) => write((ctx) => events.removeLead(ctx, eventId, memberId)),
+    addEventLead: (eventId, memberId, role) => write((ctx) => events.addLead(ctx, eventId, memberId, role)),
+    removeEventLead: (eventId, memberId, role) =>
+      write((ctx) => events.removeLead(ctx, eventId, memberId, role)),
     setShiftPlan: (eventId, documentId, version) =>
       write((ctx) => events.setShiftPlan(ctx, eventId, documentId, version)),
     listPartners: () => read((d) => partners.listPartners(d)),
@@ -289,7 +290,8 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
       read((d, n) => ({
         ...server.getDeactivationImpact({ db: d, actor: actor(), now: n, inverse: [] }, memberId),
         future_rsvp_count: appts.futureRsvpCount(d, memberId, n),
-        lead_count: d.event_leads.filter((l) => l.member_id === memberId).length,
+        lead_count: new Set(d.event_leads.filter((l) => l.member_id === memberId).map((l) => l.event_id))
+          .size,
         partner_contact_count: d.partners.filter((p) => p.internal_contact_member_id === memberId).length,
       })),
     // Aufräumen in derselben Transaktion: Aufgaben, Folgen und künftige Zusagen (F-LOG-03)
@@ -354,6 +356,8 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     listDocuments: () => read((d) => know.listDocuments(d)),
     listLinkedDocuments: (target, targetId) => read((d) => know.linkedDocuments(d, target, targetId)),
     createDocument: (input) => write((ctx) => know.createDocument(ctx, input)),
+    setDocumentType: (documentId, docType, version) =>
+      write((ctx) => know.setDocumentType(ctx, documentId, docType, version)),
     linkDocument: (documentId, target, targetId) =>
       write((ctx) => know.linkDocument(ctx, documentId, target, targetId)),
     unlinkDocument: (documentId, target, targetId) =>
@@ -385,6 +389,12 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     closePlenum: (plenumId, attendeeIds, version) =>
       write((ctx) => plenum.closePlenum(ctx, plenumId, attendeeIds, version)),
 
+    listInbox: () => read((d) => notify.inbox(d, actor().id)),
+    // die Glocke als gesehen markieren ändert keine andere Ansicht (WF-ALL-10)
+    markInboxSeen: async () => {
+      await wait();
+      transact(actor(), (ctx) => notify.markInboxSeen(ctx), true);
+    },
     getNotificationSettings: () =>
       read((d, n) => notify.notificationSettings({ db: d, actor: actor(), now: n, inverse: [] }, deviceId())),
     setPush: (on) => writeOutside((ctx) => notify.setPush(ctx, deviceId(), on)),

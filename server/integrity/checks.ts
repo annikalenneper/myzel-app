@@ -145,7 +145,7 @@ export const CHECKS: IntegrityCheck[] = [
     name: 'Keine deaktivierten Hauptverantwortlichen oder Kontaktpersonen',
     level: 'fehler',
     query: sql`select m.display_name || ' bei „' || x.name || '“ (' || x.rolle || ')' as label from (
-        select l.member_id, e.title as name, 'hauptverantwortlich' as rolle from event_leads l join events e on e.id = l.event_id
+        select l.member_id, e.title as name, case l.role when 'haupt' then 'hauptverantwortlich' when 'orga' then 'Mitarbeit Orga' else 'Mitarbeit am Tag' end as rolle from event_leads l join events e on e.id = l.event_id
         union all select p.internal_contact_member_id, p.name, 'Kontaktperson' from partners p where p.internal_contact_member_id is not null
       ) x join members m on m.id = x.member_id where not m.active`,
   },

@@ -39,7 +39,7 @@ supabase/migrations.
 - Gebaut wird nur, was die aktuelle oder eine frühere Phase trägt (`data-phase` im Prototyp).
 - Farben und Schriften nur über die Tokens in src/index.css (8.1). Markenverlauf nur für „+“, Primäraktion,
   aktiven Menüpunkt, Fortschritt. Status steht immer auch als Text da. Tippflächen ≥ 44 px (`hit`).
-- Speichern nach 7.3: Status, Zuweisung, Markierung sofort mit Rückgängig; kurze Felder beim Verlassen;
+- Speichern nach 7.3 und 16.8: Status nach Rückfrage mit Erklärung, Zuweisung und Markierung sofort, jeweils mit Rückgängig; kurze Felder beim Verlassen;
   lange Texte mit Speichern/Abbrechen und lokalem Entwurf.
 - Kleine Schritte, häufige Commits. Keine veralteten, doppelten oder temporären Dateien im Repo.
   Doku nur in docs/ANFORDERUNGEN.md, CLAUDE.md, PROGRESS.md, README.md.

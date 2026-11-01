@@ -265,6 +265,22 @@ export interface DocumentsTable {
   version: Generated<number>;
 }
 
+/** Glocke (WF-ALL-10) */
+export interface InboxEntriesTable {
+  id: Generated<string>;
+  member_id: string;
+  event_type: NotificationEvent;
+  text: string;
+  link: string;
+  dedupe_key: string;
+  created_at: Timestamp;
+}
+
+export interface InboxSeenTable {
+  member_id: string;
+  seen_at: Timestamp;
+}
+
 export interface DocumentLinksTable {
   document_id: string;
   target_type: DocumentLinkTarget;
@@ -369,6 +385,7 @@ export interface EventBookingsTable {
 export interface EventLeadsTable {
   event_id: string;
   member_id: string;
+  role: 'haupt' | 'orga' | 'tag';
   added_by: string;
   added_at: Timestamp;
 }
@@ -528,6 +545,8 @@ export interface Database {
   appointment_attendees: AppointmentAttendeesTable;
   appointment_invitees: AppointmentInviteesTable;
   documents: DocumentsTable;
+  inbox_entries: InboxEntriesTable;
+  inbox_seen: InboxSeenTable;
   document_links: DocumentLinksTable;
   decisions: DecisionsTable;
   decision_votes: DecisionVotesTable;

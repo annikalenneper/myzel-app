@@ -40,6 +40,7 @@ import {
   decisionReplaceSchema,
   decisionVoteKindSchema,
   markReasonSchema,
+  docTypeSchema,
   documentCreateSchema,
   questionClarifySchema,
   questionCreateSchema,
@@ -756,6 +757,25 @@ async function findDocument(trx: Db, id: string): Promise<DocumentRow> {
   const document = await trx.selectFrom('documents').selectAll().where('id', '=', id).executeTakeFirst();
   if (!document) throw notFound('Dieses Dokument');
   return document;
+}
+
+/** WF-WIS-15 Kategorie (Art) ändern (Verbesserungen 31.10.2026) – mit Verlauf und Rückgängig */
+export async function setDocumentType(
+  ctx: Ctx,
+  id: string,
+  rawType: unknown,
+  version: number,
+): Promise<Undoable> {
+  const docType = parse(docTypeSchema, rawType);
+  const document = await findDocument(ctx.trx, id);
+  if (document.archived_at) throw rule('Gelöschte Dokumente lassen sich nicht mehr ändern.');
+  await checkVersion(ctx, 'document', document, version);
+  if (document.doc_type === docType) return { undo_token: '' };
+  ctx.inverse.push({ kind: 'document_type', document_id: id, doc_type: document.doc_type });
+  const changes: HistoryChanges = { doc_type: { old: document.doc_type, new: docType } };
+  await touch(ctx, 'documents', 'document', document, { doc_type: docType });
+  await writeHistory(ctx, 'document', id, 'updated', changes);
+  return registerUndo(ctx, 'document', document, `Kategorie: ${DOC_TYPE_LABEL[docType]}`);
 }
 
 const TARGET_NOUN: Record<DocumentLinkTarget, [one: string, many: string]> = {

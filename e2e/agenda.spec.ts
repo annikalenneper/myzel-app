@@ -1,6 +1,6 @@
 // S-10 Agenda (16.1, WF-AGE-01 bis -03) · S-11 bis S-13 · WF-AUF-01 bis -15 und Querschnitt WF-ALL-01 bis -03, -05
 import { expect, test } from './fixtures';
-import { card, login, openTask, statusChip, undoBar, createNew } from './helpers';
+import { card, login, openTask, statusChip, undoBar, createNew, confirmStatus } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await login(page);
@@ -31,11 +31,9 @@ test('WF-AUF-01: Sortierung und Filter, kombinierbar und wieder ausschaltbar', a
   await expect(card(page, 'Insta-Post Bautag')).toHaveCount(0);
   await expect(page.getByText(/^11 AUFGABEN OFFEN · 1 ÜBERFÄLLIG · 1 BLOCKIERT · 3 FRAGEN$/)).toBeVisible();
 
-  await page.getByRole('button', { name: 'Alle ▾' }).click();
   await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Meine' }).click();
   await expect(page.getByRole('article')).toHaveCount(1);
 
-  await page.getByRole('button', { name: 'Meine ▾' }).click();
   await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Alle' }).click();
   // Filter auf ein Thema (Unterkategorien zeigt er mit – geprüft in rules.test.ts)
   await page.getByRole('button', { name: 'Thema ▾' }).click();
@@ -133,6 +131,13 @@ test('WF-AUF-06: „In Arbeit“ trägt niemanden ein und lässt sich zurückneh
   await openTask(page, 'Vereinshaftpflicht verlängern');
   await expect(statusChip(page, 'Neu')).toHaveAttribute('aria-pressed', 'true');
   await statusChip(page, 'In Arbeit').click();
+  // Rückfrage mit Erklärung (Nutzerin, 31.10.2026); Abbrechen ändert nichts
+  const ask = page.getByRole('alertdialog', { name: 'Status ändern: Neu → In Arbeit?' });
+  await expect(ask).toContainText('Zugeordnet wird dadurch niemand');
+  await ask.getByRole('button', { name: 'Abbrechen' }).click();
+  await expect(statusChip(page, 'Neu')).toHaveAttribute('aria-pressed', 'true');
+  await statusChip(page, 'In Arbeit').click();
+  await ask.getByRole('button', { name: 'Auf „In Arbeit“ setzen' }).click();
   await expect(undoBar(page)).toContainText('Status: In Arbeit');
   await expect(undoBar(page)).not.toContainText('eingetragen');
   await expect(page.getByRole('button', { name: 'Bearbeitende entfernen: Mo' })).toHaveCount(0);
@@ -171,6 +176,7 @@ test('WF-AUF-07 / -08: Blockieren nur mit Grund, blockierende Aufgabe per Suche,
 
   await openTask(page, 'Nebelmaschine reparieren');
   await page.getByTestId('WF-AUF-08').filter({ hasText: 'In Arbeit' }).last().click();
+  await confirmStatus(page);
   await expect(statusChip(page, 'In Arbeit')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('BLOCKIERT – GRUND')).toHaveCount(0);
 });
@@ -183,6 +189,7 @@ test('WF-AUF-09: Verwerfen mit Grund und wieder öffnen', async ({ page }) => {
   await expect(page.getByText('Verworfen – Grund: Leihen wir uns.')).toBeVisible();
   await expect(statusChip(page, 'Blockiert')).toHaveAttribute('aria-disabled', 'true');
   await statusChip(page, 'Geplant').click();
+  await confirmStatus(page);
   await expect(statusChip(page, 'Geplant')).toHaveAttribute('aria-pressed', 'true');
 });
 
@@ -377,6 +384,7 @@ test('16.6: Status steht sofort da und springt bei Netzfehler zurück; „Nochma
     .textContent();
   await page.evaluate(() => window.__myzelDemo!.failNextWrites(1));
   await statusChip(page, 'Erledigt').click();
+  await confirmStatus(page);
   const bar = page.getByTestId('WF-ALL-03');
   await expect(bar).toBeVisible();
   // nicht gespeichert: die Anzeige zeigt wieder den wahren Stand
@@ -453,8 +461,10 @@ test('WF-AUF-12: Doppeltipp auf „Senden“ legt nur einen Kommentar an', async
 test('WF-ALL-02: „Rückgängig“ und sofort die nächste Aktion ergibt keinen Konflikt', async ({ page }) => {
   await openTask(page, 'Vereinshaftpflicht verlängern');
   await statusChip(page, 'Geplant').click();
+  await confirmStatus(page);
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
   await statusChip(page, 'Erledigt').click();
+  await confirmStatus(page);
   await expect(statusChip(page, 'Erledigt')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
 });
@@ -554,13 +564,11 @@ test('WF-AUF-10: „Alle“ in der Aufgabe trägt alle Fehlenden ein, mit Rückg
 test('WF-AUF-01: Grundmenge „Nur Fragen“ zeigt Fragen und „Stimmt das noch?“, keine Aufgaben', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: 'Alle ▾' }).click();
   await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Nur Fragen' }).click();
   await expect(page.getByRole('article')).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Machen wir an Silvester eine Party/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /Awareness-Team mit mindestens 4 Personen/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Status ▾' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Nur Fragen ▾' }).click();
   await page.getByRole('group', { name: 'Grundmenge' }).getByRole('button', { name: 'Alle' }).click();
   await expect(card(page, 'Flyer drucken lassen')).toBeVisible();
 });

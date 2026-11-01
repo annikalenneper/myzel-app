@@ -1,6 +1,6 @@
 // Phase 6 – Benachrichtigungs-Matrix und Vorlauf im Profil (F-PRO-02, WF-PRO-04)
 import { expect, test } from './fixtures';
-import { login } from './helpers';
+import { confirmStatus, login, openTask, statusChip } from './helpers';
 
 test('WF-PRO-04: Schalter je Ereignis und Kanal, Vorlauf – gespeichert und sofort wirksam', async ({
   page,
@@ -30,4 +30,32 @@ test('WF-PRO-04: Schalter je Ereignis und Kanal, Vorlauf – gespeichert und sof
   await page.reload();
   await expect(comment).toHaveAttribute('aria-pressed', 'false');
   await expect(lead.getByRole('button', { name: '7 Tage vorher' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('WF-ALL-10: Glocke zeigt Änderungen anderer seit dem letzten Blick', async ({ page }) => {
+  await login(page);
+  await openTask(page, 'Getränke bei der Brauerei bestellen');
+  await statusChip(page, 'In Arbeit').click();
+  await confirmStatus(page);
+  await expect(page.getByTestId('WF-ALL-02')).toContainText('Status: In Arbeit');
+  await page.goto('/profil');
+  await page.getByTestId('WF-LOG-03').click();
+  await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
+
+  await login(page, 'Jule');
+  const bell = page.getByRole('button', { name: /^Benachrichtigungen, \d+ neu$/ });
+  await expect(bell).toBeVisible();
+  await bell.click();
+  const sheet = page.getByRole('dialog', { name: 'Benachrichtigungen' });
+  const entry = sheet.getByRole('link').filter({ hasText: 'ist jetzt „In Arbeit“' });
+  await expect(entry).toContainText('Neu');
+  await sheet.getByRole('button', { name: 'Schließen' }).first().click();
+  // gesehen: keine Zahl mehr
+  await expect(page.getByRole('button', { name: 'Benachrichtigungen', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Benachrichtigungen', exact: true }).click();
+  await expect(entry).not.toContainText('Neu');
+  await entry.click();
+  await expect(
+    page.getByRole('button', { name: /Titel bearbeiten: Getränke bei der Brauerei bestellen/ }),
+  ).toBeVisible();
 });

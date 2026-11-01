@@ -1,6 +1,6 @@
 // Phase 3 – Wissen: S-40 bis S-44 (WF-WIS-01 bis -04, -06, -07, -11, WF-FRA-01 bis -03, WF-AGE-03, WF-AUF-13)
 import { expect, test, type Page } from './fixtures';
-import { login, openTask, undoBar, createNew } from './helpers';
+import { login, openTask, undoBar, createNew, confirmStatus } from './helpers';
 
 const open = async (page: Page) => {
   await login(page);
@@ -138,12 +138,14 @@ test('WF-FRA-01 bis -05: Frage stellen, mehrere Ergebnisse festhalten, beantwort
   await expect(undoBar(page)).toContainText('Als beantwortet markiert');
   // WF-FRA-04: wieder öffnen
   await page.getByRole('button', { name: 'Wieder öffnen' }).click();
+  await confirmStatus(page);
   await expect(page.getByRole('button', { name: 'Ergebnis festhalten' })).toBeVisible();
   await expect(results).toContainText('Ergebnisse · 2');
 
   await page.goto('/agenda');
   await question(/Wechseln wir zu einer anderen Bank/).click();
   await page.getByRole('button', { name: 'Verwerfen' }).click();
+  await confirmStatus(page);
   await expect(page.getByText('Verworfen. Steht weiter in der Historie.')).toBeVisible();
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
   await expect(page.getByRole('button', { name: 'Verwerfen' })).toBeVisible();
@@ -291,4 +293,29 @@ test('WF-WIS-01: neue Entscheidung mit Frist zum Bestätigen, Fakt ohne', async 
   await sheet.locator('button[type=submit]').click();
   await expect(undoBar(page)).toContainText('Entscheidung festgehalten · wartet auf Bestätigung');
   await expect(card(page, 'Kasse zählt immer zu zweit')).toContainText('0/11 bestätigt');
+});
+
+test('WF-WIS-14 / -15: Dokument im Drei-Punkte-Menü zuordnen und Kategorie ändern', async ({ page }) => {
+  await open(page);
+  await page.getByRole('tab', { name: 'Dokumente' }).click();
+  const doc = page.getByRole('link', { name: /Hausordnung Lager/ });
+  const row = doc.locator('..');
+  await row.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  await row.getByRole('button', { name: 'Kategorie …' }).click();
+  await page.getByRole('dialog', { name: 'Kategorie' }).getByRole('button', { name: 'Vorlage' }).click();
+  await expect(undoBar(page)).toContainText('Kategorie: Vorlage');
+  await expect(doc).toContainText(/Vorlage · Drive · nicht verknüpft/i);
+  await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(doc).toContainText(/Leitlinie · Drive/i);
+
+  await row.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  await row.getByRole('button', { name: 'Zuordnen …' }).click();
+  const assign = page.getByRole('dialog', { name: 'Zuordnen: Hausordnung Lager' });
+  await assign.getByLabel('Ziel suchen').fill('Winterrave');
+  await assign
+    .getByRole('button', { name: /Veranstaltung\s*Winterrave/ })
+    .first()
+    .click();
+  await expect(page.getByText('Dokument verknüpft · Winterrave').first()).toBeVisible();
+  await expect(doc).toContainText(/1 Veranstaltung/i);
 });

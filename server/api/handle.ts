@@ -49,6 +49,8 @@ export async function handleAction(
  */
 export function changesData(action: string, result: unknown): boolean {
   if (action === 'rebuildDrive') return true;
+  // die Glocke als gesehen markieren ändert keine andere Ansicht (WF-ALL-10)
+  if (action === 'markInboxSeen') return false;
   if (action === 'syncDrive') return (result as { checked?: boolean } | null)?.checked === true;
   return action !== 'getSession' && !Object.hasOwn(READ_ACTIONS, action);
 }

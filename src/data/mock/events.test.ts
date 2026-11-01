@@ -152,29 +152,35 @@ describe('Booking', () => {
   });
 });
 
-describe('Hauptverantwortliche (WF-VER-09) und Deaktivieren (WF-ADM-03)', () => {
-  it('werden einzeln ein- und ausgetragen, mit Rückgängig', async () => {
+describe('Hauptverantwortliche und Mitarbeit (WF-VER-09) und Deaktivieren (WF-ADM-03)', () => {
+  it('werden je Rolle einzeln ein- und ausgetragen, mit Rückgängig', async () => {
     const rave = await detail();
-    const jule = await memberId('Jule');
-    await api.addEventLead(rave.id, jule);
-    expect((await detail()).lead_ids).toEqual([await memberId('Lea'), jule]);
-    const { undo_token } = await api.removeEventLead(rave.id, jule);
-    expect((await detail()).lead_ids).not.toContain(jule);
+    const [jule, kim] = [await memberId('Jule'), await memberId('Kim')];
+    expect(rave.team).toEqual({ haupt: [await memberId('Lea')], orga: [jule], tag: [kim] });
+    await api.addEventLead(rave.id, jule, 'haupt');
+    expect((await detail()).team.haupt).toEqual([await memberId('Lea'), jule]);
+    // dieselbe Person in zwei Rollen; Austragen trifft nur die eine
+    const { undo_token } = await api.removeEventLead(rave.id, jule, 'haupt');
+    expect((await detail()).team).toMatchObject({ haupt: [await memberId('Lea')], orga: [jule] });
     await api.undo(undo_token);
-    expect((await detail()).lead_ids).toContain(jule);
+    expect((await detail()).team.haupt).toContain(jule);
+    await expectError(api.addEventLead(rave.id, jule, 'chef' as never), 'validation');
+    const history = (await detail()).history.filter((h) => h.action === 'lead_added');
+    expect(history.at(-1)?.changes.role).toEqual({ old: null, new: 'haupt' });
   });
 
-  it('Deaktivieren trägt die Person überall als Hauptverantwortliche aus', async () => {
-    const lea = await memberId('Lea');
-    expect((await api.getDeactivationImpact(lea)).lead_count).toBe(1);
-    const impact = await api.deactivateMember(lea);
-    expect(impact.lead_count).toBe(1);
-    expect((await detail()).lead_ids).toEqual([]);
+  it('Deaktivieren trägt die Person aus jeder Rolle aus', async () => {
+    const kim = await memberId('Kim');
+    // Kim: hauptverantwortlich beim Workshop, am Tag beim Rave – zwei Veranstaltungen
+    expect((await api.getDeactivationImpact(kim)).lead_count).toBe(2);
+    const impact = await api.deactivateMember(kim);
+    expect(impact.lead_count).toBe(2);
+    expect((await detail()).team.tag).toEqual([]);
   });
 
   it('deaktivierte Personen lassen sich nicht eintragen', async () => {
     const tarek = (await api.listMembers()).find((m) => m.display_name === 'Tarek')!;
-    await expectError(api.addEventLead((await detail()).id, tarek.id), 'rule');
+    await expectError(api.addEventLead((await detail()).id, tarek.id, 'orga'), 'rule');
   });
 });
 
@@ -285,9 +291,9 @@ describe('Befunde aus dem Review (18.10.2026)', () => {
   it('Rückgängig bringt eine inzwischen deaktivierte Person nicht als Hauptverantwortliche zurück', async () => {
     const rave = await detail();
     const lea = await memberId('Lea');
-    const { undo_token } = await api.removeEventLead(rave.id, lea);
+    const { undo_token } = await api.removeEventLead(rave.id, lea, 'haupt');
     await api.deactivateMember(lea);
     await api.undo(undo_token);
-    expect((await detail()).lead_ids).toEqual([]);
+    expect((await detail()).team.haupt).toEqual([]);
   });
 });

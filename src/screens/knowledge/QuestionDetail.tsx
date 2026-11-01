@@ -30,6 +30,8 @@ import {
 } from './DetailParts';
 import { CommentsAndHistory } from '../../ui/Comments';
 import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
+import { StatusConfirmDialog } from '../common/StatusConfirm';
+import { questionStatusHelp } from '../../shared/rules/statusHelp';
 import { DecisionSheet, QuestionEditSheet } from './KnowledgeSheets';
 
 export function QuestionDetail({ questionId }: { questionId: string }) {
@@ -58,6 +60,7 @@ function Loaded({ q }: { q: Detail }) {
   const remove = useDeleteArtifact('question', q.id, () => latest.current, BACK_TO_AGENDA.to);
   const { topicName, memberById, eventById } = useLookups();
   const [sheet, setSheet] = useState<'result' | 'answer' | 'edit' | null>(null);
+  const [confirmStatus, setConfirmStatus] = useState<'verworfen' | 'offen' | null>(null);
   const open = q.status === 'offen';
   const event = q.event_id ? eventById.get(q.event_id) : undefined;
 
@@ -177,13 +180,7 @@ function Loaded({ q }: { q: Detail }) {
           <button
             type="button"
             data-wf="WF-FRA-03"
-            onClick={() =>
-              void act(() => api.discardQuestion(q.id, latest.current), {
-                subject: 'diese Frage',
-                success: 'Frage verworfen',
-                undo: (r) => r.undo_token,
-              })
-            }
+            onClick={() => setConfirmStatus('verworfen')}
             className="h-11 flex-1 rounded-[22px] border border-rand-stark text-[15px] text-text"
           >
             Verwerfen
@@ -195,13 +192,7 @@ function Loaded({ q }: { q: Detail }) {
           <button
             type="button"
             data-wf="WF-FRA-04"
-            onClick={() =>
-              void act(() => api.reopenQuestion(q.id, latest.current), {
-                subject: 'diese Frage',
-                success: 'Wieder geöffnet',
-                undo: (r) => r.undo_token,
-              })
-            }
+            onClick={() => setConfirmStatus('offen')}
             className="h-11 flex-1 rounded-[22px] border border-rand-stark text-[15px] text-text"
           >
             Wieder öffnen
@@ -209,6 +200,27 @@ function Loaded({ q }: { q: Detail }) {
         </ActionBar>
       )}
 
+      {/* Statuswechsel mit Rückfrage und Erklärung (Nutzerin, 31.10.2026) */}
+      {confirmStatus && (
+        <StatusConfirmDialog
+          wf={confirmStatus === 'verworfen' ? 'WF-FRA-03' : 'WF-FRA-04'}
+          help={questionStatusHelp(confirmStatus)}
+          onClose={() => setConfirmStatus(null)}
+          onConfirm={() =>
+            void (confirmStatus === 'verworfen'
+              ? act(() => api.discardQuestion(q.id, latest.current), {
+                  subject: 'diese Frage',
+                  success: 'Frage verworfen',
+                  undo: (r) => r.undo_token,
+                })
+              : act(() => api.reopenQuestion(q.id, latest.current), {
+                  subject: 'diese Frage',
+                  success: 'Wieder geöffnet',
+                  undo: (r) => r.undo_token,
+                }))
+          }
+        />
+      )}
       {sheet === 'result' && (
         <DecisionSheet
           question={{ id: q.id, title: q.title, topic_id: q.topic_id }}

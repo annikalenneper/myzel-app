@@ -32,6 +32,7 @@ import type { TaskStatus } from '../../shared/schema';
 import { Avatar, cx, ListSkeleton, LoadError, Pill } from '../../ui/bits';
 import { Menu, type MenuOption } from '../../ui/Menu';
 import { TabBar } from '../../ui/DatedList';
+import { BellButton } from '../../ui/Bell';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { DecisionDetail } from '../knowledge/DecisionDetail';
 import { BACK_TO_AGENDA } from '../knowledge/DetailParts';
@@ -49,7 +50,7 @@ const SCOPES: [AgendaScope, string][] = [
 ];
 const ALL = '__alle__';
 
-type OpenMenu = 'scope' | 'thema' | 'status' | 'event' | null;
+type OpenMenu = 'thema' | 'status' | 'event' | null;
 
 /** Was rechts offen ist: Aufgabe, Frage oder ein Eintrag „Stimmt das noch?“ */
 export type AgendaDetail = 'task' | 'question' | 'decision';
@@ -129,11 +130,6 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
     Exclude<OpenMenu, null>,
     { label: string; options: MenuOption[]; pick: (key: string) => void }
   > = {
-    scope: {
-      label: 'Grundmenge',
-      options: SCOPES.map(([key, label]) => ({ key, label, selected: filter.scope === key })),
-      pick: (key) => setFilter({ scope: key as AgendaScope }),
-    },
     thema: {
       label: 'Thema',
       options: [
@@ -172,12 +168,11 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
       pick: (key) => setFilter({ eventId: key === ALL ? null : key }),
     },
   };
-  // der Status gilt nur für Aufgaben – bei „Nur Fragen“ ohne Bedeutung
+  // Status vor Thema (Nutzerin, 31.10.2026); der Status gilt nur für Aufgaben – bei „Nur Fragen“ ohne Bedeutung
   const pills = (
     [
-      ['scope', SCOPES.find(([k]) => k === filter.scope)![1], filter.scope !== 'alle'],
-      ['thema', filter.topicId ? topicName(filter.topicId) : 'Thema', !!filter.topicId],
       ['status', filter.status ? TASK_STATUS_LABEL[filter.status] : 'Status', !!filter.status],
+      ['thema', filter.topicId ? topicName(filter.topicId) : 'Thema', !!filter.topicId],
       [
         'event',
         (filter.eventId && eventById.get(filter.eventId)?.title) || 'Veranstaltung',
@@ -202,6 +197,7 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
           <img src="/myzel-logo.png" alt="Myzel" className="h-11 w-[66px] object-contain lg:hidden" />
           <span className="flex-1" />
           <SearchButton first="aufgaben" />
+          <BellButton />
           <Link to="/profil" aria-label="Profil" className="hit ml-2.5 flex size-10 no-underline">
             <Avatar member={me} size={40} fontSize={13} />
           </Link>
@@ -213,6 +209,23 @@ function AgendaList({ selectedId }: { selectedId: string | null }) {
         {/* WF-AUF-01 / WF-AGE-01 Filter – speichern nichts */}
         <div className="relative">
           <div className="no-scrollbar -mx-5 -mt-1 flex gap-2 overflow-x-auto px-5 pt-1 pb-1">
+            {/* Grundmenge als einzelne Chips statt Menü (Nutzerin, 31.10.2026) */}
+            <div role="group" aria-label="Grundmenge" className="flex flex-none gap-2">
+              {SCOPES.map(([key, label]) => (
+                <Pill
+                  key={key}
+                  data-wf="WF-AUF-01"
+                  on={filter.scope === key}
+                  onClick={() => {
+                    setMenu(null);
+                    setFilter({ scope: key });
+                  }}
+                >
+                  {label}
+                </Pill>
+              ))}
+            </div>
+            <span aria-hidden className="w-px flex-none self-stretch bg-rand" />
             {pills.map(([key, label, on]) => (
               <Pill
                 key={key}

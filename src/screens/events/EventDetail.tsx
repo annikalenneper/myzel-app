@@ -7,10 +7,17 @@ import { useData } from '../../app/useData';
 import { api } from '../../data';
 import type { EventDetail as Detail } from '../../data/api';
 import { formatDayMonth, formatEventRange, formatTime } from '../../shared/format';
-import { EVENT_STATUS_COLOR, EVENT_STATUS_LABEL, EVENT_TYPE_LABEL } from '../../shared/labels';
+import {
+  EVENT_ROLE_LABEL,
+  EVENT_STATUS_COLOR,
+  EVENT_STATUS_LABEL,
+  EVENT_TYPE_LABEL,
+} from '../../shared/labels';
 import { canTransitionEvent, isFinalEventStatus } from '../../shared/rules/eventStatus';
-import { EVENT_STATUSES, type EventStatus } from '../../shared/schema';
-import { Avatar, cx, GhostButton, LightButton, ListSkeleton, LoadError } from '../../ui/bits';
+import { eventStatusHelp } from '../../shared/rules/statusHelp';
+import { StatusConfirmDialog } from '../common/StatusConfirm';
+import { EVENT_ROLES, EVENT_STATUSES, type EventRole, type EventStatus } from '../../shared/schema';
+import { Avatar, cx, ListSkeleton, LoadError } from '../../ui/bits';
 import { IconBack, IconEdit } from '../../ui/icons';
 import { Sheet } from '../../ui/Sheet';
 import { TaskCreateSheet } from '../tasks/TaskCreateSheet';
@@ -80,17 +87,9 @@ function Loaded({ event }: { event: Detail }) {
   const latest = useLatest(event.version);
   const remove = useDeleteArtifact('event', event.id, () => latest.current, '/events');
   const [sheet, setSheet] = useState<
-    | 'edit'
-    | 'close'
-    | 'task'
-    | 'task-new'
-    | 'question'
-    | 'decision'
-    | 'shiftplan'
-    | 'lead'
-    | 'template'
-    | null
+    'edit' | 'task' | 'task-new' | 'question' | 'decision' | 'shiftplan' | 'lead' | 'template' | null
   >(null);
+  const [leadRole, setLeadRole] = useState<EventRole>('haupt');
   const { memberById, topicName, eventById } = useLookups();
   const { data: documents } = useData(`event-documents:${event.id}`, () =>
     api.listLinkedDocuments('event', event.id),
@@ -110,11 +109,11 @@ function Loaded({ event }: { event: Detail }) {
       undo: (r) => r.undo_token,
     });
 
+  // jeder Wechsel mit Rückfrage und Erklärung (Nutzerin, 31.10.2026); vor „abgeschlossen“ mit den offenen Aufgaben (4.2)
+  const [confirmStatus, setConfirmStatus] = useState<EventStatus | null>(null);
   const pickStatus = (status: EventStatus) => {
     if (status === event.status || !canTransitionEvent(event.status, status)) return;
-    // Vor „abgeschlossen“ ein Hinweis mit Bestätigung, falls noch offene Aufgaben dranhängen (4.2)
-    if (status === 'abgeschlossen' && open > 0) setSheet('close');
-    else void setStatus(status);
+    setConfirmStatus(status);
   };
 
   const showOnAgenda = useShowEventOnAgenda();
@@ -341,45 +340,57 @@ function Loaded({ event }: { event: Detail }) {
           </button>
         )}
 
-        {/* WF-VER-09 Hauptverantwortliche, eintragsweise */}
+        {/* WF-VER-09 Hauptverantwortliche und Mitarbeit (Nutzerin, 31.10.2026), je Rolle eintragsweise */}
         <div
           data-wf="WF-VER-09"
-          className="flex flex-wrap items-center gap-2 rounded-[14px] border border-linie bg-flaeche px-3.5 py-2"
+          className="flex flex-col divide-y divide-linie rounded-[14px] border border-linie bg-flaeche px-3.5"
         >
-          <span className="label-mono flex-1">Hauptverantwortlich</span>
-          {event.lead_ids.map((id) => {
-            const m = memberById.get(id);
-            return (
+          {EVENT_ROLES.map((role) => (
+            <div
+              key={role}
+              role="group"
+              aria-label={EVENT_ROLE_LABEL[role]}
+              className="flex flex-wrap items-center gap-2 py-2"
+            >
+              <span className="label-mono flex-1">{EVENT_ROLE_LABEL[role]}</span>
+              {event.team[role].map((id) => {
+                const m = memberById.get(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    data-wf="WF-VER-09"
+                    aria-label={`Austragen: ${m?.display_name ?? 'unbekannt'}`}
+                    onClick={() =>
+                      void act(() => api.removeEventLead(event.id, id, role), {
+                        success: `Ausgetragen: ${m?.display_name ?? ''}`,
+                        undo: (r) => r.undo_token,
+                      })
+                    }
+                    className="flex min-h-11 items-center gap-1.5 text-[14px] text-text"
+                  >
+                    <Avatar member={m} size={26} />
+                    {m?.display_name}
+                    <span aria-hidden="true" className="text-[16px] text-leise">
+                      ×
+                    </span>
+                  </button>
+                );
+              })}
               <button
-                key={id}
                 type="button"
                 data-wf="WF-VER-09"
-                aria-label={`Austragen: ${m?.display_name ?? 'unbekannt'}`}
-                onClick={() =>
-                  void act(() => api.removeEventLead(event.id, id), {
-                    success: `Ausgetragen: ${m?.display_name ?? ''}`,
-                    undo: (r) => r.undo_token,
-                  })
-                }
-                className="flex min-h-11 items-center gap-1.5 text-[14px] text-text"
+                aria-label={`${EVENT_ROLE_LABEL[role]}: Person hinzufügen`}
+                onClick={() => {
+                  setLeadRole(role);
+                  setSheet('lead');
+                }}
+                className="hit size-[30px] rounded-full border border-dashed border-rand-stark text-[16px] text-leise"
               >
-                <Avatar member={m} size={26} />
-                {m?.display_name}
-                <span aria-hidden="true" className="text-[16px] text-leise">
-                  ×
-                </span>
+                +
               </button>
-            );
-          })}
-          <button
-            type="button"
-            data-wf="WF-VER-09"
-            aria-label="Hauptverantwortliche hinzufügen"
-            onClick={() => setSheet('lead')}
-            className="hit size-[30px] rounded-full border border-dashed border-rand-stark text-[16px] text-leise"
-          >
-            +
-          </button>
+            </div>
+          ))}
         </div>
 
         {/* WF-VER-08 Detailbereiche */}
@@ -475,12 +486,13 @@ function Loaded({ event }: { event: Detail }) {
       )}
       {sheet === 'lead' && (
         <LeadSheet
-          taken={event.lead_ids}
+          title={EVENT_ROLE_LABEL[leadRole]}
+          taken={event.team[leadRole]}
           onClose={() => setSheet(null)}
           onPick={(id) => {
             setSheet(null);
-            void act(() => api.addEventLead(event.id, id), {
-              success: `Hauptverantwortlich: ${memberById.get(id)?.display_name ?? ''}`,
+            void act(() => api.addEventLead(event.id, id, leadRole), {
+              success: `${EVENT_ROLE_LABEL[leadRole]}: ${memberById.get(id)?.display_name ?? ''}`,
               undo: (r) => r.undo_token,
             });
           }}
@@ -496,34 +508,26 @@ function Loaded({ event }: { event: Detail }) {
       {sheet === 'task-new' && (
         <TaskCreateSheet eventId={event.id} wf="WF-VER-05" onClose={() => setSheet(null)} />
       )}
-      {sheet === 'close' && (
-        <Sheet title="Veranstaltung abschließen?" onClose={() => setSheet(null)} wf="WF-VER-04">
-          <span className="text-[15px] leading-normal text-weich">
-            {open === 1 ? '1 Aufgabe ist' : `${open} Aufgaben sind`} noch offen. Sie{' '}
-            {open === 1 ? 'bleibt' : 'bleiben'} offen und an der Veranstaltung hängen.
-          </span>
-          <LightButton
-            data-wf="WF-VER-04"
-            onClick={() => {
-              setSheet(null);
-              void setStatus('abgeschlossen');
-            }}
-          >
-            Trotzdem abschließen
-          </LightButton>
-          <GhostButton onClick={() => setSheet(null)}>Abbrechen</GhostButton>
-        </Sheet>
+      {confirmStatus && (
+        <StatusConfirmDialog
+          wf="WF-VER-04"
+          help={eventStatusHelp(event.status, confirmStatus, open)}
+          onClose={() => setConfirmStatus(null)}
+          onConfirm={() => void setStatus(confirmStatus)}
+        />
       )}
     </div>
   );
 }
 
-/** Aktive Mitglieder zur Auswahl als Hauptverantwortliche */
+/** Aktive Mitglieder zur Auswahl für eine Rolle im Team */
 function LeadSheet({
+  title,
   taken,
   onClose,
   onPick,
 }: {
+  title: string;
   taken: string[];
   onClose: () => void;
   onPick: (id: string) => void;
@@ -531,7 +535,7 @@ function LeadSheet({
   const { activeMembers } = useLookups();
   const free = activeMembers.filter((m) => !taken.includes(m.id));
   return (
-    <Sheet title="Hauptverantwortlich" onClose={onClose} wf="WF-VER-09" closeButton>
+    <Sheet title={title} onClose={onClose} wf="WF-VER-09" closeButton>
       <div className="flex flex-col gap-1.5">
         {free.map((m) => (
           <button

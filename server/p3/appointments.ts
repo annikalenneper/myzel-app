@@ -15,6 +15,7 @@ import {
   hasStarted,
   invitationMessages,
   invitedIds,
+  isInvited,
   yesAndOpen,
 } from '../../src/shared/rules/appointments';
 import { z } from 'zod';
@@ -242,9 +243,10 @@ export async function isPlenum(trx: Db, appointment: Pick<AppointmentRow, 'type_
 async function listItems(trx: Db, rows: AppointmentRow[], meId: string): Promise<AppointmentListItem[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((a) => a.id);
-  const [types, rsvps, tasks] = await Promise.all([
+  const [types, rsvps, invitees, tasks] = await Promise.all([
     trx.selectFrom('appointment_types').select(['id', 'label', 'color', 'has_plenum_features']).execute(),
     trx.selectFrom('appointment_rsvps').selectAll().where('appointment_id', 'in', ids).execute(),
+    trx.selectFrom('appointment_invitees').selectAll().where('appointment_id', 'in', ids).execute(),
     trx
       .selectFrom('tasks')
       .select('appointment_id')
@@ -263,6 +265,11 @@ async function listItems(trx: Db, rows: AppointmentRow[], meId: string): Promise
       is_plenum: type.has_plenum_features,
       yes_count: own.filter((r) => r.answer === 'ja').length,
       my_answer: own.find((r) => r.member_id === meId)?.answer ?? null,
+      invited: isInvited(
+        invitees.filter((x) => x.appointment_id === a.id).map((x) => x.member_id),
+        a.created_by,
+        meId,
+      ),
       task_count: tasks.filter((t) => t.appointment_id === a.id).length,
     };
   });
@@ -521,6 +528,9 @@ export async function setRsvp(ctx: Ctx, id: string, answer: RsvpAnswer | null): 
         ? 'Der Termin hat schon begonnen – Zu- und Absagen sind nicht mehr möglich.'
         : 'Für diesen Termin sind keine Zu- und Absagen mehr möglich.',
     );
+  // eine frühere Antwort zurücknehmen geht immer
+  if (answer !== null && !isInvited(await inviteeIds(ctx.trx, id), a.created_by, ctx.actor.id))
+    throw rule('Zu diesem Termin bist du nicht eingeladen – zu- oder absagen können nur Eingeladene.');
   const current = await ctx.trx
     .selectFrom('appointment_rsvps')
     .selectAll()

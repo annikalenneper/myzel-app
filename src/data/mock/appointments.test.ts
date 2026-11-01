@@ -126,10 +126,10 @@ describe('Termin anlegen (WF-TER-02, WF-PLE-01)', () => {
       return (await api.demo!.myMessages()).some((m) => m.text.startsWith('Kleiner Bautag am'));
     };
     expect([await invited('jule'), await invited('lea')]).toEqual([true, false]);
-    // wer nicht eingeladen ist, sieht den Termin trotzdem und kann zusagen – dann kommt auch die Absage
+    // wer nicht eingeladen ist, sieht den Termin, sagt aber nicht zu (Nutzerin, 31.10.2026)
+    await expectError(api.setRsvp(id, 'ja'), 'rule');
+    await login('jule');
     await api.setRsvp(id, 'ja');
-    await login('kim');
-    await api.setRsvp(id, 'nein');
     await login('mo');
     await api.cancelAppointment(id, (await api.getAppointment(id)).version);
     const cancelled = async (name: string) => {
@@ -138,11 +138,7 @@ describe('Termin anlegen (WF-TER-02, WF-PLE-01)', () => {
         (m) => m.event_type === 'termin_geaendert' && m.text.startsWith('Kleiner Bautag'),
       );
     };
-    expect([await cancelled('jule'), await cancelled('lea'), await cancelled('kim')]).toEqual([
-      true,
-      true,
-      false,
-    ]);
+    expect([await cancelled('jule'), await cancelled('lea')]).toEqual([true, false]);
     await login('mo');
   });
 });
@@ -210,6 +206,27 @@ describe('Zu- und Absage (WF-TER-03)', () => {
     const bautag = await appointment('Bautag Oktober');
     clock = new Date(new Date(bautag.starts_at).getTime() + 60_000);
     await expectError(api.setRsvp(bautag.id, 'ja'), 'rule');
+  });
+  it('nur Eingeladene sagen zu oder ab (Nutzerin, 31.10.2026)', async () => {
+    const bautag = await type('Bautag');
+    const jule = await member('Jule');
+    const { id } = await api.createAppointment({
+      type_id: bautag.id,
+      title: 'Kleiner Bautag',
+      starts_at: inDays(20, 10),
+      format: 'vor_ort',
+      location: 'Lager',
+      invitee_ids: [jule.id],
+    });
+    expect((await appointment('Kleiner Bautag')).invited).toBe(true);
+    await login('lea');
+    expect((await appointment('Kleiner Bautag')).invited).toBe(false);
+    expect((await appointment('Bautag Oktober')).invited).toBe(true);
+    await expectError(api.setRsvp(id, 'ja'), 'rule');
+    await login('jule');
+    await api.setRsvp(id, 'ja');
+    expect((await api.getAppointment(id)).my_answer).toBe('ja');
+    await login('mo');
   });
 });
 

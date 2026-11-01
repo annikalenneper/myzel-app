@@ -20,8 +20,9 @@ import type { DecisionKind, DecisionStatus, MarkReason } from '../../shared/sche
 import { cx, ListSkeleton, Pill } from '../../ui/bits';
 import { IconBookmark } from '../../ui/icons';
 import { Menu, type MenuOption } from '../../ui/Menu';
+import { BellButton } from '../../ui/Bell';
 import { SearchButton } from '../../ui/SearchOverlay';
-import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
+import { DocumentMenu } from './DocumentActions';
 import { DecisionDetail } from './DecisionDetail';
 import { AgendaReasonSheet } from './DetailParts';
 import { DocumentLinkScreen } from './DocumentLinkScreen';
@@ -134,6 +135,7 @@ function KnowledgeList({
             FINANZEN · MEINVEREIN ↗
           </a>
           <SearchButton first="beschluesse" />
+          <BellButton />
         </div>
         <h1 className="m-0 text-[32px] leading-[1.15] font-bold tracking-[-1px]">Wissen</h1>
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-xl border border-linie bg-flaeche p-1">
@@ -383,18 +385,6 @@ function DecisionCard({
   );
 }
 
-/** Dokumente haben keine Detailansicht (U15) – gelöscht wird in der Liste */
-function DocumentDelete({ doc }: { doc: DocumentListItem }) {
-  const remove = useDeleteArtifact('document', doc.id, () => doc.version, null);
-  return (
-    <DeleteAction
-      noun="Dokument"
-      consequence="Die Datei selbst bleibt im Drive bzw. an ihrer Adresse; Verknüpfungen verschwinden aus den Listen."
-      onConfirm={() => void remove()}
-    />
-  );
-}
-
 function Documents({ onCreate }: { onCreate: () => void }) {
   const { data: documents } = useData('documents', () => api.listDocuments());
   if (!documents) return <ListSkeleton />;
@@ -426,8 +416,8 @@ function Documents({ onCreate }: { onCreate: () => void }) {
                 <span className="label-mono">{meta(d)}</span>
                 <DriveMissing doc={d} />
               </a>
-              {/* WF-ALL-09 Löschen (Phase 9) – die Datei selbst bleibt im Drive bzw. an ihrer Adresse */}
-              <DocumentDelete doc={d} />
+              {/* Zuordnen, Kategorie, Löschen (WF-WIS-14, WF-WIS-15, WF-ALL-09) */}
+              <DocumentMenu doc={d} />
             </div>
           ))}
         </div>

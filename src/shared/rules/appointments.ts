@@ -73,6 +73,11 @@ export function invitedIds(
   return activeMemberIds.filter((id) => chosen.has(id));
 }
 
+/** Eingeladen: ohne Auswahl alle, sonst die Ausgewählten und die anlegende Person. Nur sie sagen zu oder ab
+ * (Nutzerin, 31.10.2026). */
+export const isInvited = (inviteeIds: readonly string[], createdBy: string, memberId: string) =>
+  inviteeIds.length === 0 || memberId === createdBy || inviteeIds.includes(memberId);
+
 /** „Weitere einladen“ (WF-TER-12): nur bei Auswahl, solange der Termin geplant ist und nicht begonnen hat. */
 export const canInviteMore = (a: Timed, inviteeIds: readonly string[], now: Date) =>
   inviteeIds.length > 0 && canRsvp(a, now);

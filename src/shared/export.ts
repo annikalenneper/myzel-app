@@ -41,7 +41,8 @@ import {
 // (16.5) sehen nur Admins – sie fehlen im Export wie die weiteren Login-Adressen.
 // 5: Reaktionen an Kommentaren (Phase 12)
 // 6: Einladungen an einzelne Personen (appointment_invitees, Phase 12)
-export const EXPORT_FORMAT_VERSION = 6;
+// 7: Rollen im Team einer Veranstaltung (event_leads.role, Nutzerin 31.10.2026)
+export const EXPORT_FORMAT_VERSION = 7;
 
 /** Felder, die nie in den Export gehören – auch nicht als alter oder neuer Wert in der Historie */
 export const EXPORT_EXCLUDED_FIELDS = [

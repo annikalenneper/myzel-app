@@ -44,6 +44,7 @@ import {
   type EventBooking,
   type EventDetails,
   type EventLead,
+  type EventRole,
   type EventPartner,
   type EventTemplate,
   type EventTemplateItem,
@@ -74,6 +75,8 @@ import {
   type Question,
   type JobRun,
   type OutboxEntry,
+  type InboxEntryRow,
+  type DocType,
   type PushSubscriptionRow,
   type NotificationPreference,
   type TelegramLink,
@@ -126,7 +129,7 @@ export type InverseOp =
   | { kind: 'decision_delete'; decision_id: string }
   | { kind: 'booking_remove'; booking_id: string }
   | { kind: 'booking_restore'; row: EventBooking }
-  | { kind: 'lead_remove'; event_id: string; member_id: string }
+  | { kind: 'lead_remove'; event_id: string; member_id: string; role: EventRole }
   | { kind: 'lead_restore'; row: EventLead }
   | { kind: 'event_partner_remove'; event_id: string; partner_id: string }
   | { kind: 'event_partner_restore'; row: EventPartner }
@@ -139,6 +142,8 @@ export type InverseOp =
       status: Decision['status'];
       superseded_by_id: string | null;
     }
+  // Verbesserungen 31.10.2026: Kategorie eines Dokuments
+  | { kind: 'document_type'; document_id: string; doc_type: DocType }
   | {
       kind: 'question_state';
       question_id: string;
@@ -239,6 +244,9 @@ export interface Db {
   telegram_links: TelegramLink[];
   telegram_link_codes: TelegramLinkCode[];
   notification_outbox: OutboxEntry[];
+  /** Glocke (WF-ALL-10) */
+  inbox_entries: InboxEntryRow[];
+  inbox_seen: { member_id: string; seen_at: string }[];
   job_runs: JobRun[];
   undo: UndoRecord[];
   task_number_seq: number;
@@ -291,6 +299,8 @@ export function emptyDb(): Db {
     telegram_link_codes: [],
     member_emails: [],
     notification_outbox: [],
+    inbox_entries: [],
+    inbox_seen: [],
     job_runs: [],
     undo: [],
     task_number_seq: 0,
@@ -1063,6 +1073,7 @@ export function undo(ctx: Ctx, token: string): void {
     'appointment_state',
     'decision_state',
     'question_state',
+    'document_type',
     'task_fields',
     'appointment_times',
     // eine Stimme: ist die Entscheidung inzwischen (durch andere Stimmen) gültig geworden, bleibt es dabei
@@ -1180,13 +1191,18 @@ export function undo(ctx: Ctx, token: string): void {
         break;
       case 'lead_remove':
         db.event_leads = db.event_leads.filter(
-          (l) => !(l.event_id === op.event_id && l.member_id === op.member_id),
+          (l) => !(l.event_id === op.event_id && l.member_id === op.member_id && l.role === op.role),
         );
         break;
       case 'lead_restore':
         // wer inzwischen deaktiviert ist, kommt nicht zurück (WF-ADM-03)
         if (!db.members.find((m) => m.id === op.row.member_id)?.active) break;
-        if (!db.event_leads.some((l) => l.event_id === op.row.event_id && l.member_id === op.row.member_id))
+        if (
+          !db.event_leads.some(
+            (l) =>
+              l.event_id === op.row.event_id && l.member_id === op.row.member_id && l.role === op.row.role,
+          )
+        )
           db.event_leads.push(op.row);
         break;
       case 'event_partner_remove':
@@ -1250,6 +1266,11 @@ export function undo(ctx: Ctx, token: string): void {
         );
         if (op.row) db.decision_votes.push(op.row);
         break;
+      case 'document_type': {
+        const document = db.documents.find((d) => d.id === op.document_id);
+        if (document) document.doc_type = op.doc_type;
+        break;
+      }
       case 'question_state': {
         const question = db.questions.find((q) => q.id === op.question_id);
         if (question) {
@@ -1284,6 +1305,8 @@ export function undo(ctx: Ctx, token: string): void {
   db.notification_outbox = db.notification_outbox.filter(
     (o) => !(record.outbox_ids.includes(o.id) && o.status === 'wartet'),
   );
+  // Einträge in der Glocke verschwinden mit (WF-ALL-10)
+  db.inbox_entries = db.inbox_entries.filter((e) => !record.outbox_ids.includes(e.id));
   // eine im selben Schritt angelegte Aufgabe ist wieder weg – dann gibt es nichts mehr zu vermerken
   if (record.ops.some((op) => op.kind === 'task_delete' && op.task_id === entity.id)) return;
   if (record.entity_type === 'task')

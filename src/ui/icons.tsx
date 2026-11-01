@@ -156,3 +156,10 @@ export const IconLink = (p: IconProps) => (
     <path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1" />
   </Stroke>
 );
+/** Glocke (Verbesserungen 31.10.2026): Benachrichtigungen seit dem letzten Besuch */
+export const IconBell = (p: IconProps) => (
+  <Stroke {...p}>
+    <path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z" />
+    <path d="M10 20.5a2 2 0 004 0" />
+  </Stroke>
+);

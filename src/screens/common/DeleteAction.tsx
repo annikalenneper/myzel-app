@@ -75,11 +75,14 @@ export function DeleteAction({
   noun,
   consequence,
   wf = 'WF-ALL-09',
+  items = [],
   onConfirm,
 }: {
   noun: string;
   consequence?: string;
   wf?: string;
+  /** weitere Einträge vor „Löschen …“, z. B. bei Dokumenten „Zuordnen …“ */
+  items?: { label: string; wf: string; onClick: () => void }[];
   onConfirm: () => void;
 }) {
   const [menu, setMenu] = useState(false);
@@ -106,6 +109,20 @@ export function DeleteAction({
             className="fixed inset-0 z-[5] cursor-default"
           />
           <div className="absolute top-full right-1 z-[6] flex w-[200px] flex-col gap-0.5 rounded-[14px] border border-rand bg-erhoeht p-1.5 shadow-[0_12px_28px_rgba(0,0,0,0.5)]">
+            {items.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                data-wf={item.wf}
+                onClick={() => {
+                  setMenu(false);
+                  item.onClick();
+                }}
+                className="flex min-h-11 items-center rounded-[10px] px-3 text-left text-[15px] text-text"
+              >
+                {item.label}
+              </button>
+            ))}
             <button
               type="button"
               data-wf={wf}

@@ -1,6 +1,6 @@
 // Phase 3 – Plenum: S-33 (WF-PLE-03, -19, -20) – Ergebnis und Protokoll; die Agenda ist eine eigene Ansicht (16.1)
 import { expect, test, type Page } from './fixtures';
-import { login, undoBar, createNew } from './helpers';
+import { login, undoBar, createNew, confirmStatus } from './helpers';
 
 const openPlenum = async (page: Page, title = 'Plenum Oktober') => {
   await login(page);
@@ -94,6 +94,7 @@ test('WF-PLE-21: während des Plenums fragt die App einmal nach – die Änderun
     .getByRole('group', { name: 'Status' })
     .getByRole('button', { name: 'Geplant', exact: true })
     .click();
+  await confirmStatus(page);
   const ask = page.getByRole('alertdialog', { name: 'Gehört das zum Plenum?' });
   await expect(ask).toContainText('Gerade läuft Plenum Jetzt.');
   await ask.getByRole('button', { name: 'Ja, gehört zum Plenum' }).click();

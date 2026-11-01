@@ -8,6 +8,7 @@ import {
   hasStarted,
   invitationMessages,
   invitedIds,
+  isInvited,
   yesAndOpen,
 } from '../../shared/rules/appointments';
 import { ruleLabel } from '../../shared/rules/series';
@@ -179,6 +180,7 @@ function listItem(db: Db, a: Appointment, meId: string): AppointmentListItem {
     is_plenum: type.has_plenum_features,
     yes_count: rsvps.filter((r) => r.answer === 'ja').length,
     my_answer: rsvps.find((r) => r.member_id === meId)?.answer ?? null,
+    invited: isInvited(inviteeIds(db, a.id), a.created_by, meId),
     task_count: db.tasks.filter((t) => t.appointment_id === a.id && !t.archived_at).length,
     series: seriesRef(db, a),
   };
@@ -343,6 +345,9 @@ export function setRsvp(ctx: Ctx, id: string, answer: RsvpAnswer | null): Undoab
         ? 'Der Termin hat schon begonnen – Zu- und Absagen sind nicht mehr möglich.'
         : 'Für diesen Termin sind keine Zu- und Absagen mehr möglich.',
     );
+  // eine frühere Antwort zurücknehmen geht immer
+  if (answer !== null && !isInvited(inviteeIds(ctx.db, id), a.created_by, ctx.actor.id))
+    throw rule('Zu diesem Termin bist du nicht eingeladen – zu- oder absagen können nur Eingeladene.');
   const db = ctx.db;
   const current = db.appointment_rsvps.find((r) => r.appointment_id === id && r.member_id === ctx.actor.id);
   if ((current?.answer ?? null) === answer) return { undo_token: '' };

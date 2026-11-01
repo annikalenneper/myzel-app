@@ -848,8 +848,10 @@ export function seedDb(now: Date): Db {
       fee,
       tech_requirements: tech,
     });
-  events.addLead(as('LE', 30), rave, member.LE!.id);
-  events.addLead(as('LE', 30), workshop, member.KI!.id);
+  events.addLead(as('LE', 30), rave, member.LE!.id, 'haupt');
+  events.addLead(as('LE', 30), workshop, member.KI!.id, 'haupt');
+  events.addLead(as('LE', 30), rave, member.JU!.id, 'orga');
+  events.addLead(as('LE', 30), rave, member.KI!.id, 'tag');
 
   // Vorlagen (3.12): Startinhalt aus src/shared/seed/event-templates.yaml
   seedTemplates(db, at(100));

@@ -1,6 +1,6 @@
 // S-20 bis S-22 · WF-VER-01 bis -05
 import { expect, test } from './fixtures';
-import { login, undoBar, createNew } from './helpers';
+import { login, undoBar, createNew, confirmStatus } from './helpers';
 
 const eventStatus = (page: import('@playwright/test').Page, name: string) =>
   page.getByRole('group', { name: 'Status' }).getByRole('button', { name, exact: true });
@@ -81,9 +81,10 @@ test('WF-VER-04: nur der nächste Schritt oder Absage, mit Rückgängig und Best
   await expect(eventStatus(page, 'Bestätigt')).toHaveAttribute('aria-disabled', 'true');
 
   await eventStatus(page, 'Abgeschlossen').click();
-  const confirm = page.getByRole('dialog', { name: 'Veranstaltung abschließen?' });
+  const confirm = page.getByRole('alertdialog', { name: 'Status ändern: In Nachbereitung → Abgeschlossen?' });
   await expect(confirm).toContainText('1 Aufgabe ist noch offen.');
-  await confirm.getByRole('button', { name: 'Trotzdem abschließen' }).click();
+  await expect(confirm).toContainText('Danach lässt sich der Status nicht mehr ändern.');
+  await confirm.getByRole('button', { name: 'Abschließen' }).click();
   await expect(eventStatus(page, 'Abgeschlossen')).toHaveAttribute('aria-pressed', 'true');
   await expect(eventStatus(page, 'Abgesagt')).toHaveAttribute('aria-disabled', 'true');
 
@@ -131,6 +132,7 @@ test('WF-ALL-01: Änderung aus einem zweiten Tab führt zum Konflikt statt zum �
   const other = await context.newPage();
   await other.goto(page.url());
   await other.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'Bestätigt' }).click();
+  await confirmStatus(other);
   await expect(other.getByTestId('WF-ALL-02')).toContainText('Status: Bestätigt');
   await other.close();
 
@@ -148,6 +150,11 @@ test('WF-VER-04: Absagen ist endgültig; Abschließen ohne offene Aufgaben fragt
 }) => {
   await page.getByRole('link', { name: /Siebdruck-Workshop/ }).click();
   await eventStatus(page, 'Abgesagt').click();
+  // Abbrechen ändert nichts
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Abbrechen' }).click();
+  await expect(eventStatus(page, 'Abgesagt')).toHaveAttribute('aria-pressed', 'false');
+  await eventStatus(page, 'Abgesagt').click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Absagen' }).click();
   await expect(eventStatus(page, 'Abgesagt')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('Abgesagt – der Status lässt sich nicht mehr ändern.')).toBeVisible();
   await expect(eventStatus(page, 'In Nachbereitung')).toHaveAttribute('aria-disabled', 'true');

@@ -29,6 +29,7 @@ import {
   decisionReplaceSchema,
   decisionVoteKindSchema,
   markReasonSchema,
+  docTypeSchema,
   documentCreateSchema,
   DRIVE_FOLDER_MIME,
   questionClarifySchema,
@@ -634,6 +635,20 @@ export function linkDocument(ctx: Ctx, documentId: string, type: DocumentLinkTar
     return;
   ctx.db.document_links.push({ document_id: documentId, target_type: type, target_id: targetId });
   writeHistory(ctx, type, targetId, 'document_linked', { document: { old: null, new: document.title } });
+}
+
+/** WF-WIS-15 Kategorie (Art) ändern (Verbesserungen 31.10.2026) – mit Verlauf und Rückgängig */
+export function setDocumentType(ctx: Ctx, id: string, rawType: unknown, version: number): Undoable {
+  const docType = parse(docTypeSchema, rawType);
+  const document = findDocument(ctx.db, id);
+  if (document.archived_at) throw rule('Gelöschte Dokumente lassen sich nicht mehr ändern.');
+  checkVersion(ctx, 'document', document, version);
+  if (document.doc_type === docType) return { undo_token: '' };
+  ctx.inverse.push({ kind: 'document_type', document_id: id, doc_type: document.doc_type });
+  writeHistory(ctx, 'document', id, 'updated', { doc_type: { old: document.doc_type, new: docType } });
+  document.doc_type = docType;
+  touch(ctx, document);
+  return registerUndo(ctx, 'document', document, `Kategorie: ${DOC_TYPE_LABEL[docType]}`);
 }
 
 export function unlinkDocument(

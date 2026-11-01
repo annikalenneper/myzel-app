@@ -173,30 +173,35 @@ function Loaded({ a }: { a: Detail }) {
 
         {/* WF-TER-03 Zu-/Absage im Detail */}
         <div className="flex flex-col gap-3 rounded-2xl border border-linie bg-flaeche px-4 py-3.5">
-          <span className="label-mono">Kommst du?</span>
-          <div
-            className={cx('grid grid-cols-2 gap-2', !answerable && 'pointer-events-none opacity-40')}
-            inert={!answerable}
-          >
-            <button
-              type="button"
-              data-wf="WF-TER-03"
-              onClick={() => rsvp(a, 'ja')}
-              aria-pressed={a.my_answer === 'ja'}
-              className={cx(rsvpButton(a.my_answer === 'ja', 'ja'), 'h-11 rounded-[22px] text-[15px]')}
+          <span className="label-mono">{a.invited ? 'Kommst du?' : 'Zusagen'}</span>
+          {/* nur Eingeladene sagen zu oder ab (Nutzerin, 31.10.2026) */}
+          {a.invited ? (
+            <div
+              className={cx('grid grid-cols-2 gap-2', !answerable && 'pointer-events-none opacity-40')}
+              inert={!answerable}
             >
-              Komme
-            </button>
-            <button
-              type="button"
-              data-wf="WF-TER-03"
-              onClick={() => rsvp(a, 'nein')}
-              aria-pressed={a.my_answer === 'nein'}
-              className={cx(rsvpButton(a.my_answer === 'nein', 'nein'), 'h-11 rounded-[22px] text-[15px]')}
-            >
-              Komme nicht
-            </button>
-          </div>
+              <button
+                type="button"
+                data-wf="WF-TER-03"
+                onClick={() => rsvp(a, 'ja')}
+                aria-pressed={a.my_answer === 'ja'}
+                className={cx(rsvpButton(a.my_answer === 'ja', 'ja'), 'h-11 rounded-[22px] text-[15px]')}
+              >
+                Komme
+              </button>
+              <button
+                type="button"
+                data-wf="WF-TER-03"
+                onClick={() => rsvp(a, 'nein')}
+                aria-pressed={a.my_answer === 'nein'}
+                className={cx(rsvpButton(a.my_answer === 'nein', 'nein'), 'h-11 rounded-[22px] text-[15px]')}
+              >
+                Komme nicht
+              </button>
+            </div>
+          ) : (
+            <span className="text-[14px] text-leise">Du bist zu diesem Termin nicht eingeladen.</span>
+          )}
           <div className="flex flex-col gap-2">
             {groups.map(([label, color, ids]) => (
               <div key={label} className="flex items-center gap-3">

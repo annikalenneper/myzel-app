@@ -10,11 +10,14 @@ import { Sheet } from '../../ui/Sheet';
 
 /** S-13 Dialog Blockieren · WF-AUF-07: Grund ist Pflicht, blockierende Aufgaben per Suche */
 export function BlockSheet({
+  help,
   taskId,
   candidates,
   onClose,
   onConfirm,
 }: {
+  /** was „Blockiert“ heißt (Rückfrage beim Statuswechsel, Nutzerin 31.10.2026) */
+  help: string;
   taskId: string;
   /** Aufgaben, die als „wartet auf“ in Frage kommen */
   candidates: TaskListItem[];
@@ -39,6 +42,7 @@ export function BlockSheet({
 
   return (
     <Sheet title="Blockieren" onClose={onClose} wf="WF-AUF-07">
+      <span className="text-[14px] leading-normal text-weich">{help}</span>
       <form
         className="flex flex-col gap-3"
         onSubmit={async (e) => {
@@ -120,15 +124,18 @@ export function BlockSheet({
 
 /** WF-AUF-09 Verwerfen mit optionalem Grund */
 export function DiscardSheet({
+  help,
   onClose,
   onConfirm,
 }: {
+  help: string;
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }) {
   const [reason, setReason] = useState('');
   return (
     <Sheet title="Aufgabe verwerfen" onClose={onClose} wf="WF-AUF-09">
+      <span className="text-[14px] leading-normal text-weich">{help}</span>
       <label htmlFor="verwerfen-grund" className="label-mono">
         Grund (optional)
       </label>

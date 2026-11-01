@@ -6,6 +6,7 @@ import type { NotificationGroupKey } from '../shared/rules/notifications';
 import type { TelegramButtonKey } from '../shared/rules/telegram';
 import type { SectionSummary } from '../shared/rules/eventDetails';
 import type {
+  EventRole,
   Decision,
   DecisionCreateInput,
   DecisionReplaceInput,
@@ -58,6 +59,8 @@ import type {
   Member,
   MemberEmail,
   NotificationChannel,
+  NotificationEvent,
+  DocType,
   OutboxEntry,
   MemberCreateInput,
   MemberUpdateInput,
@@ -110,7 +113,8 @@ export interface EventListItem extends EventRow {
 export interface EventDetail extends EventListItem {
   details: EventDetails;
   bookings: EventBooking[];
-  lead_ids: string[];
+  /** Team je Rolle (WF-VER-09): Hauptverantwortlich, Mitarbeit Orga, Mitarbeit am Tag */
+  team: Record<EventRole, string[]>;
   shift_plan_document: { id: string; title: string; url: string } | null;
   summaries: SectionSummary[];
   /** WF-VER-07: am Tag danach „In Nachbereitung?“ vorschlagen */
@@ -193,7 +197,7 @@ export interface DeactivationImpact {
   following_count: number;
   /** Zusagen und Absagen für künftige Termine – werden entfernt [P3] */
   future_rsvp_count: number;
-  /** Veranstaltungen, bei denen die Person hauptverantwortlich ist – wird ausgetragen [P4] */
+  /** Veranstaltungen, in deren Team die Person ist (jede Rolle) – wird ausgetragen [P4] */
   lead_count: number;
   /** Partner, bei denen die Person interne Kontaktperson ist – wird ausgetragen [P4] */
   partner_contact_count: number;
@@ -310,6 +314,8 @@ export interface AppointmentListItem extends Appointment {
   is_plenum: boolean;
   yes_count: number;
   my_answer: RsvpAnswer | null;
+  /** die eingeloggte Person ist eingeladen – nur dann „Komme“/„Komme nicht“ */
+  invited: boolean;
   task_count: number;
 }
 
@@ -334,6 +340,23 @@ export interface PlenumDetail extends AppointmentDetail {
   protocol_document: { id: string; title: string; url: string } | null;
   /** an wie viele Mitglieder die Zusammenfassung ging; null, solange nicht abgeschlossen */
   summary_recipients: number | null;
+}
+
+/** Glocke (WF-ALL-10): die letzten Einträge der eingeloggten Person, neueste zuerst */
+export interface InboxEntry {
+  id: string;
+  event_type: NotificationEvent;
+  text: string;
+  link: string;
+  created_at: string;
+}
+
+export interface Inbox {
+  entries: InboxEntry[];
+  /** zuletzt in die Glocke geschaut; null: noch nie */
+  seen_at: string | null;
+  /** Einträge seit dem letzten Blick */
+  unread: number;
 }
 
 /** Wie die eingeloggte Person erreichbar ist (WF-PRO-02, WF-PRO-03) */
@@ -461,8 +484,8 @@ export interface MyzelApi {
   addBooking(eventId: string, input: BookingCreateInput): Promise<Undoable & { id: string }>;
   updateBooking(id: string, input: BookingUpdateInput): Promise<void>;
   removeBooking(id: string): Promise<Undoable>;
-  addEventLead(eventId: string, memberId: string): Promise<Undoable>;
-  removeEventLead(eventId: string, memberId: string): Promise<Undoable>;
+  addEventLead(eventId: string, memberId: string, role: EventRole): Promise<Undoable>;
+  removeEventLead(eventId: string, memberId: string, role: EventRole): Promise<Undoable>;
   setShiftPlan(eventId: string, documentId: string | null, version: number): Promise<void>;
   // Kooperationspartner [P4] (S-24, WF-VER-10, WF-VER-13)
   listPartners(): Promise<PartnerListItem[]>;
@@ -545,6 +568,8 @@ export interface MyzelApi {
   createDocument(input: DocumentCreateInput): Promise<{ id: string; created: boolean }>;
   linkDocument(documentId: string, target: DocumentLinkTarget, targetId: string): Promise<void>;
   unlinkDocument(documentId: string, target: DocumentLinkTarget, targetId: string): Promise<void>;
+  /** WF-WIS-15 Kategorie (Art) eines Dokuments ändern, mit Rückgängig */
+  setDocumentType(documentId: string, docType: DocType, version: number): Promise<Undoable>;
   /** Entscheidung oder Fakt ausdrücklich auf die Agenda setzen bzw. herunternehmen (16.1) */
   setDecisionAgenda(id: string, onAgenda: boolean, reason?: MarkReason): Promise<Undoable>;
   search(query: string): Promise<SearchGroup[]>;
@@ -575,6 +600,10 @@ export interface MyzelApi {
 
   // Erinnerungen [P2] (WF-PRO-02, WF-PRO-03, WF-ADM-07)
   getNotificationSettings(): Promise<NotificationSettings>;
+  /** Glocke (WF-ALL-10) */
+  listInbox(): Promise<Inbox>;
+  /** Glocke geöffnet: alles bis jetzt gilt als gesehen; ändert keine Ansicht */
+  markInboxSeen(): Promise<void>;
   setPush(on: boolean): Promise<void>;
   startTelegramLink(): Promise<{ url: string; expires_at: string }>;
   unlinkTelegram(): Promise<void>;

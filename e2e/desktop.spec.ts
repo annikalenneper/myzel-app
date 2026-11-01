@@ -1,6 +1,6 @@
 // Abläufe, die eine echte Tastatur bzw. das Desktop-Layout brauchen (8.3: Liste und Detail nebeneinander)
 import { devices, expect, test } from './fixtures';
-import { createNew, login, statusChip } from './helpers';
+import { createNew, login, statusChip, confirmStatus } from './helpers';
 
 test.use({ ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } });
 
@@ -36,11 +36,13 @@ test('WF-ALL-03: offene Netzfehler-Meldung verschwindet beim Wechsel der Ansicht
   await page.getByRole('link', { name: /Vereinshaftpflicht verlängern/ }).click();
   await page.evaluate(() => window.__myzelDemo!.failNextWrites(1));
   await statusChip(page, 'Geplant').click();
+  await confirmStatus(page);
   await expect(page.getByTestId('WF-ALL-03')).toBeVisible();
 
   await page.getByRole('link', { name: /Nebelmaschine reparieren/ }).click();
   await expect(page.getByTestId('WF-ALL-03')).toHaveCount(0);
   await statusChip(page, 'Erledigt').click();
+  await confirmStatus(page);
   await expect(statusChip(page, 'Erledigt')).toHaveAttribute('aria-pressed', 'true');
 
   // die verworfene Aktion wurde nicht nachträglich ausgeführt
@@ -83,8 +85,10 @@ test('WF-ALL-03: neue Aktion bei offener Netzfehler-Meldung läuft sofort und ve
   await page.getByRole('link', { name: /Vereinshaftpflicht verlängern/ }).click();
   await page.evaluate(() => window.__myzelDemo!.failNextWrites(1));
   await statusChip(page, 'Geplant').click();
+  await confirmStatus(page);
   await expect(page.getByTestId('WF-ALL-03')).toBeVisible();
   await statusChip(page, 'Erledigt').click();
+  await confirmStatus(page);
   await expect(statusChip(page, 'Erledigt')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('WF-ALL-03')).toHaveCount(0);
   await page.getByRole('tab', { name: 'VERLAUF' }).click();

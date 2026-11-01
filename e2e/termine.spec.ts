@@ -117,6 +117,23 @@ test('WF-TER-12: nur einzelne Personen einladen, später weitere', async ({ page
   await expect(more).toBeHidden();
   await expect(page.getByText('Eingeladen: Mo, Jule, Lea')).toBeVisible();
   await expect(page.getByText(/Offen · 3/i)).toBeVisible();
+
+  // nur Eingeladene sagen zu oder ab (Nutzerin, 31.10.2026)
+  const url = page.url();
+  await page.goto('/profil');
+  await page.getByTestId('WF-LOG-03').click();
+  await expect(page.getByTestId('WF-LOG-01')).toBeVisible();
+  await login(page, 'Sam');
+  await page.goto(url);
+  await expect(page.getByText('Du bist zu diesem Termin nicht eingeladen.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Komme', exact: true })).toHaveCount(0);
+  await page.goto('/termine');
+  await expect(card(page, 'Kleiner Bautag').getByRole('button', { name: 'Komme', exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    card(page, 'Bautag Oktober').getByRole('button', { name: 'Komme', exact: true }),
+  ).toBeVisible();
 });
 
 test('WF-PLE-01: Plenum anlegen mit Hinweis zum Ergebnis', async ({ page }) => {

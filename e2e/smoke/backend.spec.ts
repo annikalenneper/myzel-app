@@ -1,7 +1,7 @@
 // Smoke-Tests gegen das echte Backend (7.4 Nr. 6): Kernabläufe der Phase 1 durch App, HTTP-Schicht,
 // Server-Funktionen und Postgres. Die Daten bleiben über Neuladen erhalten, weil sie auf dem Server liegen.
 import { expect, test, type Page } from '../fixtures';
-import { card, openTask, statusChip, undoBar, createNew } from '../helpers';
+import { card, confirmStatus, openTask, statusChip, undoBar, createNew } from '../helpers';
 
 /** Login-ID der Testkonten wie in server/db/seedFromMock.ts */
 const authId = (n: number) => `aaaaaaaa-0000-4000-8000-0001${String(n).padStart(8, '0')}`;
@@ -62,10 +62,12 @@ test('Agenda: Liste, Schnellanlage, Status mit Rückgängig, Kommentar – alles
 
   await openTask(page, 'Smoke: Nebelfluid nachbestellen');
   await statusChip(page, 'In Arbeit').click();
+  await confirmStatus(page);
   await expect(undoBar(page)).toContainText('Status: In Arbeit');
   await undoBar(page).getByRole('button', { name: 'Rückgängig' }).click();
   await expect(statusChip(page, 'Neu')).toHaveAttribute('aria-pressed', 'true');
   await statusChip(page, 'Geplant').click();
+  await confirmStatus(page);
   await expect(statusChip(page, 'Geplant')).toHaveAttribute('aria-pressed', 'true');
 
   await page.getByLabel('Kommentar schreiben').fill('Händler liefert am Freitag');

@@ -6,7 +6,7 @@ import type { ZodType } from 'zod';
 import { AppError, validationErrorFromZod } from '../../src/shared/errors';
 import { countsForPlenum, PLENUM_DEFAULT_HOURS } from '../../src/shared/rules/plenum';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
-import type { HistoryChanges } from '../../src/shared/schema';
+import type { DocType, EventRole, HistoryChanges } from '../../src/shared/schema';
 import type { Selectable } from 'kysely';
 import type { Database, EventBookingsTable, HistoryTable, MemberRow, PlenumMarksTable } from '../db/types';
 
@@ -58,8 +58,11 @@ export type InverseOp =
   // [P4]
   | { kind: 'booking_remove'; booking_id: string }
   | { kind: 'booking_restore'; row: Selectable<EventBookingsTable> }
-  | { kind: 'lead_remove'; event_id: string; member_id: string }
-  | { kind: 'lead_restore'; row: { event_id: string; member_id: string; added_by: string; added_at: string } }
+  | { kind: 'lead_remove'; event_id: string; member_id: string; role: EventRole }
+  | {
+      kind: 'lead_restore';
+      row: { event_id: string; member_id: string; role: EventRole; added_by: string; added_at: string };
+    }
   | { kind: 'event_partner_remove'; event_id: string; partner_id: string }
   | {
       kind: 'event_partner_restore';
@@ -90,6 +93,8 @@ export type InverseOp =
         voted_at: string;
       } | null;
     }
+  // Verbesserungen 31.10.2026: Kategorie eines Dokuments
+  | { kind: 'document_type'; document_id: string; doc_type: DocType }
   | {
       kind: 'question_state';
       question_id: string;

@@ -466,7 +466,7 @@ export function AppointmentFormSheet({
                 ? 'Liegt in der Vergangenheit: Der Termin wird nachgetragen, niemand bekommt eine Einladung.'
                 : inviteeIds.length === 0
                   ? 'Alle aktiven Mitglieder bekommen eine Einladung und können zu- oder absagen.'
-                  : `Nur ${inviteeIds.length === 1 ? 'die ausgewählte Person bekommt' : `die ${inviteeIds.length} ausgewählten Personen bekommen`} eine Einladung. Alle anderen sehen den Termin trotzdem und können zusagen.`}
+                  : `Nur ${inviteeIds.length === 1 ? 'die ausgewählte Person bekommt' : `die ${inviteeIds.length} ausgewählten Personen bekommen`} eine Einladung. Alle anderen sehen den Termin, sagen aber nicht zu.`}
           </span>
         )}
         {appointment ? (

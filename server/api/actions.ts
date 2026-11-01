@@ -78,6 +78,7 @@ export const READ_ACTIONS: Record<
       botUsername(),
     ),
   getSystemStatus: (db, _, now, actor) => notify.systemStatus({ trx: db, actor, now }),
+  listInbox: (db, _, now, actor) => notify.listInbox({ trx: db, actor, now }),
   listAppReports: (db, _, now, actor) => reports.listAppReports({ trx: db, actor, now }),
   listAppointmentTypes: (db, _, now, actor) => appts.listAppointmentTypes({ trx: db, actor, now }),
   listAppointments: (db, _, now, actor) => appts.listAppointments({ trx: db, actor, now }),
@@ -145,6 +146,7 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   setNotificationPreference: (ctx, [group, channel, enabled]) =>
     notify.setNotificationPreference(ctx, group, channel, enabled),
   setReminderLeadDays: (ctx, [days]) => notify.setReminderLeadDays(ctx, days),
+  markInboxSeen: (ctx) => notify.markInboxSeen(ctx),
 
   // [P3] Termine, Terminarten (Lesen über die handelnde Person: eigene Zusage)
   createAppointmentType: (ctx, [input]) => appts.createAppointmentType(ctx, input),
@@ -180,6 +182,8 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
     know.linkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
   unlinkDocument: (ctx, [documentId, target, targetId]) =>
     know.unlinkDocument(ctx, s(documentId), linkTarget(target), s(targetId)),
+  setDocumentType: (ctx, [documentId, docType, version]) =>
+    know.setDocumentType(ctx, s(documentId), docType, n(version)),
   setDecisionAgenda: (ctx, [id, onAgenda, reason]) =>
     know.setDecisionAgenda(ctx, s(id), onAgenda === true, reason ?? 'stimmt_noch'),
 
@@ -188,8 +192,9 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   addBooking: (ctx, [eventId, input]) => p4events.addBooking(ctx, s(eventId), input),
   updateBooking: (ctx, [id, input]) => p4events.updateBooking(ctx, s(id), input),
   removeBooking: (ctx, [id]) => p4events.removeBooking(ctx, s(id)),
-  addEventLead: (ctx, [eventId, memberId]) => p4events.addLead(ctx, s(eventId), s(memberId)),
-  removeEventLead: (ctx, [eventId, memberId]) => p4events.removeLead(ctx, s(eventId), s(memberId)),
+  addEventLead: (ctx, [eventId, memberId, role]) => p4events.addLead(ctx, s(eventId), s(memberId), role),
+  removeEventLead: (ctx, [eventId, memberId, role]) =>
+    p4events.removeLead(ctx, s(eventId), s(memberId), role),
   setShiftPlan: (ctx, [eventId, documentId, version]) =>
     p4events.setShiftPlan(ctx, s(eventId), documentId === null ? null : s(documentId), n(version)),
   createPartner: (ctx, [input]) => partners.createPartner(ctx, input),

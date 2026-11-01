@@ -18,6 +18,13 @@ export const card = (page: Page, title: string) => page.getByRole('article').fil
 export const undoBar = (page: Page) => page.getByTestId('WF-ALL-02');
 export const statusChip = (page: Page, name: string) =>
   page.getByRole('group', { name: 'Status' }).getByRole('button', { name, exact: true });
+/** Statuswechsel fragen nach und erklären (Nutzerin, 31.10.2026): den ersten Knopf der Rückfrage bestätigen */
+export const confirmStatus = (page: Page) =>
+  page
+    .getByRole('alertdialog', { name: /^Status ändern|^Frage / })
+    .getByRole('button')
+    .first()
+    .click();
 
 /** Phase 5: ein „+“ für alle Arten – öffnet die Auswahl und wählt die Art */
 export async function createNew(

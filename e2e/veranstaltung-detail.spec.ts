@@ -1,6 +1,6 @@
 // Phase 4 – Veranstaltung ausgebaut: S-22 mit Detailbereichen (WF-VER-07 bis -11), Deaktivieren (WF-ADM-03)
 import { expect, test, type Page } from './fixtures';
-import { login, undoBar, createNew } from './helpers';
+import { login, undoBar, createNew, confirmStatus } from './helpers';
 
 const openRave = async (page: Page) => {
   await login(page);
@@ -101,21 +101,37 @@ test('Booking: Act anlegen, bearbeiten, entfernen mit Rückgängig', async ({ pa
   await expect(booking.getByRole('button', { name: 'Act bearbeiten: Myzelium Soundsystem' })).toBeVisible();
 });
 
-test('WF-VER-09 / -11: Hauptverantwortliche eintragen und austragen, Schichtplan verknüpfen', async ({
+test('WF-VER-09 / -11: Hauptverantwortliche und Mitarbeit eintragen und austragen, Schichtplan verknüpfen', async ({
   page,
 }) => {
   await openRave(page);
-  const leads = page.getByTestId('WF-VER-09').first();
-  await page.getByRole('button', { name: 'Hauptverantwortliche hinzufügen' }).click();
+  const lead = page.getByRole('group', { name: 'Hauptverantwortlich' });
+  const orga = page.getByRole('group', { name: 'Mitarbeit Orga' });
+  const day = page.getByRole('group', { name: 'Mitarbeit am Tag des Events' });
+  // Testdaten: Jule hilft bei der Orga, Kim am Tag
+  await expect(orga.getByRole('button', { name: 'Austragen: Jule' })).toBeVisible();
+  await expect(day.getByRole('button', { name: 'Austragen: Kim' })).toBeVisible();
+  await page.getByRole('button', { name: 'Hauptverantwortlich: Person hinzufügen' }).click();
   await page
     .getByRole('dialog', { name: 'Hauptverantwortlich' })
     .getByRole('button', { name: 'Jule' })
     .click();
   await expect(undoBar(page)).toContainText('Hauptverantwortlich: Jule');
-  await expect(page.getByRole('button', { name: 'Austragen: Jule' })).toBeVisible();
-  await page.getByRole('button', { name: 'Austragen: Jule' }).click();
-  await expect(page.getByRole('button', { name: 'Austragen: Jule' })).toHaveCount(0);
-  await expect(leads).toBeVisible();
+  await expect(lead.getByRole('button', { name: 'Austragen: Jule' })).toBeVisible();
+  await lead.getByRole('button', { name: 'Austragen: Jule' }).click();
+  await expect(lead.getByRole('button', { name: 'Austragen: Jule' })).toHaveCount(0);
+  // die andere Rolle bleibt
+  await expect(orga.getByRole('button', { name: 'Austragen: Jule' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Mitarbeit am Tag des Events: Person hinzufügen' }).click();
+  await page
+    .getByRole('dialog', { name: 'Mitarbeit am Tag des Events' })
+    .getByRole('button', { name: 'Paula' })
+    .click();
+  await expect(undoBar(page)).toContainText('Mitarbeit am Tag des Events: Paula');
+  await expect(day.getByRole('button', { name: 'Austragen: Paula' })).toBeVisible();
+  await page.getByRole('tab', { name: 'VERLAUF' }).click();
+  await expect(page.getByText('Mo hat Paula eingetragen: Mitarbeit am Tag des Events.')).toBeVisible();
 
   await page.getByRole('button', { name: '+ Schichtplan verknüpfen' }).click();
   await page
@@ -151,13 +167,13 @@ test('Aufbau und Abbau im Bearbeiten-Formular – Abbau vor dem Ende geht nicht'
   await expect(undoBar(page)).toContainText('Gespeichert');
 });
 
-test('WF-ADM-03: Deaktivieren nennt und trägt Hauptverantwortliche aus', async ({ page }) => {
+test('WF-ADM-03: Deaktivieren nennt und trägt aus dem Team aus', async ({ page }) => {
   await login(page);
   await page.goto('/profil/mitglieder');
   await page.getByRole('button', { name: /Lea/ }).click();
   await page.getByRole('button', { name: 'Deaktivieren …' }).click();
   const sheet = page.getByRole('dialog', { name: 'Lea deaktivieren?' });
-  await expect(sheet).toContainText('Hauptverantwortlich bei 1 Veranstaltung – wird ausgetragen');
+  await expect(sheet).toContainText('Im Team von 1 Veranstaltung – wird ausgetragen');
   await sheet.getByRole('button', { name: 'Lea deaktivieren' }).click();
   await expect(undoBar(page)).toContainText('Deaktiviert');
   await page.goto('/events');
@@ -189,8 +205,10 @@ test('WF-VER-07: am Tag danach schlägt die App „In Nachbereitung“ vor', asy
     .click();
   const status = page.getByRole('group', { name: 'Status' });
   await status.getByRole('button', { name: 'In Planung' }).click();
+  await confirmStatus(page);
   await expect(undoBar(page)).toContainText('Status: In Planung');
   await status.getByRole('button', { name: 'Bestätigt' }).click();
+  await confirmStatus(page);
   const hint = page.getByText('Die Veranstaltung ist vorbei. Auf „In Nachbereitung“ setzen?');
   await expect(hint).toBeVisible();
   await page.getByTestId('WF-VER-07').getByRole('button', { name: 'Ja' }).click();

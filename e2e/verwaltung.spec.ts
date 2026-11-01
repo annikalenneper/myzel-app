@@ -1,6 +1,6 @@
 // S-50 bis S-52 · WF-PRO-01, WF-ADM-01 bis -05
 import { expect, test } from './fixtures';
-import { login, openTask } from './helpers';
+import { login, openTask, confirmStatus } from './helpers';
 
 test('WF-PRO-01: Name ändern speichert beim Verlassen des Feldes', async ({ page }) => {
   await login(page);
@@ -57,6 +57,7 @@ test('WF-ADM-03 / -04: Deaktivieren zeigt die Folgen, trägt überall aus; Reakt
   await login(page, 'Jule');
   await openTask(page, 'Getränke bei der Brauerei bestellen');
   await page.getByRole('group', { name: 'Status' }).getByRole('button', { name: 'In Arbeit' }).click();
+  await confirmStatus(page);
   await expect(page.getByTestId('WF-ALL-02')).toContainText('Status: In Arbeit');
   await page.goto('/profil');
   await page.getByTestId('WF-LOG-03').click();

@@ -14,6 +14,7 @@ import { byMonth, DateBadge, MonthSection, TabBar } from '../../ui/DatedList';
 
 /** Abgesagte stehen nur in ihrem eigenen Reiter (Nutzerin, 27.10.2026) */
 type EventTab = 'kommend' | 'vergangen' | 'abgesagt';
+import { BellButton } from '../../ui/Bell';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { EventDetail } from './EventDetail';
 import { EventFormSheet } from './EventFormSheet';
@@ -68,6 +69,7 @@ function EventList({ selectedId }: { selectedId: string | null }) {
           <img src="/myzel-logo.png" alt="Myzel" className="h-11 w-[66px] object-contain lg:hidden" />
           <span className="flex-1" />
           <SearchButton first="events" />
+          <BellButton />
           <Link to="/profil" aria-label="Profil" className="hit ml-2.5 flex size-10 no-underline">
             <Avatar member={me} size={40} fontSize={13} />
           </Link>

@@ -327,6 +327,18 @@ export const outboxSchema = z.object({
 });
 export type OutboxEntry = z.infer<typeof outboxSchema>;
 
+/** Glocke (WF-ALL-10, Nutzerin 31.10.2026): ein Eintrag je Anlass und Person, unabhängig von Push und Telegram */
+export const inboxEntrySchema = z.object({
+  id: idSchema,
+  member_id: idSchema,
+  event_type: notificationEventSchema,
+  text: z.string().min(1),
+  link: z.string().min(1),
+  dedupe_key: z.string().min(1),
+  created_at: timestampSchema,
+});
+export type InboxEntryRow = z.infer<typeof inboxEntrySchema>;
+
 export const jobRunSchema = z.object({
   id: idSchema,
   started_at: timestampSchema,
@@ -1104,10 +1116,16 @@ export const bookingUpdateSchema = z
   .transform(feeOnlyIfYes);
 export type BookingUpdateInput = z.input<typeof bookingUpdateSchema>;
 
-/** Hauptverantwortliche (WF-VER-09), eintragsweise */
+/** Rollen im Team einer Veranstaltung (Nutzerin, 31.10.2026): Hauptverantwortlich, Mitarbeit Orga, am Tag */
+export const EVENT_ROLES = ['haupt', 'orga', 'tag'] as const;
+export const eventRoleSchema = z.enum(EVENT_ROLES);
+export type EventRole = z.infer<typeof eventRoleSchema>;
+
+/** Hauptverantwortliche und Mitarbeit (WF-VER-09), eintragsweise; eine Person kann mehrere Rollen haben */
 export const eventLeadSchema = z.object({
   event_id: idSchema,
   member_id: idSchema,
+  role: eventRoleSchema,
   added_by: idSchema,
   added_at: timestampSchema,
 });

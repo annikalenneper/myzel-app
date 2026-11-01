@@ -1,5 +1,12 @@
 // Deutsche Bezeichnungen und Farben der Enums (ANFORDERUNGEN 8.1). Status steht immer auch als Text da.
-import type { EventStatus, EventType, Priority, TaskStatus } from './schema';
+import type { EventRole, EventStatus, EventType, Priority, TaskStatus } from './schema';
+
+/** Team einer Veranstaltung (WF-VER-09; Nutzerin, 31.10.2026) */
+export const EVENT_ROLE_LABEL: Record<EventRole, string> = {
+  haupt: 'Hauptverantwortlich',
+  orga: 'Mitarbeit Orga',
+  tag: 'Mitarbeit am Tag des Events',
+};
 
 export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   neu: 'Neu',

@@ -14,9 +14,13 @@ import {
   bookingUpdateSchema,
   EVENT_DETAIL_FIELDS,
   eventDetailUpdateSchema,
+  EVENT_ROLES,
+  eventRoleSchema,
   type EventDetails,
+  type EventRole,
   type HistoryChanges,
 } from '../../src/shared/schema';
+import { EVENT_ROLE_LABEL } from '../../src/shared/labels';
 import {
   checkVersion,
   iso,
@@ -80,7 +84,7 @@ export async function getEventDetail(trx: Db, id: string, now: Date): Promise<Ev
       .execute(),
     trx
       .selectFrom('event_leads')
-      .select('member_id')
+      .select(['member_id', 'role'])
       .where('event_id', '=', id)
       .orderBy('added_at')
       .execute(),
@@ -129,7 +133,9 @@ export async function getEventDetail(trx: Db, id: string, now: Date): Promise<Ev
     ...event,
     details,
     bookings,
-    lead_ids: leads.map((l) => l.member_id),
+    team: Object.fromEntries(
+      EVENT_ROLES.map((role) => [role, leads.filter((l) => l.role === role).map((l) => l.member_id)]),
+    ) as Record<EventRole, string[]>,
     shift_plan_document: doc ?? null,
     summaries: sectionSummaries(details, bookings, partnerItems),
     suggests_follow_up: suggestsFollowUp(event, now),
@@ -279,9 +285,15 @@ export async function removeBooking(ctx: Ctx, id: string): Promise<Undoable> {
   return registerUndo(ctx, 'event', event, `Act entfernt: ${booking.act_name}`);
 }
 
-// ── Hauptverantwortliche (WF-VER-09), eintragsweise ─────────────────────────
+// ── Hauptverantwortliche und Mitarbeit (WF-VER-09), eintragsweise ────────────
 
-export async function addLead(ctx: Ctx, eventId: string, memberId: string): Promise<Undoable> {
+export async function addLead(
+  ctx: Ctx,
+  eventId: string,
+  memberId: string,
+  rawRole: unknown,
+): Promise<Undoable> {
+  const role = parse(eventRoleSchema, rawRole);
   const event = await findEvent(ctx, eventId);
   const member = await ctx.trx
     .selectFrom('members')
@@ -294,48 +306,71 @@ export async function addLead(ctx: Ctx, eventId: string, memberId: string): Prom
   if (!member.active) throw rule(`${member.display_name} ist deaktiviert.`);
   const inserted = await ctx.trx
     .insertInto('event_leads')
-    .values({ event_id: eventId, member_id: memberId, added_by: ctx.actor.id, added_at: iso(ctx) })
+    .values({ event_id: eventId, member_id: memberId, role, added_by: ctx.actor.id, added_at: iso(ctx) })
     .onConflict((oc) => oc.doNothing())
     .executeTakeFirst();
   if (Number(inserted.numInsertedOrUpdatedRows ?? 0) === 0) return { undo_token: '' };
-  ctx.inverse.push({ kind: 'lead_remove', event_id: eventId, member_id: memberId });
-  await writeHistory(ctx, 'event', eventId, 'lead_added', { lead: { old: null, new: memberId } });
-  return registerUndo(ctx, 'event', event, `Hauptverantwortlich: ${member.display_name}`);
+  ctx.inverse.push({ kind: 'lead_remove', event_id: eventId, member_id: memberId, role });
+  await writeHistory(ctx, 'event', eventId, 'lead_added', {
+    lead: { old: null, new: memberId },
+    role: { old: null, new: role },
+  });
+  return registerUndo(ctx, 'event', event, `${EVENT_ROLE_LABEL[role]}: ${member.display_name}`);
 }
 
-async function dropLead(ctx: Ctx, eventId: string, memberId: string, action: string): Promise<boolean> {
+async function dropLead(
+  ctx: Ctx,
+  eventId: string,
+  memberId: string,
+  role: EventRole,
+  action: string,
+): Promise<boolean> {
   const row = await ctx.trx
     .deleteFrom('event_leads')
     .where('event_id', '=', eventId)
     .where('member_id', '=', memberId)
+    .where('role', '=', role)
     .returningAll()
     .executeTakeFirst();
   if (!row) return false;
   ctx.inverse.push({ kind: 'lead_restore', row });
-  await writeHistory(ctx, 'event', eventId, action, { lead: { old: memberId, new: null } });
+  await writeHistory(ctx, 'event', eventId, action, {
+    lead: { old: memberId, new: null },
+    role: { old: role, new: null },
+  });
   return true;
 }
 
-export async function removeLead(ctx: Ctx, eventId: string, memberId: string): Promise<Undoable> {
+export async function removeLead(
+  ctx: Ctx,
+  eventId: string,
+  memberId: string,
+  rawRole: unknown,
+): Promise<Undoable> {
+  const role = parse(eventRoleSchema, rawRole);
   const event = await findEvent(ctx, eventId);
-  if (!(await dropLead(ctx, eventId, memberId, 'lead_removed'))) return { undo_token: '' };
+  if (!(await dropLead(ctx, eventId, memberId, role, 'lead_removed'))) return { undo_token: '' };
   return registerUndo(ctx, 'event', event, 'Ausgetragen');
 }
 
-/** „Mitglied deaktivieren“ ab P4: auch als Hauptverantwortliche austragen (WF-ADM-03), Teil der Transaktion */
+/** „Mitglied deaktivieren“ ab P4: aus jedem Team austragen (WF-ADM-03), Teil der Transaktion; Anzahl Veranstaltungen */
 export async function dropLeads(ctx: Ctx, memberId: string): Promise<number> {
   const rows = await ctx.trx
+    .selectFrom('event_leads')
+    .select(['event_id', 'role'])
+    .where('member_id', '=', memberId)
+    .execute();
+  for (const row of rows) await dropLead(ctx, row.event_id, memberId, row.role, 'lead_removed_deactivated');
+  return new Set(rows.map((r) => r.event_id)).size;
+}
+
+export async function leadCount(trx: Db, memberId: string): Promise<number> {
+  const rows = await trx
     .selectFrom('event_leads')
     .select('event_id')
     .where('member_id', '=', memberId)
     .execute();
-  for (const row of rows) await dropLead(ctx, row.event_id, memberId, 'lead_removed_deactivated');
-  return rows.length;
-}
-
-export async function leadCount(trx: Db, memberId: string): Promise<number> {
-  return (await trx.selectFrom('event_leads').select('event_id').where('member_id', '=', memberId).execute())
-    .length;
+  return new Set(rows.map((r) => r.event_id)).size;
 }
 
 // ── Schichtplan (WF-VER-11) ─────────────────────────────────────────────────

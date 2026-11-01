@@ -17,6 +17,7 @@ import {
 import type { RsvpAnswer } from '../../shared/schema';
 import { Avatar, cx, ListSkeleton, LoadError, Pill } from '../../ui/bits';
 import { byMonth, DateBadge, MonthSection, TimeTabs, type TimeTab } from '../../ui/DatedList';
+import { BellButton } from '../../ui/Bell';
 import { SearchButton } from '../../ui/SearchOverlay';
 import { AppointmentDetail } from './AppointmentDetail';
 import { AppointmentFormSheet } from './AppointmentFormSheet';
@@ -91,7 +92,7 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
     .filter((a) => appointmentEnd(a) < now.getTime() === past)
     .filter((a) => !typeId || a.type_id === typeId)
     .sort((a, b) => (new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()) * (past ? -1 : 1));
-  const open = upcoming.filter((a) => canRsvp(a, now) && !a.my_answer).length;
+  const open = upcoming.filter((a) => a.invited && canRsvp(a, now) && !a.my_answer).length;
   // das letzte Plenum mit seinem Ergebnis bleibt oben stehen, auch wenn es schon vorbei ist (16.2)
   const lastPlenum = (appointments ?? [])
     .filter((a) => a.is_plenum && a.status !== 'abgesagt' && appointmentEnd(a) < now.getTime())
@@ -109,6 +110,7 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
           <img src="/myzel-logo.png" alt="Myzel" className="h-11 w-[66px] object-contain lg:hidden" />
           <span className="flex-1" />
           <SearchButton first="termine" />
+          <BellButton />
           <Link to="/profil" aria-label="Profil" className="hit ml-2.5 flex size-10 no-underline">
             <Avatar member={me} size={40} fontSize={13} />
           </Link>
@@ -196,7 +198,8 @@ function AppointmentList({ selectedId }: { selectedId: string | null }) {
                     </span>
                     {/* WF-TER-03 Zu-/Absage auf der Karte */}
                     <div className="flex items-center gap-2 pt-1">
-                      {canRsvp(a, now) && (
+                      {/* nur Eingeladene sagen zu oder ab (Nutzerin, 31.10.2026) */}
+                      {a.invited && canRsvp(a, now) && (
                         <>
                           <button
                             type="button"

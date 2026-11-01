@@ -4,7 +4,7 @@
 // Statusänderungen nie.
 import { sql, type ExpressionBuilder, type Kysely } from 'kysely';
 import { z } from 'zod';
-import type { NotificationSettings, SystemStatus } from '../../src/data/api';
+import type { Inbox, NotificationSettings, SystemStatus } from '../../src/data/api';
 import { appointmentReminderMessages, invitedIds, yesAndOpen } from '../../src/shared/rules/appointments';
 import { berlinDate, berlinHour } from '../../src/shared/rules/due';
 import {
@@ -26,6 +26,7 @@ import {
   type NotificationEvent,
 } from '../../src/shared/schema';
 import {
+  iso,
   parse,
   requireAdmin,
   rule,
@@ -107,6 +108,28 @@ export async function enqueue(
     .where('m.active', '=', true)
     .where('m.is_system', '=', false)
     .execute();
+  // Glocke (WF-ALL-10): jede Nachricht an aktive Mitglieder auch in die App – unabhängig von Kanälen und Schaltern;
+  // eigene Aktionen nicht, die sieht man ohnehin. „Rückgängig“ zieht die Einträge mit zurück.
+  const active = new Set(recipients.map((r) => r.id));
+  const inbox = messages
+    .filter((m) => active.has(m.member_id) && m.event_type !== 'eigene_aktion')
+    .map((m) => ({
+      member_id: m.member_id,
+      event_type: m.event_type,
+      text: m.text,
+      link: m.link,
+      dedupe_key: m.dedupe_key,
+      created_at: now.toISOString(),
+    }));
+  for (const part of chunks(inbox, 200)) {
+    const inserted = await trx
+      .insertInto('inbox_entries')
+      .values(part)
+      .onConflict((oc) => oc.columns(['member_id', 'dedupe_key']).doNothing())
+      .returning('id')
+      .execute();
+    collect?.push(...inserted.map((r) => r.id));
+  }
   const hasPush = new Set(recipients.filter((r) => r.push).map((r) => r.id));
   const hasTelegram = new Set(recipients.filter((r) => r.telegram).map((r) => r.id));
   const reachable = new Set([...hasPush, ...hasTelegram]);
@@ -662,6 +685,50 @@ export async function setNotificationPreference(
     )
     .execute();
   if (!rawEnabled) await dropWaiting(ctx.trx, ctx.actor.id, channel, undefined, def.events);
+}
+
+// ── Glocke (WF-ALL-10) ──────────────────────────────────────────────────────
+
+const INBOX_SHOWN = 50;
+
+export async function listInbox(ctx: ReadCtx): Promise<Inbox> {
+  const me = ctx.actor.id;
+  const [entries, seen] = await Promise.all([
+    ctx.trx
+      .selectFrom('inbox_entries')
+      .select(['id', 'event_type', 'text', 'link', 'created_at'])
+      .where('member_id', '=', me)
+      .orderBy('created_at', 'desc')
+      .orderBy('id')
+      .limit(INBOX_SHOWN)
+      .execute(),
+    ctx.trx.selectFrom('inbox_seen').select('seen_at').where('member_id', '=', me).executeTakeFirst(),
+  ]);
+  const seen_at = seen ? new Date(seen.seen_at).toISOString() : null;
+  const list = entries.map((e) => ({ ...e, created_at: new Date(e.created_at).toISOString() }));
+  // mehr Neues, als die Liste zeigt: dann zählt die Datenbank
+  const unread =
+    list.length < INBOX_SHOWN || (seen_at && list.at(-1)!.created_at <= seen_at)
+      ? list.filter((e) => !seen_at || e.created_at > seen_at).length
+      : Number(
+          (
+            await ctx.trx
+              .selectFrom('inbox_entries')
+              .select((eb) => eb.fn.countAll<number>().as('n'))
+              .where('member_id', '=', me)
+              .$if(!!seen_at, (q) => q.where('created_at', '>', seen_at!))
+              .executeTakeFirstOrThrow()
+          ).n,
+        );
+  return { entries: list, seen_at, unread };
+}
+
+export async function markInboxSeen(ctx: Ctx): Promise<void> {
+  await ctx.trx
+    .insertInto('inbox_seen')
+    .values({ member_id: ctx.actor.id, seen_at: iso(ctx) })
+    .onConflict((oc) => oc.column('member_id').doUpdateSet({ seen_at: iso(ctx) }))
+    .execute();
 }
 
 /** WF-PRO-04: Vorlauf für Fristerinnerungen (1, 3 oder 7 Tage) */

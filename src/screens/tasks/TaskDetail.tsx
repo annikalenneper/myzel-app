@@ -13,7 +13,9 @@ import { formatHistoryTime } from '../../shared/format';
 import { taskHistorySentence } from '../../shared/historyText';
 import { PRIORITY_LABEL, TASK_STATUS_COLOR, TASK_STATUS_LABEL } from '../../shared/labels';
 import { dueState, toIsoDate } from '../../shared/rules/due';
+import { taskStatusHelp } from '../../shared/rules/statusHelp';
 import { canTransitionTask, isActiveTaskStatus } from '../../shared/rules/taskStatus';
+import { StatusConfirmDialog } from '../common/StatusConfirm';
 import { PRIORITIES, TASK_STATUSES, type Member, type TaskStatus } from '../../shared/schema';
 import { Avatar, cx, FieldError, ListSkeleton, LoadError, PriorityBars } from '../../ui/bits';
 import { DateTile } from '../../ui/DateTile';
@@ -129,11 +131,13 @@ function Loaded({ task }: { task: TaskDetailData }) {
       undo: (r) => r.undo_token,
     });
 
+  // jeder Wechsel mit Rückfrage und Erklärung (Nutzerin, 31.10.2026); Blockieren und Verwerfen haben eigene Dialoge
+  const [confirmStatus, setConfirmStatus] = useState<TaskStatus | null>(null);
   const pickStatus = (status: TaskStatus) => {
     if (status === task.status || !canTransitionTask(task.status, status)) return;
     if (status === 'blockiert') setSheet('block');
     else if (status === 'verworfen') setSheet('discard');
-    else void setStatus(status);
+    else setConfirmStatus(status);
   };
 
   const saveFields = (fields: Parameters<typeof api.updateTaskFields>[1], ownInput?: string) =>
@@ -401,7 +405,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
                 <button
                   type="button"
                   data-wf="WF-AUF-08"
-                  onClick={() => void setStatus('geplant')}
+                  onClick={() => pickStatus('geplant')}
                   className="hit h-[34px] rounded-[17px] border border-rand-stark px-3 text-[13px] text-text"
                 >
                   Geplant
@@ -409,7 +413,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
                 <button
                   type="button"
                   data-wf="WF-AUF-08"
-                  onClick={() => void setStatus('in_arbeit')}
+                  onClick={() => pickStatus('in_arbeit')}
                   className="hit h-[34px] rounded-[17px] bg-geplant px-3 text-[13px] font-semibold text-grund"
                 >
                   In Arbeit
@@ -601,8 +605,17 @@ function Loaded({ task }: { task: TaskDetailData }) {
         />
       )}
 
+      {confirmStatus && (
+        <StatusConfirmDialog
+          wf="WF-AUF-06"
+          help={taskStatusHelp(task.status, confirmStatus)}
+          onClose={() => setConfirmStatus(null)}
+          onConfirm={() => void setStatus(confirmStatus)}
+        />
+      )}
       {sheet === 'block' && (
         <BlockSheet
+          help={taskStatusHelp(task.status, 'blockiert').text}
           taskId={task.id}
           candidates={blockerCandidates}
           onClose={() => setSheet(null)}
@@ -632,6 +645,7 @@ function Loaded({ task }: { task: TaskDetailData }) {
       )}
       {sheet === 'discard' && (
         <DiscardSheet
+          help={taskStatusHelp(task.status, 'verworfen').text}
           onClose={() => setSheet(null)}
           onConfirm={(reason) => {
             setSheet(null);

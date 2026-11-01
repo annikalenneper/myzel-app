@@ -471,7 +471,7 @@ function DeactivateSheet({ member, onClose }: { member: Member; onClose: () => v
                 : 'nichts zu entfernen'}
             </span>
             <span>
-              Hauptverantwortlich bei {plural(impact.lead_count, 'Veranstaltung', 'Veranstaltungen')} –{' '}
+              Im Team von {plural(impact.lead_count, 'Veranstaltung', 'Veranstaltungen')} –{' '}
               {impact.lead_count ? 'wird ausgetragen' : 'nichts auszutragen'}
             </span>
             <span>

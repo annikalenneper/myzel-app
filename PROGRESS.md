@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Version 0.11.0 live seit 29.10.2026 (Termine einzeln einladen). Geplant: Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Version 0.11.0 live seit 29.10.2026 (Termine einzeln einladen). In Arbeit: Phase 13 (Verbesserungen 31.10.2026), danach Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
@@ -177,6 +177,21 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
 - [x] **Termine einzeln einladen (Nutzerin, 29.10.2026, live mit 0.11.0):** Beim Anlegen „Einladen: Alle“ oder einzelne
       Personen, im Detail „Weitere einladen“ (WF-TER-12, U26, F5); Migration 20261031000006 (appointment_invitees),
       Export Version 6
+- [ ] **Phase 13 – Verbesserungen und Neues (Nutzerin, 31.10.2026)** (Migrationen 20261031000007, 20261031000008;
+      lokal, Deploy erst nach Freigabe):
+  - [x] Agenda: Grundmenge (Alle · Meine · Folge ich · Nur Fragen) als einzelne Chips statt Menü „Alle ▾“
+  - [x] Agenda: Status-Filter vor dem Themen-Filter
+  - [x] Termine: „Komme/Komme nicht“ nur bei Einladung (Karte, Detail, Plenum); der Server lehnt Zu-/Absagen
+        Nicht-Eingeladener ab, Zurücknehmen geht immer (U27)
+  - [x] Events: neben „Hauptverantwortlich“ auch „Mitarbeit Orga“ und „Mitarbeit am Tag des Events“, je Rolle
+        eintragsweise mit Rückgängig und Verlauf; Deaktivieren trägt aus jeder Rolle aus (Spalte `event_leads.role`,
+        Export Version 7, U28)
+  - [x] Überall: Statuswechsel mit Rückfrage und Erklärung – Aufgaben (Status-Chips, Blockade lösen; Blockieren und
+        Verwerfen erklären im eigenen Dialog), Veranstaltungen (ersetzt den Hinweis „Trotzdem abschließen“), Fragen
+        (Verwerfen, Wieder öffnen); Rückgängig bleibt (U29)
+  - [x] Glocke: Benachrichtigungseinträge seit dem letzten Besuch – in den Kopfzeilen von Agenda, Events, Termine,
+        Wissen; Zahl der neuen, Liste der letzten 50 mit Link (WF-ALL-10, Tabellen `inbox_entries`, `inbox_seen`, U30)
+  - [x] Dokumente: im Drei-Punkte-Menü „Zuordnen“ (WF-WIS-14) und „Kategorie“ (WF-WIS-15) neben „Löschen“ (U31)
 - [ ] **Phase 11 – Archiv im Profil (geplant, F4; noch nicht umsetzen)**
   - [ ] Profil › „Archiv“: alles Gelöschte an einem Ort, gruppiert nach Art (Aufgaben, Veranstaltungen, Termine,
         Entscheidungen & Fakten, Fragen, Dokumente, Partner), zuletzt Gelöschtes zuerst, mit „gelöscht von … am …“
@@ -265,6 +280,11 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | F4  | 26.10.2026 | Braucht es eine Archiv-Ansicht (z. B. im Profil), um gelöschte Veranstaltungen, Termine, Entscheidungen, Fragen, Dokumente und Partner später wiederherzustellen? Bisher geht das nur direkt danach über „Rückgängig“.                                                                                                                                                                                                                                                                                                                                                                    | geklärt |
 | U25 | 27.10.2026 | Reaktionen an Kommentaren: je Person und Art höchstens eine, antippen schaltet an/aus; ohne Verlauf, ohne Rückgängig und ohne Benachrichtigung. Reagieren geht auch an Kommentaren gelöschter Einträge (dort sind nur neue Kommentare gesperrt).                                                                                                                                                                                                                                                                                                                                          | Annahme |
 | U26 | 29.10.2026 | Termine einzeln einladen: neue Workflow-ID WF-TER-12. Die Auswahl gibt es nur beim Anlegen einzelner Termine (nicht bei Serien, nicht beim Bearbeiten); die anlegende Person zählt immer dazu. Wer nicht eingeladen ist, sieht den Termin trotzdem und kann zusagen; Erinnerungen, Verschiebungen und Absagen gehen an Zusagen und Eingeladene ohne Antwort. „Offen“ im Detail zählt nur Eingeladene. Im Detail „Weitere einladen“ (F5): nur bei Auswahl, solange der Termin geplant ist und nicht begonnen hat; ohne Rückgängig (die Einladung ist raus), je Person ein Verlaufseintrag. | Annahme |
+| U27 | 31.10.2026 | Zusagen nur für Eingeladene (ändert U26): Wer nicht eingeladen ist, sieht den Termin samt Zusagen, aber keine Knöpfe („Du bist zu diesem Termin nicht eingeladen.“) und zählt nicht zu „ohne deine Antwort“. Eine frühere Antwort lässt sich zurücknehmen. Wer mitkommen will, wird über „Weitere einladen“ eingeladen.                                                                                                                                                                                                                                                                   | Annahme |
+| U28 | 31.10.2026 | Team einer Veranstaltung: drei Rollen in einer Tabelle (`event_leads.role`: haupt, orga, tag); eine Person kann mehrere Rollen haben. Bestehende Einträge sind Hauptverantwortliche. Die Deaktivieren-Vorschau zählt Veranstaltungen („Im Team von n Veranstaltungen“). Benachrichtigungen an das Team gibt es (noch) nicht.                                                                                                                                                                                                                                                              | Annahme |
+| U29 | 31.10.2026 | Statuswechsel mit Rückfrage (ändert 7.3; in ANFORDERUNGEN 16.8 übernommen, Nutzerin 01.11.2026). Gilt in der App für Aufgaben, Veranstaltungen und Fragen; Termine (Absagen, Plenum abschließen) und Entscheidungen (Aufheben, Ersetzen) fragten schon nach. Der Vorschlag „In Nachbereitung?“ mit „Ja“ ist selbst die Rückfrage. Telegram-Knöpfe bleiben ohne Rückfrage.                                                                                                                                                                                                                 | Annahme |
+| U30 | 31.10.2026 | Glocke: dieselben Anlässe wie Push/Telegram (ohne „Eigene Aktionen“), für alle aktiven Mitglieder – auch ohne eingerichteten Kanal und unabhängig von der Schalter-Matrix. „Seit dem letzten Besuch“ = seit dem letzten Öffnen der Glocke (je Person, nicht je Gerät); die Liste zeigt die letzten 50 Einträge, neue markiert. Rückgängig zieht Einträge zurück. Neue Workflow-ID WF-ALL-10.                                                                                                                                                                                              | Annahme |
+| U31 | 31.10.2026 | Dokumente: „Kategorie“ ist die Art (Protokoll, Leitlinie, Vorlage, Schichtplan, Sonstiges), mit Verlauf und Rückgängig. „Zuordnen“ verknüpft das Dokument mit einer Aufgabe, Veranstaltung, einem Termin oder einer Entscheidung (Suche wie beim Erfassen); Lösen geht weiter am Ziel. Neue Workflow-IDs WF-WIS-14 (Zuordnen), WF-WIS-15 (Kategorie).                                                                                                                                                                                                                                     | Annahme |
 | F2  | 26.10.2026 | Ergebnis: Eine Frage steht einmal („Beantwortet: …“), ihre Entscheidungen/Fakten je einmal mit „(aus der Frage …)“. Passt das, oder sollen die Ergebnisse unter der Frage stehen und die Frage-Zeile entfallen?                                                                                                                                                                                                                                                                                                                                                                           | geklärt |
 
 ## Entscheidungsprotokoll

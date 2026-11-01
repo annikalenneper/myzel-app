@@ -72,6 +72,7 @@ export const OUTSIDE_PLENUM_ACTIONS: ReadonlySet<string> = new Set([
   'unlinkTelegram',
   'setNotificationPreference',
   'setReminderLeadDays',
+  'markInboxSeen',
   'createAppointmentType',
   'updateAppointmentType',
   'archiveAppointmentType',

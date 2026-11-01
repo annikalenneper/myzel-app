@@ -273,7 +273,7 @@ function Loaded({ p }: { p: Detail }) {
               </span>
             </div>
             <Invitees a={p} />
-            {canRsvp(p, now) && (
+            {p.invited && canRsvp(p, now) && (
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"

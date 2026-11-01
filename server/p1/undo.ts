@@ -29,6 +29,7 @@ const ROW_KINDS = new Set<InverseOp['kind']>([
   'appointment_state',
   'decision_state',
   'question_state',
+  'document_type',
   'task_fields',
   'appointment_times',
   // eine Stimme: ist die Entscheidung inzwischen (durch andere Stimmen) gültig geworden, bleibt es dabei
@@ -353,6 +354,20 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .execute();
         break;
       }
+      case 'document_type': {
+        const before = await ctx.trx
+          .selectFrom('documents')
+          .select('doc_type')
+          .where('id', '=', op.document_id)
+          .executeTakeFirstOrThrow();
+        if (before.doc_type !== op.doc_type) changes.doc_type = { old: before.doc_type, new: op.doc_type };
+        await ctx.trx
+          .updateTable('documents')
+          .set({ doc_type: op.doc_type })
+          .where('id', '=', op.document_id)
+          .execute();
+        break;
+      }
       case 'task_delete':
         // die im selben Schritt angelegte Aufgabe verschwindet wieder; ihre Historie bleibt (unveränderlich)
         await ctx.trx.deleteFrom('task_assignees').where('task_id', '=', op.task_id).execute();
@@ -381,6 +396,7 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
           .deleteFrom('event_leads')
           .where('event_id', '=', op.event_id)
           .where('member_id', '=', op.member_id)
+          .where('role', '=', op.role)
           .execute();
         break;
       case 'lead_restore': {
@@ -445,6 +461,8 @@ export async function undo(ctx: Ctx, token: string): Promise<void> {
       // was ein Joblauf gerade verschickt, ist schon unterwegs
       .where('locked_until', 'is', null)
       .execute();
+  // Einträge in der Glocke verschwinden mit (WF-ALL-10) – die Liste enthält auch ihre IDs
+  if (outboxIds.length > 0) await ctx.trx.deleteFrom('inbox_entries').where('id', 'in', outboxIds).execute();
   // eine im selben Schritt angelegte Aufgabe ist wieder weg: nichts mehr zu prüfen oder hochzuzählen – der
   // Eintrag „rückgängig gemacht“ bleibt trotzdem, damit ihre Zeile aus dem Ergebnis des Plenums verschwindet
   const deleted = ops.some((op) => op.kind === 'task_delete' && op.task_id === entity.id);

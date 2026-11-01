@@ -22,7 +22,7 @@ import {
   type NotificationEvent,
   type OutboxEntry,
 } from '../../shared/schema';
-import type { NotificationSettings, SystemStatus } from '../api';
+import type { Inbox, NotificationSettings, SystemStatus } from '../api';
 import { UNDO_WINDOW_MS } from '../../shared/rules/undo';
 import { parse, touch, writeHistory, type Ctx, type Db } from './server';
 
@@ -44,6 +44,23 @@ export function enqueue(
   for (const m of messages) {
     const member = db.members.find((x) => x.id === m.member_id);
     if (!member || !member.active || member.is_system) continue;
+    // Glocke (WF-ALL-10): unabhängig von Kanälen und Schaltern, ohne eigene Aktionen; „Rückgängig“ zieht sie zurück
+    if (
+      m.event_type !== 'eigene_aktion' &&
+      !db.inbox_entries.some((e) => e.member_id === member.id && e.dedupe_key === m.dedupe_key)
+    ) {
+      const id = uuid();
+      collect?.push(id);
+      db.inbox_entries.push({
+        id,
+        member_id: member.id,
+        event_type: m.event_type,
+        text: m.text,
+        link: m.link,
+        dedupe_key: m.dedupe_key,
+        created_at: now.toISOString(),
+      });
+    }
     // Bis P6 feste Voreinstellungen: Push, sobald auf einem Gerät aktiv; Telegram, sobald verknüpft
     // Je Anlass nur einmal: Wer später einen weiteren Kanal einschaltet, bekommt nichts nachgeliefert
     if (
@@ -335,6 +352,27 @@ export function systemStatus(ctx: Ctx): SystemStatus {
     telegram_linked: db.telegram_links.filter((l) => people.some((m) => m.id === l.member_id)).length,
     active_members: people.length,
   };
+}
+
+// ── Glocke (WF-ALL-10) ──────────────────────────────────────────────────────
+
+export function inbox(db: Db, memberId: string): Inbox {
+  const seen_at = db.inbox_seen.find((s) => s.member_id === memberId)?.seen_at ?? null;
+  const mine = db.inbox_entries
+    .filter((e) => e.member_id === memberId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return {
+    entries: mine
+      .slice(0, 50)
+      .map(({ id, event_type, text, link, created_at }) => ({ id, event_type, text, link, created_at })),
+    seen_at,
+    unread: mine.filter((e) => !seen_at || e.created_at > seen_at).length,
+  };
+}
+
+export function markInboxSeen(ctx: Ctx): void {
+  ctx.db.inbox_seen = ctx.db.inbox_seen.filter((s) => s.member_id !== ctx.actor.id);
+  ctx.db.inbox_seen.push({ member_id: ctx.actor.id, seen_at: ctx.now.toISOString() });
 }
 
 export function messagesFor(db: Db, memberId: string): OutboxEntry[] {

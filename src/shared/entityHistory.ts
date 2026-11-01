@@ -1,6 +1,7 @@
 // Verlauf von Veranstaltungen, Terminen und Partnern in lesbaren Sätzen (16.3). Geänderte Felder stehen mit alt → neu;
 // lange Texte wie die Beschreibung gekürzt, vorher und nachher.
-import type { HistoryChanges, HistoryEntry } from './schema';
+import { EVENT_ROLE_LABEL } from './labels';
+import type { EventRole, HistoryChanges, HistoryEntry } from './schema';
 
 export interface EntityLookup {
   memberName(id: string): string;
@@ -115,6 +116,17 @@ export function entityHistorySentence(entry: HistoryEntry, noun: EntityNoun, loo
       return entry.action === 'attendee_added'
         ? `${who} hat ${person} als anwesend eingetragen${late}.`
         : `${who} hat ${person} als nicht anwesend eingetragen${late}.`;
+    }
+    case 'lead_added':
+    case 'lead_removed':
+    case 'lead_removed_deactivated': {
+      // ältere Einträge ohne Rolle sind Hauptverantwortliche
+      const role = String(c.role?.new ?? c.role?.old ?? 'haupt') as EventRole;
+      const person = look.memberName(String(c.lead?.new ?? c.lead?.old ?? ''));
+      if (entry.action === 'lead_added')
+        return `${who} hat ${person} eingetragen: ${EVENT_ROLE_LABEL[role]}.`;
+      const why = entry.action === 'lead_removed_deactivated' ? ' (deaktiviert)' : '';
+      return `${who} hat ${person} ausgetragen: ${EVENT_ROLE_LABEL[role]}${why}.`;
     }
     case 'invited':
       return `${who} hat ${look.memberName(String(c.invitee?.new ?? ''))} eingeladen.`;
