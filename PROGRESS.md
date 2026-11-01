@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Version 0.11.0 live seit 29.10.2026 (Termine einzeln einladen). In Arbeit: Phase 13 (Verbesserungen 31.10.2026), danach Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Version 0.12.0 live seit 01.11.2026 (Phase 13: Verbesserungen 31.10.2026; Migrationen event_team und glocke eingespielt). Als Nächstes: Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
@@ -177,7 +177,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
 - [x] **Termine einzeln einladen (Nutzerin, 29.10.2026, live mit 0.11.0):** Beim Anlegen „Einladen: Alle“ oder einzelne
       Personen, im Detail „Weitere einladen“ (WF-TER-12, U26, F5); Migration 20261031000006 (appointment_invitees),
       Export Version 6
-- [ ] **Phase 13 – Verbesserungen und Neues (Nutzerin, 31.10.2026)** (Migrationen 20261031000007, 20261031000008;
+- [x] **Phase 13 – Verbesserungen und Neues (Nutzerin, 31.10.2026, live mit 0.12.0)** (Migrationen 20261031000007, 20261031000008;
       lokal, Deploy erst nach Freigabe):
   - [x] Agenda: Grundmenge (Alle · Meine · Folge ich · Nur Fragen) als einzelne Chips statt Menü „Alle ▾“
   - [x] Agenda: Status-Filter vor dem Themen-Filter

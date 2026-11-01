@@ -11,6 +11,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.12.0',
+    date: '2026-11-01',
+    items: [
+      'Feat: Glocke – was sich seit deinem letzten Blick an Aufgaben, Terminen, Events und Fragen geändert hat',
+      'Feat: Events-Team mit „Mitarbeit Orga“ und „Mitarbeit am Tag des Events“ neben „Hauptverantwortlich“',
+      'Feat: Dokumente im Drei-Punkte-Menü zuordnen und Kategorie ändern',
+      'Fix: Statuswechsel fragen nach und erklären, was passiert',
+      'Fix: Agenda-Grundmenge als einzelne Filterchips, Status-Filter vor Themen',
+      'Fix: „Komme / Komme nicht“ nur bei Terminen, zu denen du eingeladen bist',
+    ],
+  },
+  {
     version: '0.11.0',
     date: '2026-10-29',
     items: [
