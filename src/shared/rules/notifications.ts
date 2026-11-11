@@ -14,6 +14,60 @@ export interface Message {
   link: string;
   /** eindeutig je Empfänger und Anlass; die Outbox hängt noch den Kanal an */
   dedupe_key: string;
+  /**
+   * Bündel (Phase 14): Nachrichten mit gleichem Schlüssel an dieselbe Person, die noch nicht verschickt sind, gehen als
+   * eine raus – die neueste Fassung gilt (resolveBundle). Ohne Schlüssel: einzeln wie bisher.
+   */
+  bundle?: string;
+  /** Termin-Änderung: Text, falls die Einladung zu diesem Termin noch nicht raus ist; leer = dann gar nichts schicken */
+  invite_text?: string;
+}
+
+/**
+ * Phase 14 (Nutzerin, 11.11.2026: „Benachrichtigungen sollen unterstützen, nicht stören“): Anlässe, die beim Anlegen
+ * und Nacharbeiten in Wellen kommen, warten, bis 10 Minuten lang nichts mehr dazukam. Kommentare, Zuweisungen und
+ * Erinnerungen gehen ohne Wartezeit raus.
+ */
+export const BUNDLE_QUIET_MS = 10 * 60_000;
+const HELD_EVENTS: readonly NotificationEvent[] = ['termin_einladung', 'termin_geaendert', 'status'];
+
+/** eigene Bestätigungen zu zurückgehaltenen Anlässen warten mit */
+const HELD_BUNDLES = ['termin:', 'status:'];
+
+/** Ab wann eine Nachricht frühestens raus darf; null = sofort (nach dem Rückgängig-Fenster) */
+export function sendAfter(m: Pick<Message, 'event_type' | 'bundle'>, now: Date): string | null {
+  const held =
+    HELD_EVENTS.includes(m.event_type) ||
+    (m.event_type === 'eigene_aktion' && HELD_BUNDLES.some((p) => m.bundle?.startsWith(`eigene:${p}`)));
+  return held && m.bundle ? new Date(now.getTime() + BUNDLE_QUIET_MS).toISOString() : null;
+}
+
+export interface BundleRow {
+  event_type: NotificationEvent;
+  text: string;
+  invite_text: string | null;
+  created_at: string;
+}
+
+/**
+ * Was aus einem Bündel wartender Nachrichten (gleiche Person, gleicher Kanal, gleicher Schlüssel) rausgeht: die neueste
+ * Fassung. Ist die Einladung zu einem Termin noch nicht raus, geht statt „geändert“ die Einladung mit dem neuen Stand
+ * raus – und nach einer Absage gar nichts. Mehrere Kommentare: der letzte mit „(+n weitere)“. null = nichts schicken.
+ */
+export function resolveBundle<T extends BundleRow>(
+  rows: readonly T[],
+): { keep: T; event_type: NotificationEvent; text: string } | null {
+  const sorted = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const last = sorted.at(-1);
+  if (!last) return null;
+  if (last.event_type === 'termin_geaendert' && sorted.some((r) => r.event_type === 'termin_einladung')) {
+    if (last.invite_text === '') return null;
+    return { keep: last, event_type: 'termin_einladung', text: last.invite_text ?? last.text };
+  }
+  const comments = sorted.filter((r) => r.event_type === 'kommentar').length;
+  if (last.event_type === 'kommentar' && comments > 1)
+    return { keep: last, event_type: 'kommentar', text: `${last.text} (+${comments - 1} weitere)` };
+  return { keep: last, event_type: last.event_type, text: last.text };
 }
 
 /** [P6] Zeilen der Schalter-Matrix im Profil (F-PRO-02) und die Ereignisse dahinter (6.2) */
@@ -68,6 +122,47 @@ export function channelEnabled(
   );
 }
 
+/**
+ * Glocke (Phase 14): Noch nicht gesehene Einträge eines Bündels erscheinen als einer – mit dem Text, den auch Push und
+ * Telegram schicken würden. Gesehenes bleibt einzeln stehen. Erwartet die neuesten zuerst.
+ */
+export function collapseInbox<
+  T extends {
+    id: string;
+    event_type: NotificationEvent;
+    text: string;
+    link: string;
+    created_at: string;
+    bundle_key?: string | null;
+    invite_text?: string | null;
+  },
+>(
+  entries: readonly T[],
+  seenAt: string | null,
+): { id: string; event_type: NotificationEvent; text: string; link: string; created_at: string }[] {
+  const fresh = (e: T) => !seenAt || e.created_at > seenAt;
+  const groups = new Map<string, T[]>();
+  for (const e of entries)
+    if (e.bundle_key && fresh(e)) groups.set(e.bundle_key, [...(groups.get(e.bundle_key) ?? []), e]);
+  const out = [];
+  for (const e of entries) {
+    const base = { id: e.id, event_type: e.event_type, text: e.text, link: e.link, created_at: e.created_at };
+    const group = e.bundle_key && fresh(e) ? groups.get(e.bundle_key) : undefined;
+    if (!group || group.length === 1) {
+      out.push(base);
+      continue;
+    }
+    // nur der neueste Eintrag des Bündels steht in der Liste
+    if (group[0] !== e) continue;
+    // älteste zuerst – bei gleicher Zeit gilt die Reihenfolge der Liste (neueste zuerst)
+    const resolved = resolveBundle(
+      [...group].reverse().map((g) => ({ ...g, invite_text: g.invite_text ?? null })),
+    );
+    if (resolved) out.push({ ...base, event_type: resolved.event_type, text: resolved.text });
+  }
+  return out;
+}
+
 type TaskRef = Pick<Task, 'id' | 'title' | 'due_date'>;
 
 const day = (isoDate: string) => {
@@ -94,6 +189,7 @@ export function assignmentMessages(
       text: `Du bist jetzt bei ${title(task)} eingetragen.${due}`,
       link: taskLink(task.id),
       dedupe_key: `zuweisung:${task.id}:${assigneeId}:${at}`,
+      bundle: `zuweisung:${task.id}`,
     },
   ];
 }
@@ -136,6 +232,7 @@ export function commentMessages(
       text: `Neuer Kommentar von ${authorName} bei ${title(task)}: ${excerpt}`,
       link: taskLink(task.id),
       dedupe_key: `kommentar:${comment.id}:${member_id}`,
+      bundle: `kommentar:${task.id}`,
     }));
 }
 
@@ -156,6 +253,7 @@ export function statusMessages(
       text: `${title(task)} ist jetzt „${TASK_STATUS_LABEL[to]}“.`,
       link: taskLink(task.id),
       dedupe_key: `status:${task.id}:${to}:${member_id}:${at}`,
+      bundle: `status:${task.id}`,
     }));
 }
 
@@ -297,7 +395,7 @@ export function ownActionMessage(
   actorId: string,
   what: string,
   reached: number,
-  about: Pick<Message, 'link' | 'dedupe_key'>,
+  about: Pick<Message, 'link' | 'dedupe_key' | 'bundle'>,
 ): Message {
   const who = reached === 0 ? 'Niemand wird' : reached === 1 ? '1 Person wird' : `${reached} Personen werden`;
   return {
@@ -306,5 +404,6 @@ export function ownActionMessage(
     text: `Du hast ${what}. ${who} benachrichtigt.`,
     link: about.link,
     dedupe_key: `eigene_aktion:${about.dedupe_key}`,
+    ...(about.bundle ? { bundle: `eigene:${about.bundle}` } : {}),
   };
 }

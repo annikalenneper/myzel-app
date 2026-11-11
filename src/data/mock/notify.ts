@@ -5,12 +5,15 @@ import { appointmentReminderMessages, invitedIds, yesAndOpen } from '../../share
 import { toIsoDate } from '../../shared/rules/due';
 import {
   channelEnabled,
+  collapseInbox,
   consensusDeadlineMessages,
   DAILY_REMINDER_HOUR,
   dueReminderMessages,
   ownActionMessage,
   MAX_SEND_ATTEMPTS,
   NOTIFICATION_GROUPS,
+  resolveBundle,
+  sendAfter,
   type Message,
   type NotificationGroupKey,
 } from '../../shared/rules/notifications';
@@ -59,6 +62,8 @@ export function enqueue(
         link: m.link,
         dedupe_key: m.dedupe_key,
         created_at: now.toISOString(),
+        bundle_key: m.bundle ?? null,
+        invite_text: m.invite_text ?? null,
       });
     }
     // Bis P6 feste Voreinstellungen: Push, sobald auf einem Gerät aktiv; Telegram, sobald verknüpft
@@ -92,6 +97,9 @@ export function enqueue(
         attempts: 0,
         created_at: now.toISOString(),
         sent_at: null,
+        bundle_key: m.bundle ?? null,
+        invite_text: m.invite_text ?? null,
+        send_after: sendAfter(m, now),
       });
       added += 1;
     }
@@ -177,9 +185,32 @@ export function runJob(db: Db, now: Date): JobRun {
     // dieselbe Grenze wie in undo(): bis einschließlich 30 Sekunden nimmt der Server es noch an
     db.undo.filter((u) => new Date(u.created_at).getTime() >= settled).flatMap((u) => u.outbox_ids),
   );
+  // Phase 14: Bündel – fertig, wenn nichts mehr rücknehmbar und die Ruhezeit vorbei ist; dann geht die neueste raus
+  const held = new Set<string>();
+  const groups = new Map<string, OutboxEntry[]>();
+  for (const o of db.notification_outbox)
+    if (o.status === 'wartet' && o.bundle_key && o.attempts === 0) {
+      const key = `${o.member_id}:${o.channel}:${o.bundle_key}`;
+      groups.set(key, [...(groups.get(key) ?? []), o]);
+    }
+  for (const group of groups.values()) {
+    const ready = group.every(
+      (o) => !undoable.has(o.id) && (!o.send_after || new Date(o.send_after).getTime() <= started),
+    );
+    if (!ready) {
+      for (const o of group) held.add(o.id);
+      continue;
+    }
+    const resolved = resolveBundle(group.map((o) => ({ ...o, invite_text: o.invite_text ?? null })));
+    for (const o of group)
+      if (o.id === resolved?.keep.id) {
+        o.text = resolved.text;
+        o.event_type = resolved.event_type;
+      } else o.status = 'ersetzt';
+  }
   for (const entry of db.notification_outbox) {
     if (entry.status !== 'wartet' || entry.attempts >= MAX_SEND_ATTEMPTS) continue;
-    if (undoable.has(entry.id)) continue;
+    if (undoable.has(entry.id) || held.has(entry.id)) continue;
     entry.attempts += 1;
     entry.status = 'gesendet';
     entry.sent_at = now.toISOString();
@@ -365,13 +396,14 @@ export function systemStatus(ctx: Ctx): SystemStatus {
 
 export function inbox(db: Db, memberId: string): Inbox {
   const seen_at = db.inbox_seen.find((s) => s.member_id === memberId)?.seen_at ?? null;
-  const mine = db.inbox_entries
-    .filter((e) => e.member_id === memberId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const mine = collapseInbox(
+    db.inbox_entries
+      .filter((e) => e.member_id === memberId)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    seen_at,
+  );
   return {
-    entries: mine
-      .slice(0, 50)
-      .map(({ id, event_type, text, link, created_at }) => ({ id, event_type, text, link, created_at })),
+    entries: mine.slice(0, 50),
     seen_at,
     unread: mine.filter((e) => !seen_at || e.created_at > seen_at).length,
   };

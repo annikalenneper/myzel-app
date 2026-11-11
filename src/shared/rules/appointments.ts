@@ -83,6 +83,9 @@ export const canInviteMore = (a: Timed, inviteeIds: readonly string[], now: Date
   inviteeIds.length > 0 && canRsvp(a, now);
 
 /** Termin-Einladung: an alle Eingeladenen außer der anlegenden Person (6.2). */
+const invitationText = (a: AppointmentRef) =>
+  `${a.title} am ${whenText(a.starts_at)} (${a.format === 'vor_ort' ? 'vor Ort' : FORMAT_LABEL[a.format].toLowerCase()}) – kommst du?`;
+
 export function invitationMessages(
   a: AppointmentRef,
   memberIds: readonly string[],
@@ -93,9 +96,10 @@ export function invitationMessages(
     .map((member_id) => ({
       member_id,
       event_type: 'termin_einladung' as const,
-      text: `${a.title} am ${whenText(a.starts_at)} (${a.format === 'vor_ort' ? 'vor Ort' : FORMAT_LABEL[a.format].toLowerCase()}) – kommst du?`,
+      text: invitationText(a),
       link: appointmentLink(a.id),
       dedupe_key: `termin_einladung:${a.id}:${member_id}`,
+      bundle: `termin:${a.id}`,
     }));
 }
 
@@ -134,6 +138,9 @@ export function changeMessages(
       text,
       link: appointmentLink(a.id),
       dedupe_key: `termin_${kind}:${a.id}:${member_id}:${at}`,
+      // Phase 14: ist die Einladung noch nicht raus, geht sie mit dem neuen Stand raus – nach einer Absage gar nichts
+      bundle: `termin:${a.id}`,
+      invite_text: kind === 'abgesagt' ? '' : invitationText(a),
     }));
 }
 

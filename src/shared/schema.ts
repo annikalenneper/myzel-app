@@ -311,7 +311,8 @@ export const telegramLinkCodeSchema = z.object({
 });
 export type TelegramLinkCode = z.infer<typeof telegramLinkCodeSchema>;
 
-export const OUTBOX_STATUSES = ['wartet', 'gesendet', 'fehlgeschlagen'] as const;
+/** „ersetzt“ (Phase 14): eine neuere Nachricht desselben Bündels ging stattdessen raus */
+export const OUTBOX_STATUSES = ['wartet', 'gesendet', 'fehlgeschlagen', 'ersetzt'] as const;
 export const outboxSchema = z.object({
   id: idSchema,
   dedupe_key: z.string().min(1),
@@ -324,6 +325,10 @@ export const outboxSchema = z.object({
   attempts: z.number().int().min(0),
   created_at: timestampSchema,
   sent_at: timestampSchema.nullable(),
+  /** Phase 14: Bündel, Text für eine noch wartende Einladung, frühester Versand */
+  bundle_key: z.string().nullish(),
+  invite_text: z.string().nullish(),
+  send_after: timestampSchema.nullish(),
 });
 export type OutboxEntry = z.infer<typeof outboxSchema>;
 
@@ -336,6 +341,8 @@ export const inboxEntrySchema = z.object({
   link: z.string().min(1),
   dedupe_key: z.string().min(1),
   created_at: timestampSchema,
+  bundle_key: z.string().nullish(),
+  invite_text: z.string().nullish(),
 });
 export type InboxEntryRow = z.infer<typeof inboxEntrySchema>;
 

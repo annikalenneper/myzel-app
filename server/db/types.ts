@@ -274,6 +274,8 @@ export interface InboxEntriesTable {
   link: string;
   dedupe_key: string;
   created_at: Timestamp;
+  bundle_key: string | null;
+  invite_text: string | null;
 }
 
 export interface InboxSeenTable {
@@ -477,7 +479,7 @@ export interface NotificationOutboxTable {
   channel: NotificationChannel;
   text: string;
   link: string;
-  status: Generated<'wartet' | 'gesendet' | 'fehlgeschlagen'>;
+  status: Generated<'wartet' | 'gesendet' | 'fehlgeschlagen' | 'ersetzt'>;
   attempts: Generated<number>;
   last_error: string | null;
   locked_until: Timestamp | null;
@@ -485,6 +487,9 @@ export interface NotificationOutboxTable {
   delivered_to: ColumnType<string[], string | undefined, string>;
   created_at: CreatedAt;
   sent_at: Timestamp | null;
+  bundle_key: string | null;
+  invite_text: string | null;
+  send_after: Timestamp | null;
 }
 
 export interface JobRunsTable {

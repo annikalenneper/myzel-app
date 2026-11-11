@@ -11,9 +11,12 @@ import {
   consensusDeadlineMessages,
   DAILY_REMINDER_HOUR,
   dueReminderMessages,
+  collapseInbox,
   ownActionMessage,
   MAX_SEND_ATTEMPTS,
   NOTIFICATION_GROUPS,
+  resolveBundle,
+  sendAfter,
   type Message,
 } from '../../src/shared/rules/notifications';
 import { UNDO_WINDOW_MS } from '../../src/shared/rules/undo';
@@ -120,6 +123,8 @@ export async function enqueue(
       link: m.link,
       dedupe_key: m.dedupe_key,
       created_at: now.toISOString(),
+      bundle_key: m.bundle ?? null,
+      invite_text: m.invite_text ?? null,
     }));
   for (const part of chunks(inbox, 200)) {
     const inserted = await trx
@@ -176,6 +181,9 @@ export async function enqueue(
         text: m.text,
         link: m.link,
         created_at: now.toISOString(),
+        bundle_key: m.bundle ?? null,
+        invite_text: m.invite_text ?? null,
+        send_after: sendAfter(m, now),
       });
   }
   let added = 0;
@@ -355,6 +363,7 @@ async function claim(db: Db, now: Date) {
       .where('created_at', '>=', settled)
       .execute();
     const undoable = recent.flatMap((r) => r.outbox_ids as string[]);
+    const held = await resolveBundles(trx, now, new Set(undoable));
     const rows = await trx
       .selectFrom('notification_outbox')
       .selectAll()
@@ -362,6 +371,7 @@ async function claim(db: Db, now: Date) {
       .where('attempts', '<', MAX_SEND_ATTEMPTS)
       .where(free)
       .$if(undoable.length > 0, (q) => q.where('id', 'not in', undoable))
+      .$if(held.length > 0, (q) => q.where('id', 'not in', held))
       .orderBy('created_at')
       .limit(BATCH)
       .forUpdate()
@@ -379,6 +389,71 @@ async function claim(db: Db, now: Date) {
       .execute();
     return rows;
   });
+}
+
+const BUNDLE_SCAN = 2_000;
+
+/**
+ * Phase 14: Bündel wartender Nachrichten (gleiche Person, gleicher Kanal, gleicher Schlüssel) auflösen. Ein Bündel ist
+ * fertig, wenn keine seiner Nachrichten mehr zurückgenommen werden kann und die Ruhezeit (send_after) vorbei ist; dann
+ * bleibt die neueste mit dem Text aus resolveBundle, die übrigen sind „ersetzt“. Gibt die IDs zurück, die noch warten.
+ */
+async function resolveBundles(trx: Trx, now: Date, undoable: ReadonlySet<string>): Promise<string[]> {
+  const rows = await trx
+    .selectFrom('notification_outbox')
+    .select([
+      'id',
+      'member_id',
+      'channel',
+      'bundle_key',
+      'event_type',
+      'text',
+      'invite_text',
+      'created_at',
+      'send_after',
+    ])
+    .where('status', '=', 'wartet')
+    .where('bundle_key', 'is not', null)
+    .where('attempts', '=', 0)
+    .orderBy('created_at')
+    .limit(BUNDLE_SCAN)
+    .execute();
+  const groups = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const key = `${r.member_id}:${r.channel}:${r.bundle_key}`;
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  const waiting: string[] = [];
+  const replaced: string[] = [];
+  const at = (v: string | null) => (v ? new Date(v).getTime() : 0);
+  for (const group of groups.values()) {
+    const ready =
+      group.every((r) => !undoable.has(r.id)) && group.every((r) => at(r.send_after) <= now.getTime());
+    if (!ready) {
+      waiting.push(...group.map((r) => r.id));
+      continue;
+    }
+    const resolved = resolveBundle(
+      group.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString() })),
+    );
+    for (const r of group) if (r.id !== resolved?.keep.id) replaced.push(r.id);
+    if (
+      resolved &&
+      (resolved.text !== resolved.keep.text || resolved.event_type !== resolved.keep.event_type)
+    )
+      await trx
+        .updateTable('notification_outbox')
+        .set({ text: resolved.text, event_type: resolved.event_type })
+        .where('id', '=', resolved.keep.id)
+        .execute();
+  }
+  for (const part of chunks(replaced))
+    await trx
+      .updateTable('notification_outbox')
+      .set({ status: 'ersetzt', last_error: 'Durch eine neuere Nachricht ersetzt.' })
+      .where('id', 'in', part)
+      .execute();
+  return waiting;
 }
 
 type Entry = Awaited<ReturnType<typeof claim>>[number];
@@ -690,7 +765,7 @@ export async function listInbox(ctx: ReadCtx): Promise<Inbox> {
   const [entries, seen] = await Promise.all([
     ctx.trx
       .selectFrom('inbox_entries')
-      .select(['id', 'event_type', 'text', 'link', 'created_at'])
+      .select(['id', 'event_type', 'text', 'link', 'created_at', 'bundle_key', 'invite_text'])
       .where('member_id', '=', me)
       .orderBy('created_at', 'desc')
       .orderBy('id')
@@ -699,16 +774,20 @@ export async function listInbox(ctx: ReadCtx): Promise<Inbox> {
     ctx.trx.selectFrom('inbox_seen').select('seen_at').where('member_id', '=', me).executeTakeFirst(),
   ]);
   const seen_at = seen ? new Date(seen.seen_at).toISOString() : null;
-  const list = entries.map((e) => ({ ...e, created_at: new Date(e.created_at).toISOString() }));
+  const list = collapseInbox(
+    entries.map((e) => ({ ...e, created_at: new Date(e.created_at).toISOString() })),
+    seen_at,
+  );
   // mehr Neues, als die Liste zeigt: dann zählt die Datenbank
   const unread =
-    list.length < INBOX_SHOWN || (seen_at && list.at(-1)!.created_at <= seen_at)
+    entries.length < INBOX_SHOWN || (seen_at && list.at(-1)!.created_at <= seen_at)
       ? list.filter((e) => !seen_at || e.created_at > seen_at).length
       : Number(
           (
             await ctx.trx
               .selectFrom('inbox_entries')
-              .select((eb) => eb.fn.countAll<number>().as('n'))
+              // ein Bündel zählt einmal (Phase 14)
+              .select(sql<number>`count(distinct coalesce(bundle_key, id::text))`.as('n'))
               .where('member_id', '=', me)
               .$if(!!seen_at, (q) => q.where('created_at', '>', seen_at!))
               .executeTakeFirstOrThrow()

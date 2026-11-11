@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Version 0.12.0 live seit 01.11.2026 (Phase 13: Verbesserungen 31.10.2026; Migrationen event_team und glocke eingespielt). Als Nächstes: Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Version 0.12.0 live seit 01.11.2026. Phase 14 (Bugs und Verbesserungen 11.11.2026) lokal fertig, Migration 20261111000001 noch nicht eingespielt – Deploy nach Freigabe. Danach: Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
@@ -192,6 +192,32 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Glocke: Benachrichtigungseinträge seit dem letzten Besuch – in den Kopfzeilen von Agenda, Events, Termine,
         Wissen; Zahl der neuen, Liste der letzten 50 mit Link (WF-ALL-10, Tabellen `inbox_entries`, `inbox_seen`, U30)
   - [x] Dokumente: im Drei-Punkte-Menü „Zuordnen“ (WF-WIS-14) und „Kategorie“ (WF-WIS-15) neben „Löschen“ (U31)
+- [x] **Phase 14 – Bugs und Verbesserungen (Nutzerin, 11.11.2026)** (Migration 20261111000001; lokal, Deploy erst nach
+      Freigabe):
+  - [x] Bug: Anmeldung per Mail in der App vom iPhone-Home-Bildschirm – iOS öffnet Links aus Mails immer im Browser, der
+        eine eigene Anmeldung hat. Jetzt zusätzlich „Code aus der Mail“ auf der Anmeldeseite (Supabase verifyOtp). **Vor dem
+        Deploy im Supabase-Dashboard** (Authentication › Email Templates) die Vorlagen „Magic Link“ und „Confirm signup“
+        um `{{ .Token }}` ergänzen – Vorlage: supabase/templates/magic_link.html (U32)
+  - [x] Bug: Push „aus“, aber Nachrichten kommen trotzdem – das Profil zeigte nur „dieses Gerät“, verschickt wird an alle
+        Geräte der Person (z. B. ein Browser von vor der Installation). Jetzt: Hinweis „Push ist auf n anderen Geräten
+        aktiv“ mit „Push überall ausschalten“; Matrix-Schalter einer Spalte grau und aus, solange der Kanal nirgends
+        verbunden ist (die gespeicherte Einstellung bleibt) (U33)
+  - [x] Menü scrollt mit: angenommen ist die untere Navigation in der iOS-App – kein Gummiband am Seitenrand mehr
+        (`overscroll-behavior: none`), Sichtbereich nach dem Schließen der Tastatur neu ausgerichtet (U34, F6). Auf dem
+        iPhone abzunehmen
+  - [x] Dokument verknüpfen einheitlich: ein Suchfeld-Stil, eine Auswahlliste mit Kreis-Markierung für Ziel, Drive-Dateien
+        und Erfasste, Ordner mit „›“, Aktion unten fest (auch bei langen Listen sichtbar), Überschrift statt
+        Großbuchstaben-Label, „Aus Drive“ zuerst und vorausgewählt; „Zuordnen“ nutzt dieselbe Zielsuche; „Zuletzt“ als
+        Pille; Wissen-Reiter ohne Silbentrennung (U35)
+  - [x] Benachrichtigungen bündeln (U36): Nachrichten zum selben Termin bzw. zur selben Aufgabe an dieselbe Person gehen,
+        solange sie warten, als eine raus – die neueste Fassung gilt. Termin-Einladung, Termin-Änderung, Statuswechsel und
+        die eigene Bestätigung dazu warten 10 Minuten Ruhe ab (Zeit ab der letzten Änderung). Ist die Einladung noch nicht
+        raus, nimmt sie Änderungen auf („Bautag am Di – kommst du?“ statt Einladung + „wurde geändert“); nach einer Absage
+        vor dem Versand geht nichts raus. Mehrere Kommentare: der letzte mit „(+n weitere)“. Glocke: Ungesehenes eines
+        Bündels als ein Eintrag. Outbox-Status „ersetzt“ für zusammengefasste Nachrichten
+  - [x] Nebenbei: Serien-Test erwartete „entfall…“ auch im Singular („entfällt“) – schlug je nach Datum fehl
+  - [ ] Vorschlag für ANFORDERUNGEN 16.9 (nur mit Freigabe der Nutzerin): Anmeldung mit Code; Push-Geräte; Bündeln und
+        Ruhezeit 10 Minuten
 - [ ] **Phase 11 – Archiv im Profil (geplant, F4; noch nicht umsetzen)**
   - [ ] Profil › „Archiv“: alles Gelöschte an einem Ort, gruppiert nach Art (Aufgaben, Veranstaltungen, Termine,
         Entscheidungen & Fakten, Fragen, Dokumente, Partner), zuletzt Gelöschtes zuerst, mit „gelöscht von … am …“
@@ -285,6 +311,12 @@ Nach Login lokal (5119511) und vier Verbindungen (dbb20e0), live 25.10.2026 ab 2
 | U29 | 31.10.2026 | Statuswechsel mit Rückfrage (ändert 7.3; in ANFORDERUNGEN 16.8 übernommen, Nutzerin 01.11.2026). Gilt in der App für Aufgaben, Veranstaltungen und Fragen; Termine (Absagen, Plenum abschließen) und Entscheidungen (Aufheben, Ersetzen) fragten schon nach. Der Vorschlag „In Nachbereitung?“ mit „Ja“ ist selbst die Rückfrage. Telegram-Knöpfe bleiben ohne Rückfrage.                                                                                                                                                                                                                 | Annahme |
 | U30 | 31.10.2026 | Glocke: dieselben Anlässe wie Push/Telegram (ohne „Eigene Aktionen“), für alle aktiven Mitglieder – auch ohne eingerichteten Kanal und unabhängig von der Schalter-Matrix. „Seit dem letzten Besuch“ = seit dem letzten Öffnen der Glocke (je Person, nicht je Gerät); die Liste zeigt die letzten 50 Einträge, neue markiert. Rückgängig zieht Einträge zurück. Neue Workflow-ID WF-ALL-10.                                                                                                                                                                                              | Annahme |
 | U31 | 31.10.2026 | Dokumente: „Kategorie“ ist die Art (Protokoll, Leitlinie, Vorlage, Schichtplan, Sonstiges), mit Verlauf und Rückgängig. „Zuordnen“ verknüpft das Dokument mit einer Aufgabe, Veranstaltung, einem Termin oder einer Entscheidung (Suche wie beim Erfassen); Lösen geht weiter am Ziel. Neue Workflow-IDs WF-WIS-14 (Zuordnen), WF-WIS-15 (Kategorie).                                                                                                                                                                                                                                     | Annahme |
+| U32 | 11.11.2026 | Anmeldung mit Code: Supabase schickt in derselben Mail Link und Code (6–10 Ziffern, 1 Stunde gültig, einmal). Der Code steht auf der Seite „Mail unterwegs“ für alle Geräte, nicht nur für iOS. Ohne angepasste Mail-Vorlage im Dashboard kommt kein Code – dann geht nur der Link.                                                                                                                                                                                                                                                                                                       | Annahme |
+| U33 | 11.11.2026 | Push bleibt je Gerät (WF-PRO-02); „Push überall ausschalten“ löscht alle Abos der Person, auch auf Geräten, die dieses Gerät nicht kennt. Einzelne fremde Geräte lassen sich nicht benennen (der Browser liefert keinen Gerätenamen), daher nur „alle“.                                                                                                                                                                                                                                                                                                                                   | Annahme |
+| U34 | 11.11.2026 | „Menü scrollt plötzlich mit“ = die untere Navigation in der App vom iPhone-Home-Bildschirm (Gummiband am Seitenende bzw. nach dem Schließen der Tastatur). Ohne iPhone nicht nachstellbar – Abnahme auf dem Gerät.                                                                                                                                                                                                                                                                                                                                                                        | Annahme |
+| U35 | 11.11.2026 | Dokument verknüpfen: „Aus Drive“ steht vorn und ist vorausgewählt, weil fast alle Dokumente im Drive liegen; „Per Link“ und „Erfasste“ bleiben unverändert erreichbar.                                                                                                                                                                                                                                                                                                                                                                                                                    | Annahme |
+| U36 | 11.11.2026 | Bündeln: Ruhezeit 10 Minuten nur für Termin-Einladung, Termin-Änderung, Statuswechsel und die eigene Bestätigung dazu – mit dem Joblauf alle 15 Minuten kommen sie damit 10 bis 25 Minuten nach der letzten Änderung. Kommentare, Zuweisungen, Blockaden, Erinnerungen, Entscheidungen und die Plenum-Zusammenfassung warten nicht (sie werden nur zusammengefasst, wenn mehrere gleichzeitig warten). Status hin und zurück vor dem Versand meldet den Endstand („ist jetzt „Geplant““).                                                                                                 | Annahme |
+| F6  | 11.11.2026 | Weitere Ideen gegen Benachrichtigungs-Flut, noch nicht gebaut: (a) Nachtruhe 22–8 Uhr ohne Push/Telegram, außer „Termin in 1 Stunde“ – was sich nachts ansammelt, kommt morgens gebündelt; (b) „Eigene Aktionen“ standardmäßig aus (sie verdoppeln jede Nachricht); (c) wahlweise eine tägliche Zusammenfassung statt einzelner Nachrichten je Zeile der Matrix; (d) Änderungen an Terminen in mehr als 4 Wochen nur in der Glocke. Welche davon? Und: Ist „Menü“ wirklich die untere Navigation?                                                                                         | Frage   |
 | F2  | 26.10.2026 | Ergebnis: Eine Frage steht einmal („Beantwortet: …“), ihre Entscheidungen/Fakten je einmal mit „(aus der Frage …)“. Passt das, oder sollen die Ergebnisse unter der Frage stehen und die Frage-Zeile entfallen?                                                                                                                                                                                                                                                                                                                                                                           | geklärt |
 
 ## Entscheidungsprotokoll
