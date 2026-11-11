@@ -599,15 +599,8 @@ export async function notificationSettings(
   botUsername: string | null,
 ): Promise<NotificationSettings> {
   const me = ctx.actor.id;
-  const [push, link, code, prefs] = await Promise.all([
-    endpoint
-      ? ctx.trx
-          .selectFrom('push_subscriptions')
-          .select('id')
-          .where('member_id', '=', me)
-          .where('endpoint', '=', endpoint)
-          .executeTakeFirst()
-      : undefined,
+  const [devices, link, code, prefs] = await Promise.all([
+    ctx.trx.selectFrom('push_subscriptions').select('endpoint').where('member_id', '=', me).execute(),
     ctx.trx.selectFrom('telegram_links').select('member_id').where('member_id', '=', me).executeTakeFirst(),
     ctx.trx
       .selectFrom('telegram_link_codes')
@@ -625,7 +618,8 @@ export async function notificationSettings(
       .execute(),
   ]);
   return {
-    push: !!push,
+    push: !!endpoint && devices.some((d) => d.endpoint === endpoint),
+    push_devices: devices.length,
     telegram: link ? 'verbunden' : code ? 'wartet' : 'aus',
     telegram_url: code && botUsername ? botLink(botUsername, code.code) : null,
     // eine Zeile gilt als an, solange eines ihrer Ereignisse an ist – gesetzt wird immer die ganze Zeile
@@ -810,6 +804,12 @@ export async function removePushSubscription(ctx: Ctx, endpoint: unknown): Promi
     .where('member_id', '=', ctx.actor.id)
     .execute();
   await dropWaitingIfNoDevice(ctx.trx, ctx.actor.id);
+}
+
+/** WF-PRO-02 (Phase 14): Push überall aus – Push geht an alle Geräte, auch an solche, die das Profil nicht sieht */
+export async function removeAllPushSubscriptions(ctx: Ctx): Promise<void> {
+  await ctx.trx.deleteFrom('push_subscriptions').where('member_id', '=', ctx.actor.id).execute();
+  await dropWaiting(ctx.trx, ctx.actor.id, 'push');
 }
 
 async function dropWaitingIfNoDevice(trx: Trx, memberId: string): Promise<void> {

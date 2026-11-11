@@ -233,7 +233,7 @@ test('Phase 5: Drive aus dem Cache, Datei mit einer Aufgabe verknüpfen – blei
     .first()
     .click();
   await screen.getByLabel('Ziel suchen').fill('Brauerei');
-  await screen.getByRole('button', { name: /Getränke bei der Brauerei bestellen/ }).click();
+  await screen.getByRole('radio', { name: /Getränke bei der Brauerei bestellen/ }).click();
   await screen.getByRole('button', { name: 'Verknüpfen', exact: true }).click();
   await expect(page.getByTestId('WF-ALL-02')).toContainText('Dokument verknüpft');
   await page.reload();

@@ -1,6 +1,6 @@
 // App-Gerüst (ANFORDERUNGEN 8.3): mobil untere Navigation, am Desktop eine Seitenleiste.
 // Agenda (16.1), Events, Termine (ab P3), Wissen (ab P3), Profil.
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { NavLink, Outlet, useMatch } from 'react-router-dom';
 import { Avatar, cx } from '../ui/bits';
 import { IconCalendar, IconEvents, IconKnowledge, IconProfile, IconTasks } from '../ui/icons';
@@ -90,7 +90,41 @@ function Sidebar() {
   );
 }
 
+const editable = (el: Element | null) =>
+  !!el &&
+  (el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    (el as HTMLElement).isContentEditable);
+
+/**
+ * iOS (Phase 14, „Menü scrollt mit“): Nach dem Schließen der Tastatur bleibt der sichtbare Ausschnitt manchmal
+ * verschoben – fest stehende Leisten wie die untere Navigation wandern dann mit, bis die Seite neu lädt. Ein Scroll an
+ * dieselbe Stelle richtet sie wieder aus.
+ */
+function useIosViewportRealign() {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv || !/iPad|iPhone|iPod/.test(navigator.userAgent)) return;
+    let timer = 0;
+    const realign = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (editable(document.activeElement)) return;
+        window.scrollTo(window.scrollX, window.scrollY);
+      }, 120);
+    };
+    vv.addEventListener('resize', realign);
+    document.addEventListener('focusout', realign);
+    return () => {
+      window.clearTimeout(timer);
+      vv.removeEventListener('resize', realign);
+      document.removeEventListener('focusout', realign);
+    };
+  }, []);
+}
+
 export function AppShell() {
+  useIosViewportRealign();
   // Detailansichten haben mobil keine Navigation, sondern einen Zurück-Pfeil (8.3)
   const agendaDetail = useMatch('/agenda/:id');
   const agendaSubDetail = useMatch('/agenda/:kind/:id');

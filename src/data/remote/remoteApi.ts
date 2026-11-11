@@ -2,7 +2,7 @@
 // Fehler kommen als dieselben AppErrors wie in der Testdaten-Schicht – die Oberfläche merkt keinen Unterschied.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { AppError, type AppErrorCode, type ConflictInfo } from '../../shared/errors';
-import { emailInputSchema } from '../../shared/schema';
+import { emailCodeSchema, emailInputSchema, WRONG_EMAIL_CODE } from '../../shared/schema';
 import type { MyzelApi, Session } from '../api';
 
 /** Aktionen heißen wie die Server-Funktionen: kleiner Anfang, nur Buchstaben */
@@ -126,6 +126,24 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
         authError('Gerade wurden zu viele Links verschickt. Bitte warte ein paar Minuten.');
       if (error) authError('Der Link konnte nicht verschickt werden. Bitte versuch es noch einmal.');
     },
+    async verifyEmailCode(email, code) {
+      const parsedCode = emailCodeSchema.safeParse(code);
+      if (!parsedCode.success)
+        throw new AppError('validation', parsedCode.error.issues[0]!.message, { field: 'code' });
+      const parsedMail = emailInputSchema.safeParse(email);
+      if (!parsedMail.success)
+        throw new AppError('validation', parsedMail.error.issues[0]!.message, { field: 'email' });
+      const { error } = await supabase.auth.verifyOtp({
+        email: parsedMail.data,
+        token: parsedCode.data,
+        type: 'email',
+      });
+      if (error && error.status === 429) authError('Zu viele Versuche. Bitte warte ein paar Minuten.');
+      // falscher oder abgelaufener Code: Supabase antwortet mit 4xx
+      if (error && error.status && error.status < 500)
+        throw new AppError('validation', WRONG_EMAIL_CODE, { field: 'code' });
+      if (error) authError('Die Anmeldung hat nicht geklappt. Bitte versuch es noch einmal.');
+    },
     async signOut() {
       // Abmelden entfernt das Push-Abo dieses Geräts (WF-LOG-03)
       const sub = await currentPush().catch(() => null);
@@ -139,6 +157,11 @@ export function createRemoteApi(options: RemoteOptions): MyzelApi {
     async getNotificationSettings() {
       const sub = await currentPush().catch(() => null);
       return call('getNotificationSettings', [sub?.endpoint ?? null]);
+    },
+    async removeAllPushSubscriptions() {
+      await call('removeAllPushSubscriptions', []);
+      const sub = await currentPush().catch(() => null);
+      await sub?.unsubscribe().catch(() => undefined);
     },
     // WF-PRO-02: erst nach Tippen fragt der Browser nach der Erlaubnis (6.3)
     async setPush(on) {

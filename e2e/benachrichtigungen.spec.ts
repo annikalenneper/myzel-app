@@ -14,10 +14,14 @@ test('WF-PRO-04: Schalter je Ereignis und Kanal, Vorlauf – gespeichert und sof
   await expect(comment).toHaveAttribute('aria-pressed', 'true');
   await comment.click();
   await expect(comment).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByRole('button', { name: 'Neuer Kommentar per Push' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  // Phase 14: ohne Push auf einem Gerät sind die Push-Schalter grau und aus – die Einstellung bleibt gespeichert
+  const pushComment = page.getByRole('button', { name: 'Neuer Kommentar per Push' });
+  await expect(pushComment).toBeDisabled();
+  await expect(pushComment).toHaveAttribute('aria-pressed', 'false');
+  await expect(matrix).toContainText('Push ist oben nicht eingeschaltet');
+  await page.getByRole('button', { name: /Push · dieses Gerät/ }).click();
+  await expect(pushComment).toBeEnabled();
+  await expect(pushComment).toHaveAttribute('aria-pressed', 'true');
 
   // eigene Statusänderungen werden nie gemeldet – dafür gibt es keinen Schalter
   await expect(page.getByText('Auch eigene Statusänderungen')).toHaveCount(0);

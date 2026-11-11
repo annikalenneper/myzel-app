@@ -69,6 +69,11 @@ export function Reachability() {
     });
   };
 
+  // Push geht an alle Geräte der Person – auch an alte, die dieses Gerät nicht kennt (Phase 14)
+  const otherDevices = (settings?.push_devices ?? 0) - (push ? 1 : 0);
+  const allOff = () =>
+    void run(() => api.removeAllPushSubscriptions(), { success: 'Push ist auf allen Geräten aus' });
+
   const toggleTelegram = () => {
     if (!settings) return;
     if (telegram === 'aus') void run(() => api.startTelegramLink());
@@ -130,6 +135,40 @@ export function Reachability() {
           </span>
         </button>
       </div>
+
+      {demo && settings && (
+        <button
+          type="button"
+          data-demo="push-other-device"
+          onClick={() =>
+            void run(() => demo.pushOnOtherDevice(), { success: 'Push auf einem anderen Gerät an' })
+          }
+          className="hit -mt-1 h-9 self-start text-[13px] text-leise"
+        >
+          Testdaten: Push auf einem anderen Gerät einschalten
+        </button>
+      )}
+
+      {otherDevices > 0 && (
+        <div
+          data-wf="WF-PRO-02"
+          className="flex flex-col gap-2 rounded-[14px] border border-rand-stark bg-flaeche px-3.5 py-3"
+        >
+          <span className="text-[13px] leading-normal text-weich">
+            {push
+              ? `Push ist außerdem auf ${otherDevices === 1 ? 'einem weiteren Gerät' : `${otherDevices} weiteren Geräten`} aktiv.`
+              : `Push ist auf ${otherDevices === 1 ? 'einem anderen Gerät' : `${otherDevices} anderen Geräten`} aktiv – dorthin kommen weiter Nachrichten.`}
+          </span>
+          <button
+            type="button"
+            data-wf="WF-PRO-02"
+            onClick={allOff}
+            className="hit h-9 self-start rounded-[18px] border border-rand-stark px-3.5 text-[13px] text-text"
+          >
+            Push überall ausschalten
+          </button>
+        </div>
+      )}
 
       {telegram === 'wartet' && settings?.telegram_url && (
         <div

@@ -10,21 +10,34 @@ import { cx } from '../../ui/bits';
 const WF = 'WF-PRO-04';
 const CHANNEL_LABEL: Record<NotificationChannel, string> = { push: 'Push', telegram: 'Telegram' };
 
-function Switch({ on, label, onToggle }: { on: boolean; label: string; onToggle: () => void }) {
+/** Ohne verbundenen Kanal wirkt kein Schalter dieser Spalte: dann grau und aus, die Einstellung bleibt gespeichert */
+function Switch({
+  on,
+  label,
+  onToggle,
+  inactive,
+}: {
+  on: boolean;
+  label: string;
+  onToggle: () => void;
+  inactive: boolean;
+}) {
+  const shown = on && !inactive;
   return (
     <button
       type="button"
       data-wf={WF}
-      aria-pressed={on}
+      aria-pressed={shown}
       aria-label={label}
+      disabled={inactive}
       onClick={onToggle}
-      className="flex h-11 w-[58px] flex-none items-center justify-center"
+      className="flex h-11 w-[58px] flex-none items-center justify-center disabled:opacity-40"
     >
-      <span className={cx('relative h-[30px] w-[50px] rounded-[15px]', on ? 'bg-violett' : 'bg-rand')}>
+      <span className={cx('relative h-[30px] w-[50px] rounded-[15px]', shown ? 'bg-violett' : 'bg-rand')}>
         <span
           className={cx(
             'absolute top-[3px] size-6 rounded-full bg-text transition-[left]',
-            on ? 'left-[23px]' : 'left-[3px]',
+            shown ? 'left-[23px]' : 'left-[3px]',
           )}
         />
       </span>
@@ -36,6 +49,11 @@ export function NotificationMatrix() {
   const { run } = useFeedback();
   const { data: settings } = useData('notification-settings', () => api.getNotificationSettings());
   if (!settings) return null;
+  const connected: Record<NotificationChannel, boolean> = {
+    push: settings.push_devices > 0,
+    telegram: settings.telegram === 'verbunden',
+  };
+  const missing = (['push', 'telegram'] as const).filter((c) => !connected[c]).map((c) => CHANNEL_LABEL[c]);
 
   const toggle = (
     key: (typeof NOTIFICATION_GROUPS)[number]['key'],
@@ -47,8 +65,8 @@ export function NotificationMatrix() {
     <div data-wf={WF} className="flex flex-col gap-1.5">
       <div className="flex items-center px-1">
         <span className="label-mono flex-1">Benachrichtigen bei</span>
-        <span className="label-mono w-[58px] text-center">Push</span>
-        <span className="label-mono w-[58px] text-center">TG</span>
+        <span className={cx('label-mono w-[58px] text-center', !connected.push && 'opacity-40')}>Push</span>
+        <span className={cx('label-mono w-[58px] text-center', !connected.telegram && 'opacity-40')}>TG</span>
       </div>
       <div className="flex flex-col overflow-hidden rounded-2xl border border-linie">
         {NOTIFICATION_GROUPS.map((g) => {
@@ -66,6 +84,7 @@ export function NotificationMatrix() {
                 <Switch
                   key={c}
                   on={row[c]}
+                  inactive={!connected[c]}
                   label={`${g.label} per ${CHANNEL_LABEL[c]}`}
                   onToggle={() => toggle(g.key, c, row[c])}
                 />
@@ -101,7 +120,10 @@ export function NotificationMatrix() {
         </div>
       </div>
       <span className="px-1 text-[12px] leading-[1.4] text-leise">
-        Gilt sofort. Nachrichten kommen nur über Kanäle, die oben eingeschaltet und verbunden sind.
+        Gilt sofort.{' '}
+        {missing.length > 0
+          ? `${missing.join(' und ')} ${missing.length === 1 ? 'ist' : 'sind'} oben nicht eingeschaltet – die Schalter dafür wirken erst danach.`
+          : 'Nachrichten kommen über die Kanäle, die oben eingeschaltet sind.'}
       </span>
     </div>
   );

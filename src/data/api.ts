@@ -363,6 +363,8 @@ export interface Inbox {
 export interface NotificationSettings {
   /** Push-Abo für dieses Gerät vorhanden */
   push: boolean;
+  /** Geräte mit Push insgesamt, dieses eingeschlossen – Push geht an alle (Phase 14) */
+  push_devices: number;
   telegram: 'aus' | 'wartet' | 'verbunden';
   /** Link zum Bot mit Einmal-Code, solange die Verknüpfung auf /start wartet */
   telegram_url: string | null;
@@ -400,6 +402,8 @@ export interface DemoTools {
   signInAs(email: string): Promise<Session>;
   /** Mail, für die zuletzt ein Link angefordert wurde (ersetzt das Postfach). */
   pendingMagicLink(): string | null;
+  /** Code aus derselben Mail (Phase 14) */
+  pendingMagicCode(): string | null;
   openMagicLink(): Promise<Session>;
   /** Eine andere Person ändert die Aufgabe, ohne dass diese Sitzung es mitbekommt. */
   simulateForeignEdit(taskId: string): Promise<void>;
@@ -407,6 +411,8 @@ export interface DemoTools {
   failNextWrites(n: number): void;
   /** Was der Telegram-Bot nach „Start“ tut: den offenen Einmal-Code einlösen */
   completeTelegramLink(): Promise<void>;
+  /** Push auf einem anderen Gerät einschalten (Phase 14: z. B. ein alter Browser, den dieses Gerät nicht sieht) */
+  pushOnOtherDevice(): Promise<void>;
   /** Nachrichten an die eingeloggte Person – ersetzt Handy und Telegram */
   myMessages(): Promise<OutboxEntry[]>;
   /** Einen Joblauf sofort ausführen (sonst alle 15 Minuten) */
@@ -436,6 +442,11 @@ export interface MyzelApi {
   getSession(): Promise<Session>;
   signInWithGoogle(): Promise<void>;
   requestMagicLink(email: string): Promise<void>;
+  /**
+   * WF-LOG-02 (Phase 14): mit dem Code aus der Mail anmelden – für die App auf dem Home-Bildschirm, aus der iOS den
+   * Link immer im Browser öffnet (dort gilt eine eigene Anmeldung)
+   */
+  verifyEmailCode(email: string, code: string): Promise<void>;
   signOut(): Promise<void>;
 
   // Lesen
@@ -605,6 +616,8 @@ export interface MyzelApi {
   /** Glocke geöffnet: alles bis jetzt gilt als gesehen; ändert keine Ansicht */
   markInboxSeen(): Promise<void>;
   setPush(on: boolean): Promise<void>;
+  /** WF-PRO-02: Push auf allen Geräten der Person aus – auch auf alten, die hier nicht mehr erreichbar sind */
+  removeAllPushSubscriptions(): Promise<void>;
   startTelegramLink(): Promise<{ url: string; expires_at: string }>;
   unlinkTelegram(): Promise<void>;
   getSystemStatus(): Promise<SystemStatus>;

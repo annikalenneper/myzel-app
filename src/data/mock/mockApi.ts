@@ -3,7 +3,7 @@
 // an Supabase und die Netlify Functions ersetzt.
 import { AppError } from '../../shared/errors';
 import { buildExport, exportToYaml } from '../../shared/export';
-import { emailInputSchema, type Member } from '../../shared/schema';
+import { emailCodeSchema, emailInputSchema, WRONG_EMAIL_CODE, type Member } from '../../shared/schema';
 import type { DemoAccount, MyzelApi, Session } from '../api';
 import { JOB_INTERVAL_MINUTES, JOB_WARNING_MINUTES } from '../../shared/rules/notifications';
 import * as appts from './appointments';
@@ -41,6 +41,9 @@ const DEVICE_KEY = 'myzel:mock:geraet';
 const OUTAGE_KEY = 'myzel:mock:ausfall';
 const SESSION_KEY = 'myzel:mock:session';
 const MAGIC_KEY = 'myzel:mock:magic-link';
+const MAGIC_CODE_KEY = 'myzel:mock:magic-code';
+/** Testdaten: sechsstelliger Code wie in der Mail von Supabase */
+const newMagicCode = () => String(Math.floor(100000 + Math.random() * 900000));
 const OUTSIDER = 'jemand@example.org';
 
 /**
@@ -64,6 +67,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
   let failWrites = 0;
   let memorySession: string | null = null;
   let memoryMagic: string | null = null;
+  let memoryCode: string | null = null;
 
   const load = (): Db => {
     const raw = storage?.getItem(DB_KEY);
@@ -216,6 +220,23 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
       // Antwort ist immer gleich – egal, ob die Adresse bekannt ist (WF-LOG-02)
       storage?.setItem(MAGIC_KEY, parsed.data);
       memoryMagic = parsed.data;
+      memoryCode = newMagicCode();
+      storage?.setItem(MAGIC_CODE_KEY, memoryCode);
+    },
+    async verifyEmailCode(email, code) {
+      const parsed = emailCodeSchema.safeParse(code);
+      if (!parsed.success)
+        throw new AppError('validation', parsed.error.issues[0]!.message, { field: 'code' });
+      await wait();
+      const pending = storage?.getItem(MAGIC_KEY) ?? memoryMagic;
+      const expected = storage?.getItem(MAGIC_CODE_KEY) ?? memoryCode;
+      if (!pending || pending !== emailInputSchema.safeParse(email).data || parsed.data !== expected)
+        throw new AppError('validation', WRONG_EMAIL_CODE, { field: 'code' });
+      storage?.removeItem(MAGIC_KEY);
+      storage?.removeItem(MAGIC_CODE_KEY);
+      memoryMagic = null;
+      memoryCode = null;
+      await signInAs(pending);
     },
     async signOut() {
       await wait();
@@ -398,6 +419,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     getNotificationSettings: () =>
       read((d, n) => notify.notificationSettings({ db: d, actor: actor(), now: n, inverse: [] }, deviceId())),
     setPush: (on) => writeOutside((ctx) => notify.setPush(ctx, deviceId(), on)),
+    removeAllPushSubscriptions: () => writeOutside((ctx) => notify.removeAllPushSubscriptions(ctx)),
     startTelegramLink: () => writeOutside((ctx) => notify.startTelegramLink(ctx)),
     unlinkTelegram: () => writeOutside((ctx) => notify.unlinkTelegram(ctx)),
     setNotificationPreference: (group, channel, enabled) =>
@@ -424,6 +446,7 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
       },
       signInAs,
       pendingMagicLink: () => storage?.getItem(MAGIC_KEY) ?? memoryMagic,
+      pendingMagicCode: () => storage?.getItem(MAGIC_CODE_KEY) ?? memoryCode,
       async openMagicLink() {
         const email = storage?.getItem(MAGIC_KEY) ?? memoryMagic;
         if (!email) throw new AppError('rule', 'Es wurde kein Link angefordert.');
@@ -453,6 +476,9 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
         transact(me, (ctx) =>
           notify.redeemTelegramCode(ctx.db, ctx.now, code.code, `chat-${me.short.toLowerCase()}`),
         );
+      },
+      async pushOnOtherDevice() {
+        transact(actor(), (ctx) => notify.setPush(ctx, `anderes-geraet-${crypto.randomUUID()}`, true));
       },
       async myMessages() {
         return read((d) => notify.messagesFor(d, actor().id));

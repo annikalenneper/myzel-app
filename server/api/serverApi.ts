@@ -4,7 +4,7 @@
 import { Kysely } from 'kysely';
 import type { DemoAccount, MyzelApi, Session } from '../../src/data/api';
 import { AppError } from '../../src/shared/errors';
-import { emailInputSchema } from '../../src/shared/schema';
+import { emailCodeSchema, emailInputSchema, WRONG_EMAIL_CODE } from '../../src/shared/schema';
 import { OUTSIDE_PLENUM_ACTIONS } from '../../src/shared/rules/plenum';
 import { inTransaction, resolveActor, type PlenumAnswer } from '../core/context';
 import { createLocalDb, type LocalDb } from '../db/localDb';
@@ -73,6 +73,7 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
   let login: { authUserId: string; email: string } | null = null;
   let authUserId: string | null = null;
   let pendingMagic: string | null = null;
+  let pendingCode: string | null = null;
   let failWrites = 0;
 
   const emit = () => listeners.forEach((l) => l());
@@ -140,6 +141,22 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
       if (!parsed.success)
         throw new AppError('validation', parsed.error.issues[0]!.message, { field: 'email' });
       pendingMagic = parsed.data;
+      pendingCode = String(Math.floor(100000 + Math.random() * 900000));
+    },
+    async verifyEmailCode(email, code) {
+      const parsed = emailCodeSchema.safeParse(code);
+      if (!parsed.success)
+        throw new AppError('validation', parsed.error.issues[0]!.message, { field: 'code' });
+      if (
+        !pendingMagic ||
+        pendingMagic !== emailInputSchema.safeParse(email).data ||
+        parsed.data !== pendingCode
+      )
+        throw new AppError('validation', WRONG_EMAIL_CODE, { field: 'code' });
+      const target = pendingMagic;
+      pendingMagic = null;
+      pendingCode = null;
+      await signInAs(target);
     },
     async signOut() {
       // Abmelden entfernt das Push-Abo dieses Geräts (WF-LOG-03)
@@ -171,6 +188,7 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
       },
       signInAs,
       pendingMagicLink: () => pendingMagic,
+      pendingMagicCode: () => pendingCode,
       async openMagicLink() {
         if (!pendingMagic) throw new AppError('rule', 'Es wurde kein Link angefordert.');
         const email = pendingMagic;
@@ -214,6 +232,11 @@ export async function createServerApi(options: ServerApiOptions = {}): Promise<M
         if (!code) throw new AppError('rule', 'Es wartet keine Verknüpfung.');
         await notify.redeemTelegramCode(db, now(), code.code, `chat-${me.short.toLowerCase()}`);
         emit();
+      },
+      async pushOnOtherDevice() {
+        await write('savePushSubscription', [
+          { endpoint: `https://fcm.googleapis.com/fcm/send/${crypto.randomUUID()}`, keys: TEST_PUSH_KEYS },
+        ]);
       },
       async myMessages() {
         const me = await resolveActor(db, authUserId);

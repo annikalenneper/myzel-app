@@ -67,6 +67,7 @@ export const OUTSIDE_PLENUM_ACTIONS: ReadonlySet<string> = new Set([
   'deleteTopic',
   'savePushSubscription',
   'removePushSubscription',
+  'removeAllPushSubscriptions',
   'setPush',
   'startTelegramLink',
   'unlinkTelegram',

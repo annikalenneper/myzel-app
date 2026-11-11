@@ -91,7 +91,7 @@ test('WF-TER-09: Serie beenden – künftige Termine entfallen, einzeln geänder
   await page.getByTestId('WF-TER-09').click();
   const series = page.getByRole('dialog', { name: 'Serie bearbeiten' });
   await series.getByRole('button', { name: 'Serie beenden …' }).click();
-  await expect(series).toContainText(/künftige[rn]? Termine? entfall/);
+  await expect(series).toContainText(/künftige[rn]? Termine? entf(?:ä|a)ll/);
   await series.getByRole('button', { name: 'Serie beenden', exact: true }).click();
   await expect(undoBar(page)).toContainText('Serie beendet');
   await page.goto('/termine');

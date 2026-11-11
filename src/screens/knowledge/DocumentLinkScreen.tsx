@@ -1,34 +1,60 @@
-// S-43 Dokument verknüpfen · P3 (WF-WIS-06, WF-AUF-13); Auswahl aus dem Drive-Verzeichnis P5 (WF-WIS-09)
+// S-43 Dokument verknüpfen · P3 (WF-WIS-06, WF-AUF-13); Auswahl aus dem Drive-Verzeichnis P5 (WF-WIS-09).
+// Phase 14 (Nutzerin, 11.11.2026): einheitlich – ein Suchfeld-Stil, eine Auswahlliste mit Markierung für Ziel, Dateien
+// und erfasste Dokumente, Aktion unten immer sichtbar; „Aus Drive“ zuerst.
 import { useState } from 'react';
 import { useFeedback } from '../../app/feedback';
 import { useData } from '../../app/useData';
 import { api } from '../../data';
-import type { DriveEntry, SearchGroupKey } from '../../data/api';
+import type { DriveEntry } from '../../data/api';
 import { DOC_TYPE_LABEL } from '../../shared/rules/knowledge';
-import { DOC_TYPES, type DocType, type DocumentLinkTarget } from '../../shared/schema';
-import { cx, FieldError, LightButton, Pill } from '../../ui/bits';
-import { IconClose } from '../../ui/icons';
+import { DOC_TYPES, type DocType } from '../../shared/schema';
+import { ChoiceList, ChoiceRow, cx, FieldError, LightButton, Pill, SearchField } from '../../ui/bits';
+import { IconClose, IconFile } from '../../ui/icons';
 import { useModal } from '../../ui/Sheet';
 import { DriveBrowser, useDriveSync } from './Drive';
 import { Segmented, TopicSelect } from './KnowledgeSheets';
+import { TargetPicker, type LinkTarget } from './TargetPicker';
 
-export interface LinkTarget {
-  type: DocumentLinkTarget;
-  id: string;
-  /** „Aufgabe“, „Veranstaltung“, „Termin“, „Entscheidung“ */
-  kind: string;
-  name: string;
-}
+export type { LinkTarget } from './TargetPicker';
 
 const WF = 'WF-WIS-06';
-const GROUP_TARGET: Partial<Record<SearchGroupKey, [DocumentLinkTarget, string]>> = {
-  aufgaben: ['task', 'Aufgabe'],
-  events: ['event', 'Veranstaltung'],
-  termine: ['appointment', 'Termin'],
-  beschluesse: ['decision', 'Entscheidung'],
-};
 const field =
   'h-[46px] rounded-xl border border-rand bg-grund px-3.5 font-sans text-[16px] text-text normal-case';
+
+type Tab = 'drive' | 'known' | 'link';
+
+function TypePills({
+  value,
+  onChange,
+  wf,
+  required,
+}: {
+  value: DocType | null;
+  onChange: (t: DocType | null) => void;
+  wf: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className={cx('label-mono', required && !value && 'text-bernstein')}>
+        Typ{required ? ' *' : ''}
+      </span>
+      <div role="group" aria-label="Typ" className="flex flex-wrap gap-2">
+        {DOC_TYPES.map((t) => (
+          <Pill
+            key={t}
+            size="sm"
+            data-wf={wf}
+            on={value === t}
+            onClick={() => onChange(required && value === t ? null : t)}
+          >
+            {DOC_TYPE_LABEL[t]}
+          </Pill>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function DocumentLinkScreen({
   target: preset,
@@ -46,10 +72,9 @@ export function DocumentLinkScreen({
   const { run } = useFeedback();
   const { data: known } = useData('documents', () => api.listDocuments());
   const [target, setTarget] = useState<LinkTarget | null>(preset);
-  const [targetsOpen, setTargetsOpen] = useState(false);
+  const [choosingTarget, setChoosingTarget] = useState(false);
   const [targetQuery, setTargetQuery] = useState('');
-  const { data: hits } = useData(`ziel-suche:${targetQuery.trim()}`, () => api.search(targetQuery));
-  const [tab, setTab] = useState<'link' | 'known' | 'drive'>(driveFile ? 'drive' : 'link');
+  const [tab, setTab] = useState<Tab>('drive');
   const [driveFolder, setDriveFolder] = useState<string | null>(driveFile?.parent_id ?? null);
   const [driveQuery, setDriveQuery] = useState('');
   const [file, setFile] = useState<DriveEntry | null>(driveFile ?? null);
@@ -69,24 +94,23 @@ export function DocumentLinkScreen({
 
   const ready =
     tab === 'link' ? !!url.trim() && !!title.trim() && !!docType : tab === 'known' ? !!picked : !!file;
-  const hint = ready
-    ? target
-      ? 'Wird verknüpft und steht in der Historie.'
-      : 'Wird als Dokument erfasst.'
-    : tab === 'link'
+  const needsTarget = tab === 'known' && !target;
+  const hint = !ready
+    ? tab === 'link'
       ? 'Link, Titel und Typ sind Pflicht.'
       : tab === 'known'
         ? 'Ein erfasstes Dokument wählen.'
-        : 'Eine Datei wählen – der Eintrag entsteht beim Verknüpfen.';
+        : 'Eine Datei wählen – der Eintrag entsteht beim Verknüpfen.'
+    : needsTarget
+      ? 'Erfasste Dokumente brauchen ein Ziel – oben wählen.'
+      : target
+        ? `Wird mit „${target.name}“ verknüpft und steht im Verlauf.`
+        : 'Wird als Dokument erfasst und steht unter Wissen › Dokumente.';
   const q = query.trim().toLowerCase();
   const knownShown = (known ?? []).filter((d) => !q || d.title.toLowerCase().includes(q));
-  const targetHits = (hits ?? []).flatMap((g) => {
-    const map = GROUP_TARGET[g.key];
-    return map ? g.items.map((i) => ({ type: map[0], kind: map[1], id: i.id, name: i.title })) : [];
-  });
 
   const submit = async () => {
-    if (!ready || saving) return;
+    if (!ready || needsTarget || saving) return;
     setSaving(true);
     setError(null);
     const link = target ? { target_type: target.type, target_id: target.id } : null;
@@ -111,9 +135,7 @@ export function DocumentLinkScreen({
               )
           : tab === 'drive'
             ? api.linkDriveFile({ file_id: file!.file_id, doc_type: fileType, link }).then(() => true)
-            : link
-              ? api.linkDocument(picked!, link.target_type, link.target_id).then(() => true)
-              : Promise.resolve(true),
+            : api.linkDocument(picked!, link!.target_type, link!.target_id).then(() => true),
       {
         success: (r) =>
           r !== true
@@ -135,7 +157,7 @@ export function DocumentLinkScreen({
       aria-label="Dokument verknüpfen"
       className="fixed inset-0 z-30 flex flex-col bg-grund lg:left-1/2 lg:w-[480px] lg:-translate-x-1/2 lg:border-x lg:border-linie"
     >
-      <div className="flex h-[60px] flex-none items-center gap-1 px-3">
+      <div className="flex h-[60px] flex-none items-center gap-1 border-b border-linie px-3">
         <button
           type="button"
           onClick={onClose}
@@ -144,240 +166,195 @@ export function DocumentLinkScreen({
         >
           <IconClose />
         </button>
-        <span className="font-mono text-[13px] text-leise">DOKUMENT VERKNÜPFEN</span>
+        <h2 className="m-0 text-[17px] font-semibold">Dokument verknüpfen</h2>
       </div>
       <form
         noValidate
-        className="flex flex-1 flex-col gap-3.5 overflow-y-auto px-5 pb-6"
+        className="flex min-h-0 flex-1 flex-col"
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
-        {/* Ziel der Verknüpfung: vorbelegt aus dem aufrufenden Screen, änderbar */}
-        <button
-          type="button"
-          data-wf={wf}
-          onClick={() => setTargetsOpen(!targetsOpen)}
-          aria-expanded={targetsOpen}
-          className="flex min-h-[60px] items-center gap-3 rounded-[14px] border border-linie bg-flaeche px-3.5 py-2.5 text-left text-text"
-        >
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="label-mono">{target ? `Verknüpfen mit · ${target.kind}` : 'Nur erfassen'}</span>
-            <span className="text-[15px] font-medium">
-              {target ? target.name : 'Ohne Verknüpfung – erscheint unter Wissen › Dokumente'}
-            </span>
-          </span>
-          <span className="text-leise">▾</span>
-        </button>
-        {targetsOpen && (
-          <div className="flex flex-col gap-1.5 rounded-[14px] border border-rand bg-erhoeht p-2">
-            <input
-              type="search"
-              data-wf={wf}
-              aria-label="Ziel suchen"
-              placeholder="Aufgabe, Veranstaltung, Termin oder Entscheidung suchen …"
-              value={targetQuery}
-              onChange={(e) => setTargetQuery(e.target.value)}
-              className="h-11 rounded-xl border border-rand bg-grund px-3.5 text-[14px] text-text"
-            />
-            {[...(preset ? [preset] : []), ...targetHits.filter((t) => t.id !== preset?.id)]
-              .slice(0, 6)
-              .map((t) => (
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pt-4 pb-6">
+          {/* Ziel der Verknüpfung: vorbelegt aus dem aufrufenden Screen, änderbar */}
+          {choosingTarget ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="label-mono">Verknüpfen mit</span>
                 <button
-                  key={`${t.type}:${t.id}`}
                   type="button"
-                  data-wf={wf}
-                  aria-pressed={target?.id === t.id}
-                  onClick={() => {
-                    setTarget(t);
-                    setTargetsOpen(false);
-                  }}
-                  className="flex min-h-11 flex-col justify-center rounded-lg px-2.5 py-1 text-left text-text"
+                  onClick={() => setChoosingTarget(false)}
+                  className="hit h-8 text-[13px] text-violett"
                 >
-                  <span className="label-mono">{t.kind}</span>
-                  <span className="text-[14px]">{t.name}</span>
+                  Fertig
                 </button>
-              ))}
+              </div>
+              <TargetPicker
+                wf={wf}
+                query={targetQuery}
+                onQuery={setTargetQuery}
+                selected={target}
+                pinned={preset}
+                allowNone
+                autoFocus
+                onPick={(t) => {
+                  setTarget(t);
+                  setChoosingTarget(false);
+                }}
+              />
+            </div>
+          ) : (
             <button
               type="button"
               data-wf={wf}
-              aria-pressed={!target}
-              onClick={() => {
-                setTarget(null);
-                setTargetsOpen(false);
-              }}
-              className="flex min-h-11 flex-col justify-center rounded-lg px-2.5 py-1 text-left text-text"
+              onClick={() => setChoosingTarget(true)}
+              className="flex min-h-[58px] items-center gap-3 rounded-2xl border border-linie bg-flaeche py-2 pr-3 pl-3.5 text-left text-text"
             >
-              <span className="label-mono">Nur erfassen</span>
-              <span className="text-[14px]">Ohne Verknüpfung</span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="label-mono">
+                  {target ? `Verknüpfen mit · ${target.kind}` : 'Nur erfassen'}
+                </span>
+                <span className="truncate text-[15px] font-medium">
+                  {target ? target.name : 'Ohne Verknüpfung'}
+                </span>
+              </span>
+              <span className="flex-none text-[13px] text-violett">Ändern</span>
             </button>
-          </div>
-        )}
+          )}
 
-        <Segmented
-          label="Herkunft"
-          wf={wf}
-          value={tab}
-          onChange={setTab}
-          options={[
-            ['link', 'Per Link'],
-            ['known', 'Erfasste'],
-            ['drive', 'Aus Drive'],
-          ]}
-        />
+          <Segmented
+            label="Herkunft"
+            wf={wf}
+            value={tab}
+            onChange={(t) => {
+              setTab(t);
+              setError(null);
+            }}
+            options={[
+              ['drive', 'Aus Drive'],
+              ['known', 'Erfasste'],
+              ['link', 'Per Link'],
+            ]}
+          />
 
-        {tab === 'drive' ? (
-          <>
-            <DriveBrowser
-              wf="WF-WIS-09"
-              mode="pick-file"
-              folderId={driveFolder}
-              onFolder={setDriveFolder}
-              query={driveQuery}
-              onQuery={setDriveQuery}
-              selected={file?.file_id ?? null}
-              onSelect={(e) => setFile(file?.file_id === e.file_id ? null : e)}
-            />
-            {/* ein schon erfasstes Dokument behält seinen Typ; neue bekommen ihn hier */}
-            {file && !file.document_id && (
-              <div className="flex flex-col gap-2">
-                <span className="label-mono">Typ des neuen Eintrags</span>
-                <div role="group" aria-label="Typ" className="flex flex-wrap gap-2">
-                  {DOC_TYPES.map((t) => (
-                    <Pill
-                      key={t}
-                      size="sm"
-                      data-wf="WF-WIS-09"
-                      on={fileType === t}
-                      onClick={() => setFileType(t)}
-                    >
-                      {DOC_TYPE_LABEL[t]}
-                    </Pill>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        ) : tab === 'link' ? (
-          <>
-            <label className="label-mono flex flex-col gap-1.5">
-              Link *
-              <input
-                type="url"
-                data-wf={wf}
-                autoFocus
-                value={url}
-                placeholder="https://"
-                onChange={(e) => {
-                  setUrl(e.target.value);
-                  setError(null);
-                }}
-                className={field}
+          {tab === 'drive' ? (
+            <>
+              <DriveBrowser
+                wf="WF-WIS-09"
+                mode="pick-file"
+                folderId={driveFolder}
+                onFolder={setDriveFolder}
+                query={driveQuery}
+                onQuery={setDriveQuery}
+                selected={file?.file_id ?? null}
+                onSelect={(e) => setFile(file?.file_id === e.file_id ? null : e)}
               />
-            </label>
-            <span className="-mt-2 text-[12px] text-leise">Drive oder jede andere Adresse.</span>
-            <label className="label-mono flex flex-col gap-1.5">
-              Titel *
-              <input
-                type="text"
-                data-wf={wf}
-                value={title}
-                maxLength={200}
-                onChange={(e) => setTitle(e.target.value)}
-                className={field}
-              />
-            </label>
-            <div className="flex flex-col gap-2">
-              <span className={cx('label-mono', !docType && 'text-bernstein')}>Typ *</span>
-              <div role="group" aria-label="Typ" className="flex flex-wrap gap-2">
-                {DOC_TYPES.map((t) => (
-                  <Pill
-                    key={t}
-                    size="sm"
-                    data-wf={wf}
-                    on={docType === t}
-                    onClick={() => setDocType(docType === t ? null : t)}
-                  >
-                    {DOC_TYPE_LABEL[t]}
-                  </Pill>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              <TopicSelect value={topicId} onChange={setTopicId} wf={wf} label="Thema" />
-              <label className="label-mono flex min-w-0 flex-col gap-1.5">
-                Tags
+              {/* ein schon erfasstes Dokument behält seinen Typ; neue bekommen ihn hier */}
+              {file && !file.document_id && (
+                <TypePills value={fileType} onChange={(t) => t && setFileType(t)} wf="WF-WIS-09" />
+              )}
+            </>
+          ) : tab === 'link' ? (
+            <>
+              <label className="label-mono flex flex-col gap-1.5">
+                Link *
+                <input
+                  type="url"
+                  data-wf={wf}
+                  value={url}
+                  placeholder="https://"
+                  onChange={(e) => {
+                    setUrl(e.target.value);
+                    setError(null);
+                  }}
+                  className={field}
+                />
+              </label>
+              <span className="-mt-2.5 text-[12px] text-leise">Drive oder jede andere Adresse.</span>
+              <label className="label-mono flex flex-col gap-1.5">
+                Titel *
                 <input
                   type="text"
                   data-wf={wf}
-                  value={tags}
-                  placeholder="mit Komma"
-                  onChange={(e) => setTags(e.target.value)}
-                  className={cx(field, 'min-w-0 text-[15px]')}
+                  value={title}
+                  maxLength={200}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className={field}
                 />
               </label>
-            </div>
-          </>
-        ) : (
-          <>
-            <input
-              type="search"
-              data-wf={wf}
-              aria-label="Erfasste Dokumente durchsuchen"
-              placeholder="Erfasste Dokumente durchsuchen …"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="h-11 rounded-xl border border-rand bg-grund px-3.5 text-[14px] text-text"
-            />
-            <div className="flex flex-col overflow-hidden rounded-2xl border border-linie">
-              {knownShown.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={picked === d.id}
-                  data-wf={wf}
-                  onClick={() => setPicked(picked === d.id ? null : d.id)}
-                  className={cx(
-                    'flex min-h-[56px] items-center gap-3 border-b border-erhoeht px-3.5 py-2 text-left text-text last:border-b-0',
-                    picked === d.id ? 'bg-erhoeht' : 'bg-flaeche',
-                  )}
+              <TypePills value={docType} onChange={setDocType} wf={wf} required />
+              <div className="grid grid-cols-2 gap-2.5">
+                <TopicSelect value={topicId} onChange={setTopicId} wf={wf} label="Thema" />
+                <label className="label-mono flex min-w-0 flex-col gap-1.5">
+                  Tags
+                  <input
+                    type="text"
+                    data-wf={wf}
+                    value={tags}
+                    placeholder="mit Komma"
+                    onChange={(e) => setTags(e.target.value)}
+                    className={cx(field, 'min-w-0 text-[15px]')}
+                  />
+                </label>
+              </div>
+            </>
+          ) : (
+            <>
+              <SearchField
+                wf={wf}
+                label="Erfasste Dokumente durchsuchen"
+                placeholder="Erfasste Dokumente durchsuchen …"
+                value={query}
+                onChange={setQuery}
+              />
+              {knownShown.length > 0 ? (
+                <ChoiceList label="Erfasste Dokumente">
+                  {knownShown.map((d) => (
+                    <ChoiceRow
+                      key={d.id}
+                      wf={wf}
+                      icon={<IconFile className="flex-none text-leise" />}
+                      title={d.title}
+                      meta={`${DOC_TYPE_LABEL[d.doc_type]} · ${d.link_summary}`}
+                      extra={
+                        d.drive_missing && (
+                          <span className="font-mono text-[11px] text-bernstein uppercase">
+                            In Drive nicht mehr vorhanden
+                          </span>
+                        )
+                      }
+                      selected={picked === d.id}
+                      onClick={() => setPicked(picked === d.id ? null : d.id)}
+                    />
+                  ))}
+                </ChoiceList>
+              ) : (
+                <span
+                  data-wf="WF-ALL-05"
+                  className="rounded-2xl border border-linie bg-flaeche p-4 text-[14px] text-leise"
                 >
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="text-[15px] font-medium">{d.title}</span>
-                    <span className="label-mono">
-                      {DOC_TYPE_LABEL[d.doc_type]} · {d.link_summary}
-                    </span>
-                    {d.drive_missing && (
-                      <span className="font-mono text-[11px] text-bernstein uppercase">
-                        In Drive nicht mehr vorhanden
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-gruen">{picked === d.id ? '✓' : ''}</span>
-                </button>
-              ))}
-              {knownShown.length === 0 && (
-                <span data-wf="WF-ALL-05" className="bg-flaeche p-4 text-[14px] text-leise">
                   {q ? 'Kein passendes Dokument.' : 'Noch kein Dokument erfasst.'}
                 </span>
               )}
-            </div>
-          </>
-        )}
-        <FieldError>{error}</FieldError>
-        <span className="flex-1" />
-        <span className={cx('text-[13px] leading-[1.4]', ready ? 'text-leise' : 'text-bernstein')}>
-          {hint}
-        </span>
-        <LightButton type="submit" data-wf={wf} disabled={!ready || saving || (tab === 'known' && !target)}>
-          {tab === 'known' && !target && ready
-            ? 'Ziel wählen, dann verknüpfen'
-            : target
-              ? 'Verknüpfen'
-              : 'Erfassen'}
-        </LightButton>
+            </>
+          )}
+          <FieldError>{error}</FieldError>
+        </div>
+        {/* Aktion unten fest – auch bei langen Drive-Listen sichtbar */}
+        <div className="flex flex-none flex-col gap-2 border-t border-linie bg-nav px-5 pt-3 pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
+          <span
+            className={cx(
+              'text-[13px] leading-[1.4]',
+              ready && !needsTarget ? 'text-leise' : 'text-bernstein',
+            )}
+          >
+            {hint}
+          </span>
+          <LightButton type="submit" data-wf={wf} disabled={!ready || needsTarget || saving}>
+            {target ? 'Verknüpfen' : 'Erfassen'}
+          </LightButton>
+        </div>
       </form>
     </div>
   );

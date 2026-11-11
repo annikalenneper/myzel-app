@@ -215,3 +215,109 @@ export function LoadError({ message, onRetry }: { message: string; onRetry: () =
     </div>
   );
 }
+
+/** Suchfeld in Listen und Auswahl-Dialogen – überall gleich (Phase 14) */
+export function SearchField({
+  label,
+  placeholder,
+  value,
+  onChange,
+  wf,
+  autoFocus,
+  className,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  wf?: string;
+  autoFocus?: boolean;
+  className?: string;
+}) {
+  return (
+    <input
+      type="search"
+      data-wf={wf}
+      aria-label={label}
+      placeholder={placeholder}
+      value={value}
+      autoFocus={autoFocus}
+      onChange={(e) => onChange(e.target.value)}
+      className={cx(
+        'h-11 min-w-0 rounded-[22px] border border-rand bg-flaeche px-4 text-[15px] text-text',
+        className,
+      )}
+    />
+  );
+}
+
+/** Auswahl-Markierung rechts in einer Liste: leerer Kreis, gewählt gefüllt mit Häkchen (Phase 14) */
+export function SelectMark({ selected }: { selected: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cx(
+        'flex size-6 flex-none items-center justify-center rounded-full border text-[13px] font-bold',
+        selected ? 'border-violett bg-violett text-grund' : 'border-rand-stark',
+      )}
+    >
+      {selected ? '✓' : ''}
+    </span>
+  );
+}
+
+/** Zeile einer Auswahlliste: Symbol, Überzeile, Titel, Zusatz und Markierung – in einer gerahmten Liste (ChoiceList) */
+export function ChoiceRow({
+  selected,
+  onClick,
+  wf,
+  icon,
+  kicker,
+  title,
+  meta,
+  extra,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  wf?: string;
+  icon?: ReactNode;
+  kicker?: string;
+  title: string;
+  meta?: string;
+  extra?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      data-wf={wf}
+      onClick={onClick}
+      className={cx(
+        'flex min-h-[58px] w-full items-center gap-3 border-b border-erhoeht py-1.5 pr-3 pl-3.5 text-left text-text last:border-b-0',
+        selected ? 'bg-erhoeht' : 'bg-flaeche',
+      )}
+    >
+      {icon}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {kicker && <span className="label-mono">{kicker}</span>}
+        <span className="truncate text-[15px] font-medium">{title}</span>
+        {meta && <span className="label-mono">{meta}</span>}
+        {extra}
+      </span>
+      <SelectMark selected={selected} />
+    </button>
+  );
+}
+
+export function ChoiceList({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="flex flex-col overflow-hidden rounded-2xl border border-linie"
+    >
+      {children}
+    </div>
+  );
+}

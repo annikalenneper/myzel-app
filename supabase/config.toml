@@ -245,6 +245,11 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Anmelde-Mail mit Link und Code (Phase 14) – im gehosteten Projekt dieselbe Vorlage im Dashboard eintragen
+[auth.email.template.magic_link]
+subject = "Deine Anmeldung bei Myzel"
+content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"

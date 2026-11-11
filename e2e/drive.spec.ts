@@ -83,7 +83,10 @@ test('WF-WIS-09: Datei aus dem Verzeichnis mit einer Aufgabe verknüpfen – der
     .first()
     .click();
   await screen.getByLabel('Ziel suchen').fill('Brauerei');
-  await screen.getByRole('button', { name: /Getränke bei der Brauerei bestellen/ }).click();
+  await screen.getByRole('radio', { name: /Getränke bei der Brauerei bestellen/ }).click();
+  await expect(screen.getByRole('button', { name: /Verknüpfen mit · Aufgabe/i })).toContainText(
+    'Getränke bei der Brauerei bestellen',
+  );
   await screen.getByRole('button', { name: 'Verknüpfen', exact: true }).click();
   await expect(page.getByTestId('WF-ALL-02')).toContainText('Dokument verknüpft · Getränke bei der Brauerei');
 
@@ -109,7 +112,8 @@ test('WF-WIS-09: „Aus Drive“ in S-43 – Ordner durchgehen, erfasste Datei b
     .click();
   await page.getByTestId('WF-WIS-06').filter({ hasText: '+ Dokument verknüpfen' }).click();
   const screen = page.getByRole('dialog', { name: 'Dokument verknüpfen' });
-  await screen.getByRole('button', { name: 'Aus Drive' }).click();
+  // Phase 14: „Aus Drive“ ist vorausgewählt
+  await expect(screen.getByRole('button', { name: 'Aus Drive' })).toHaveAttribute('aria-pressed', 'true');
   await screen.getByRole('button', { name: /^Veranstaltungen/ }).click();
   await screen.getByRole('button', { name: /^2026-12 Winterrave/ }).click();
   await screen.getByRole('button', { name: /^Flyer & Social/ }).click();

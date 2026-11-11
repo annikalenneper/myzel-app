@@ -39,6 +39,26 @@ test('WF-LOG-02: Mail-Link zeigt immer dieselbe Meldung und meldet über den Lin
   await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
 });
 
+test('WF-LOG-02: mit dem Code aus der Mail anmelden (App auf dem Home-Bildschirm)', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('E-Mail-Adresse').fill('jule@example.org');
+  await page.getByTestId('WF-LOG-02').click();
+  const code = page.getByRole('textbox', { name: /Code aus der Mail ein/ });
+  const submit = page.getByRole('button', { name: 'Mit Code anmelden' });
+  await expect(submit).toBeDisabled();
+  await code.fill('12');
+  await submit.click();
+  await expect(page.getByRole('alert')).toHaveText('Bitte den Code aus der Mail eingeben (nur Ziffern).');
+  const hint = await page.locator('[data-demo="magic-code"]').textContent();
+  const right = hint!.match(/\d{6}/)![0];
+  await code.fill(right === '999999' ? '111111' : '999999');
+  await submit.click();
+  await expect(page.getByRole('alert')).toContainText('Der Code stimmt nicht');
+  await code.fill(right);
+  await submit.click();
+  await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
+});
+
 test('WF-LOG-03: Abmelden beendet die Sitzung', async ({ page }) => {
   await login(page);
   await page.getByRole('link', { name: 'Profil' }).last().click();

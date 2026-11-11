@@ -214,6 +214,7 @@ export function notificationSettings(ctx: Ctx, deviceId: string): NotificationSe
     .at(-1);
   return {
     push: db.push_subscriptions.some((s) => s.member_id === ctx.actor.id && s.endpoint === deviceId),
+    push_devices: db.push_subscriptions.filter((s) => s.member_id === ctx.actor.id).length,
     telegram: db.telegram_links.some((l) => l.member_id === ctx.actor.id)
       ? 'verbunden'
       : code
@@ -300,6 +301,12 @@ export function setPush(ctx: Ctx, deviceId: string, on: boolean): void {
       endpoint: deviceId,
       created_at: ctx.now.toISOString(),
     });
+}
+
+/** WF-PRO-02 (Phase 14): Push auf allen Geräten der Person aus */
+export function removeAllPushSubscriptions(ctx: Ctx): void {
+  ctx.db.push_subscriptions = ctx.db.push_subscriptions.filter((s) => s.member_id !== ctx.actor.id);
+  dropWaiting(ctx.db, ctx.actor.id, 'push');
 }
 
 /** WF-PRO-03: Einmal-Code, 15 Minuten gültig, einmal verwendbar */

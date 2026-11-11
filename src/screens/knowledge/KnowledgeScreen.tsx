@@ -138,7 +138,7 @@ function KnowledgeList({
           <BellButton />
         </div>
         <h1 className="m-0 text-[32px] leading-[1.15] font-bold tracking-[-1px]">Wissen</h1>
-        <div role="tablist" className="grid grid-cols-4 gap-1 rounded-xl border border-linie bg-flaeche p-1">
+        <div role="tablist" className="flex gap-1 rounded-xl border border-linie bg-flaeche p-1">
           {TABS.map(([key, label]) => (
             <button
               key={key}
@@ -147,7 +147,7 @@ function KnowledgeList({
               aria-selected={tab === key}
               onClick={() => setTab(key)}
               className={cx(
-                'hit h-10 rounded-lg text-[14px]',
+                'hit h-10 flex-auto rounded-lg px-1.5 text-[13px] whitespace-nowrap min-[400px]:text-[14px]',
                 tab === key ? 'bg-text font-semibold text-grund' : 'text-weich',
               )}
             >

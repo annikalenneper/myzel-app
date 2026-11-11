@@ -9,7 +9,7 @@ import type { DriveEntry } from '../../data/api';
 import { formatAgo, formatDayMonth } from '../../shared/format';
 import { DRIVE_KIND_LABEL, type DriveKind } from '../../shared/rules/drive';
 import { daysUntil, toIsoDate } from '../../shared/rules/due';
-import { cx, ListSkeleton, LoadError } from '../../ui/bits';
+import { cx, ListSkeleton, LoadError, Pill, SearchField, SelectMark } from '../../ui/bits';
 import { IconFile, IconFolder, IconLink } from '../../ui/icons';
 
 /** Farbe je Dateiart wie im Prototyp: Tabellen grün, Dokumente blau, PDFs rot */
@@ -141,28 +141,18 @@ export function DriveBrowser({
         </nav>
       )}
       <div className="flex gap-2">
-        <input
-          type="search"
-          data-wf={wf}
-          aria-label="Im Drive suchen"
+        <SearchField
+          wf={wf}
+          label="Im Drive suchen"
           placeholder="Im Drive suchen …"
           value={query}
-          onChange={(e) => onQuery(e.target.value)}
-          className="h-11 min-w-0 flex-1 rounded-[22px] border border-rand bg-flaeche px-4 text-[15px] text-text"
+          onChange={onQuery}
+          className="flex-1"
         />
         {mode !== 'pick-folder' && (
-          <button
-            type="button"
-            data-wf={wf}
-            aria-pressed={recent}
-            onClick={() => setRecent(!recent)}
-            className={cx(
-              'hit h-11 flex-none rounded-[22px] border px-3.5 font-mono text-[11px]',
-              recent ? 'border-text bg-text text-grund' : 'border-rand text-weich',
-            )}
-          >
-            ZULETZT
-          </button>
+          <Pill data-wf={wf} on={recent} onClick={() => setRecent(!recent)} className="h-11">
+            Zuletzt
+          </Pill>
         )}
       </div>
       {flat && (
@@ -306,7 +296,16 @@ function DriveRow({
           {e.link_summary}
         </span>
       )}
-      {mode === 'pick-file' && selected && <span className="flex-none px-2 text-gruen">✓</span>}
+      {e.kind === 'ordner' && (
+        <span aria-hidden="true" className="flex-none px-2 text-[18px] text-leise">
+          ›
+        </span>
+      )}
+      {mode === 'pick-file' && e.kind !== 'ordner' && (
+        <span className="flex-none px-1.5">
+          <SelectMark selected={selected} />
+        </span>
+      )}
       {onLink && e.kind !== 'ordner' && (
         <button
           type="button"

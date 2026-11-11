@@ -161,6 +161,7 @@ test('WF-WIS-06 / WF-AUF-13: Dokument per Link erfassen und mit einer Aufgabe ve
   await expect(screen).toContainText(/Verknüpfen mit · Aufgabe/i);
   const submit = screen.locator('button[type=submit]');
   await expect(submit).toBeDisabled();
+  await screen.getByRole('button', { name: 'Per Link' }).click();
   await screen.getByLabel('Link *').fill('kein-link');
   await screen.getByLabel('Titel *').fill('Angebot Brauerei');
   await screen.getByRole('button', { name: 'Sonstiges' }).click();
@@ -313,7 +314,7 @@ test('WF-WIS-14 / -15: Dokument im Drei-Punkte-Menü zuordnen und Kategorie änd
   const assign = page.getByRole('dialog', { name: 'Zuordnen: Hausordnung Lager' });
   await assign.getByLabel('Ziel suchen').fill('Winterrave');
   await assign
-    .getByRole('button', { name: /Veranstaltung\s*Winterrave/ })
+    .getByRole('radio', { name: /Veranstaltung\s*Winterrave/ })
     .first()
     .click();
   await expect(page.getByText('Dokument verknüpft · Winterrave').first()).toBeVisible();

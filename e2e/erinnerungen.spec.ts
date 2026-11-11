@@ -17,6 +17,27 @@ test('WF-PRO-02: Push für dieses Gerät an und aus, mit Erklärung davor', asyn
   await expect(push).toContainText('Aus · Einschalten');
 });
 
+test('WF-PRO-02: Push auf anderen Geräten sehen und überall ausschalten', async ({ page }) => {
+  await login(page);
+  await page.goto('/profil');
+  const push = page.getByRole('button', { name: /Push · dieses Gerät/ });
+  await expect(push).toContainText('Aus · Einschalten');
+  await expect(page.getByText(/Push ist auf/)).toHaveCount(0);
+  // ein alter Browser hat noch ein Abo – dorthin geht weiter Push, obwohl dieses Gerät „Aus“ zeigt
+  await page.locator('[data-demo="push-other-device"]').click();
+  await expect(
+    page.getByText('Push ist auf einem anderen Gerät aktiv – dorthin kommen weiter Nachrichten.'),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Neuer Kommentar per Push' })).toBeEnabled();
+  await push.click();
+  await expect(page.getByText('Push ist außerdem auf einem weiteren Gerät aktiv.')).toBeVisible();
+  await page.getByRole('button', { name: 'Push überall ausschalten' }).click();
+  await expect(page.getByTestId('WF-ALL-02')).toContainText('Push ist auf allen Geräten aus');
+  await expect(push).toContainText('Aus · Einschalten');
+  await expect(page.getByText(/Push ist (auf einem|auf \d|außerdem)/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Neuer Kommentar per Push' })).toBeDisabled();
+});
+
 test('WF-PRO-03: Telegram trennen und über den Einmal-Code neu verknüpfen', async ({ page }) => {
   await login(page);
   await page.goto('/profil');

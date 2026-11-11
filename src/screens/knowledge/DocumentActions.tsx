@@ -2,20 +2,13 @@
 // (WF-WIS-15) und „Löschen“ (WF-ALL-09) – Verbesserungen, Nutzerin 31.10.2026.
 import { useState } from 'react';
 import { useActions } from '../../app/useActions';
-import { useData } from '../../app/useData';
 import { api } from '../../data';
-import type { DocumentListItem, SearchGroupKey } from '../../data/api';
+import type { DocumentListItem } from '../../data/api';
 import { DOC_TYPE_LABEL } from '../../shared/rules/knowledge';
-import { DOC_TYPES, type DocumentLinkTarget } from '../../shared/schema';
+import { DOC_TYPES } from '../../shared/schema';
 import { Sheet } from '../../ui/Sheet';
 import { DeleteAction, useDeleteArtifact } from '../common/DeleteAction';
-
-const GROUP_TARGET: Partial<Record<SearchGroupKey, [DocumentLinkTarget, string]>> = {
-  aufgaben: ['task', 'Aufgabe'],
-  events: ['event', 'Veranstaltung'],
-  termine: ['appointment', 'Termin'],
-  beschluesse: ['decision', 'Entscheidung'],
-};
+import { TargetPicker } from './TargetPicker';
 
 export function DocumentMenu({ doc }: { doc: DocumentListItem }) {
   const remove = useDeleteArtifact('document', doc.id, () => doc.version, null);
@@ -41,50 +34,27 @@ export function DocumentMenu({ doc }: { doc: DocumentListItem }) {
 function AssignSheet({ doc, onClose }: { doc: DocumentListItem; onClose: () => void }) {
   const act = useActions();
   const [query, setQuery] = useState('');
-  const term = query.trim();
-  const { data: hits } = useData(`ziel-suche:${term}`, () => api.search(term));
-  const targets = (hits ?? []).flatMap((g) => {
-    const map = GROUP_TARGET[g.key];
-    return map ? g.items.map((i) => ({ type: map[0], kind: map[1], id: i.id, name: i.title })) : [];
-  });
   return (
     <Sheet title={`Zuordnen: ${doc.title}`} onClose={onClose} wf="WF-WIS-14" closeButton>
       <span className="text-[14px] leading-normal text-weich">
         Verknüpft das Dokument mit einer Aufgabe, Veranstaltung, einem Termin oder einer Entscheidung. Jetzt:{' '}
         {doc.link_summary}.
       </span>
-      <input
-        type="search"
+      <TargetPicker
+        wf="WF-WIS-14"
+        query={query}
+        onQuery={setQuery}
+        selected={null}
+        limit={12}
         autoFocus
-        aria-label="Ziel suchen"
-        placeholder="Aufgabe, Event, Termin, Entscheidung suchen …"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="h-11 rounded-xl border border-rand bg-grund px-3.5 text-[14px] text-text"
+        onPick={(t) => {
+          if (!t) return;
+          onClose();
+          void act(() => api.linkDocument(doc.id, t.type, t.id), {
+            success: `Dokument verknüpft · ${t.name}`,
+          });
+        }}
       />
-      <div className="flex flex-col gap-1.5">
-        {term &&
-          targets.slice(0, 12).map((t) => (
-            <button
-              key={`${t.type}:${t.id}`}
-              type="button"
-              data-wf="WF-WIS-14"
-              onClick={() => {
-                onClose();
-                void act(() => api.linkDocument(doc.id, t.type, t.id), {
-                  success: `Dokument verknüpft · ${t.name}`,
-                });
-              }}
-              className="flex min-h-11 flex-col items-start justify-center rounded-xl border border-linie bg-grund px-3 py-1.5 text-left"
-            >
-              <span className="label-mono">{t.kind}</span>
-              <span className="text-[15px] text-text">{t.name}</span>
-            </button>
-          ))}
-        {term && hits && targets.length === 0 && (
-          <span className="text-[14px] text-leise">Nichts gefunden.</span>
-        )}
-      </div>
     </Sheet>
   );
 }

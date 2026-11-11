@@ -43,6 +43,9 @@
     font-family: var(--font-sans);
     -webkit-tap-highlight-color: transparent;
     color-scheme: dark;
+    /* iOS (Phase 14): kein Gummiband am Seitenrand – in der App vom Home-Bildschirm zieht es sonst die untere
+       Navigation mit */
+    overscroll-behavior: none;
   }
   body {
     margin: 0;
@@ -52,6 +55,7 @@
     /* lange Wörter ohne Leerzeichen sprengen kein Layout */
     overflow-wrap: anywhere;
     min-height: 100dvh;
+    overscroll-behavior: none;
   }
   button,
   a,

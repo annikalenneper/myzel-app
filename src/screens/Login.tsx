@@ -15,6 +15,8 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [chooser, setChooser] = useState(false);
   const demo = api.demo;
 
@@ -35,7 +37,17 @@ export function Login() {
     const ok = await run(() => api.requestMagicLink(email).then(() => true), {
       onInvalid: (e) => setError(e.message),
     });
-    if (ok) setSent(true);
+    if (ok) {
+      setCode('');
+      setCodeError(null);
+      setSent(true);
+    }
+  };
+
+  // Phase 14: Code aus der Mail – die App auf dem iPhone-Home-Bildschirm bekommt den Link nie selbst
+  const signInWithCode = async () => {
+    setCodeError(null);
+    await run(() => api.verifyEmailCode(email, code), { onInvalid: (e) => setCodeError(e.message) });
   };
 
   return (
@@ -132,6 +144,46 @@ export function Login() {
               <span className="text-[15px] leading-normal text-weich">
                 Wenn die Adresse bekannt ist, kommt gleich ein Link. Schau auch im Spam-Ordner nach.
               </span>
+              <form
+                className="flex flex-col gap-2.5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (code.trim()) void signInWithCode();
+                }}
+              >
+                <label htmlFor="code" className="text-[13px] leading-normal text-leise">
+                  Myzel liegt auf dem Home-Bildschirm? Dann öffnet der Link den Browser. Gib stattdessen hier
+                  den Code aus der Mail ein:
+                </label>
+                <input
+                  id="code"
+                  data-wf="WF-LOG-02"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="Code aus der Mail"
+                  maxLength={12}
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    setCodeError(null);
+                  }}
+                  className="h-[50px] rounded-[25px] border border-rand bg-grund px-[18px] text-center font-mono text-[20px] tracking-[4px] text-text placeholder:font-sans placeholder:text-[15px] placeholder:tracking-normal"
+                />
+                <FieldError>{codeError}</FieldError>
+                <button
+                  type="submit"
+                  data-wf="WF-LOG-02"
+                  disabled={!code.trim()}
+                  className="h-[50px] rounded-[25px] bg-text text-[15px] font-semibold text-grund disabled:bg-erhoeht disabled:text-leise"
+                >
+                  Mit Code anmelden
+                </button>
+              </form>
+              {demo?.pendingMagicCode() && (
+                <span data-demo="magic-code" className="font-mono text-[12px] text-leise">
+                  Testdaten: Der Code in der Mail ist {demo.pendingMagicCode()}
+                </span>
+              )}
               {demo && (
                 <button
                   type="button"

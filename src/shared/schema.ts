@@ -696,6 +696,14 @@ export const emailInputSchema = z
   .toLowerCase()
   .pipe(z.email('Bitte eine gültige Mail-Adresse eingeben.'));
 
+/** Code aus der Anmelde-Mail (Phase 14): Supabase schickt 6 bis 10 Ziffern */
+export const emailCodeSchema = z
+  .string()
+  .transform((v) => v.replace(/\s/g, ''))
+  .pipe(z.string().regex(/^\d{6,10}$/, 'Bitte den Code aus der Mail eingeben (nur Ziffern).'));
+export const WRONG_EMAIL_CODE =
+  'Der Code stimmt nicht oder ist abgelaufen. Fordere bei Bedarf eine neue Mail an.';
+
 const memberFields = {
   display_name: displayNameSchema,
   short: z
