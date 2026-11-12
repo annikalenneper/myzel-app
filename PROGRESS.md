@@ -216,8 +216,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
         vor dem Versand geht nichts raus. Mehrere Kommentare: der letzte mit „(+n weitere)“. Glocke: Ungesehenes eines
         Bündels als ein Eintrag. Outbox-Status „ersetzt“ für zusammengefasste Nachrichten
   - [x] Nebenbei: Serien-Test erwartete „entfall…“ auch im Singular („entfällt“) – schlug je nach Datum fehl
-  - [ ] Vorschlag für ANFORDERUNGEN 16.9 (nur mit Freigabe der Nutzerin): Anmeldung mit Code; Push-Geräte; Bündeln und
-        Ruhezeit 10 Minuten
+  - [x] ANFORDERUNGEN 16.9 übernommen (Nutzerin, 12.11.2026)
 - [ ] **Phase 11 – Archiv im Profil (geplant, F4; noch nicht umsetzen)**
   - [ ] Profil › „Archiv“: alles Gelöschte an einem Ort, gruppiert nach Art (Aufgaben, Veranstaltungen, Termine,
         Entscheidungen & Fakten, Fragen, Dokumente, Partner), zuletzt Gelöschtes zuerst, mit „gelöscht von … am …“

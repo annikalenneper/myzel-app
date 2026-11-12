@@ -11,6 +11,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.13.0',
+    date: '2026-11-12',
+    items: [
+      'Feat: Anmeldung mit dem Code aus der Mail – für die App auf dem iPhone-Home-Bildschirm',
+      'Feat: Weniger Benachrichtigungen – Änderungen am selben Termin oder an derselben Aufgabe kommen gebündelt',
+      'Feat: „Push überall ausschalten“, wenn Push noch auf einem anderen Gerät aktiv ist',
+      'Fix: Push-Schalter im Profil sind grau, solange Push nirgends eingeschaltet ist',
+      'Fix: Dokumente verknüpfen sieht überall gleich aus, „Aus Drive“ steht vorn',
+      'Fix: Untere Navigation scrollt in der iPhone-App nicht mehr mit',
+    ],
+  },
+  {
     version: '0.12.0',
     date: '2026-11-01',
     items: [
