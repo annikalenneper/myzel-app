@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Version 0.12.0 live seit 01.11.2026. Phase 14 (Bugs und Verbesserungen 11.11.2026) lokal fertig, Migration 20261111000001 noch nicht eingespielt – Deploy nach Freigabe. Danach: Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Version 0.13.0 live seit 12.11.2026 (Phase 14: Bugs und Verbesserungen 11.11.2026; Migration 20261111000001 eingespielt, Integritätsprüfung ok). Offen: Mail-Vorlagen in Supabase um den Code ergänzen (U32), Frage F6. Als Nächstes: Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
@@ -192,8 +192,7 @@ Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Je
   - [x] Glocke: Benachrichtigungseinträge seit dem letzten Besuch – in den Kopfzeilen von Agenda, Events, Termine,
         Wissen; Zahl der neuen, Liste der letzten 50 mit Link (WF-ALL-10, Tabellen `inbox_entries`, `inbox_seen`, U30)
   - [x] Dokumente: im Drei-Punkte-Menü „Zuordnen“ (WF-WIS-14) und „Kategorie“ (WF-WIS-15) neben „Löschen“ (U31)
-- [x] **Phase 14 – Bugs und Verbesserungen (Nutzerin, 11.11.2026)** (Migration 20261111000001; lokal, Deploy erst nach
-      Freigabe):
+- [x] **Phase 14 – Bugs und Verbesserungen (Nutzerin, 11.11.2026, live mit 0.13.0)** (Migration 20261111000001):
   - [x] Bug: Anmeldung per Mail in der App vom iPhone-Home-Bildschirm – iOS öffnet Links aus Mails immer im Browser, der
         eine eigene Anmeldung hat. Jetzt zusätzlich „Code aus der Mail“ auf der Anmeldeseite (Supabase verifyOtp). **Vor dem
         Deploy im Supabase-Dashboard** (Authentication › Email Templates) die Vorlagen „Magic Link“ und „Confirm signup“
