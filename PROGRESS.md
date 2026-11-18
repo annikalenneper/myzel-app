@@ -5,7 +5,7 @@ Verlauf (P1 bis P5, live seit 25.10.2026) steht in der Git-Historie (PROGRESS.md
 
 ## Status
 
-**Aktuell: Version 0.14.0 live seit 18.11.2026 (Phase 15: Ruhe und Zusammenfassung, F6; Migration 20261112000001 eingespielt, `check` und `test:db` grün – ein Lauf von `test:db` hatte einen einzelnen roten Test in preferences.test.ts, drei Wiederholungen grün –, Integritätsprüfung ok). Mitglied Eti am 18.11.2026 aus der Mitgliederliste importiert. Arbeitsauftrag „Checks in Stufen und Branch `dev`“ notiert (unten, nach Phase 11). Offen: Mail-Vorlagen in Supabase um den Code ergänzen (U32). Danach: Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
+**Aktuell: Version 0.14.0 live seit 18.11.2026 (Phase 15: Ruhe und Zusammenfassung, F6; Migration 20261112000001 eingespielt, `check` und `test:db` grün – ein Lauf von `test:db` hatte einen einzelnen roten Test in preferences.test.ts, drei Wiederholungen grün –, Integritätsprüfung ok). Neues Mitglied am 18.11.2026 aus der Mitgliederliste importiert. Arbeitsauftrag „Checks in Stufen und Branch `dev`“ notiert (unten, nach Phase 11). Offen: Mail-Vorlagen in Supabase um den Code ergänzen (U32). Danach: Phase 11 (Archiv).** Ab Phase 2 arbeitet der Agent die Phasen ohne Zwischen-Feedback ab, mit
 eigenem Review und Tests nach jeder Phase (Nutzerin, 25.10.2026). Phasen mit Migrationen bleiben lokal, bis die
 Nutzerin den Deploy freigibt. Plan mit der Nutzerin abgestimmt am 25.10.2026. Jede Phase endet mit
 `npm run check`, Durchsicht der Nutzerin und Deploy.
