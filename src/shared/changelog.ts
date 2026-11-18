@@ -11,6 +11,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.14.0',
+    date: '2026-11-18',
+    items: [
+      'Feat: Nachtruhe von 22 bis 8 Uhr – was nachts anfällt, kommt morgens als eine Sammelnachricht',
+      'Feat: Tägliche Zusammenfassung – je Zeile in den Benachrichtigungs-Einstellungen wählbar, kommt um 8 Uhr',
+      'Fix: „Eigene Aktionen“ sind jetzt standardmäßig aus',
+      'Fix: Verschiebungen von Terminen in mehr als 4 Wochen erscheinen nur noch in der Glocke',
+    ],
+  },
+  {
     version: '0.13.0',
     date: '2026-11-12',
     items: [
