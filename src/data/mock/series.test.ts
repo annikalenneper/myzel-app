@@ -335,7 +335,11 @@ describe('Nachbesserungen aus dem Review (Phase 6)', () => {
     await login('mo');
     expect((await api.updateSeries(id, { ...(await fieldsOf(id)), start_time: '18:00' })).notified).toBe(1);
     await login('lea');
+    // Phase 15: der Termin liegt mehr als 4 Wochen voraus – die Änderung steht nur in der Glocke
     expect((await api.demo!.myMessages()).some((m) => m.text.startsWith('Treffen wurde geändert'))).toBe(
+      false,
+    );
+    expect((await api.listInbox()).entries.some((e) => e.text.startsWith('Treffen wurde geändert'))).toBe(
       true,
     );
     // 3 Wochen später liegt der 17.11. in der Einladungsfrist: Lea hat geantwortet, Mo hat die Serie angelegt

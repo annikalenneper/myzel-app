@@ -12,6 +12,10 @@ import {
   ownActionMessage,
   MAX_SEND_ATTEMPTS,
   NOTIFICATION_GROUPS,
+  digestText,
+  isNight,
+  nextMorning,
+  nightExempt,
   resolveBundle,
   sendAfter,
   type Message,
@@ -66,6 +70,19 @@ export function enqueue(
         invite_text: m.invite_text ?? null,
       });
     }
+    // Phase 15: nur für die Glocke – eine noch wartende Einladung bekommt aber den neuen Stand
+    if (m.inbox_only) {
+      for (const o of db.notification_outbox)
+        if (
+          o.member_id === member.id &&
+          o.bundle_key === m.bundle &&
+          o.event_type === 'termin_einladung' &&
+          o.status === 'wartet' &&
+          m.invite_text
+        )
+          o.text = m.invite_text;
+      continue;
+    }
     // Bis P6 feste Voreinstellungen: Push, sobald auf einem Gerät aktiv; Telegram, sobald verknüpft
     // Je Anlass nur einmal: Wer später einen weiteren Kanal einschaltet, bekommt nichts nachgeliefert
     if (
@@ -80,6 +97,10 @@ export function enqueue(
     const channels: NotificationChannel[] = [];
     if (on('push') && db.push_subscriptions.some((s) => s.member_id === member.id)) channels.push('push');
     if (on('telegram') && db.telegram_links.some((l) => l.member_id === member.id)) channels.push('telegram');
+    // Phase 15: tägliche Zusammenfassung – frühestens am nächsten Morgen
+    const digest = db.notification_digests.some(
+      (d) => d.member_id === member.id && d.event_type === m.event_type,
+    );
     for (const channel of channels) {
       const dedupe_key = `${m.dedupe_key}:${channel}`;
       const id = uuid();
@@ -99,7 +120,8 @@ export function enqueue(
         sent_at: null,
         bundle_key: m.bundle ?? null,
         invite_text: m.invite_text ?? null,
-        send_after: sendAfter(m, now),
+        send_after: digest ? nextMorning(now) : sendAfter(m, now),
+        digest,
       });
       added += 1;
     }
@@ -208,9 +230,47 @@ export function runJob(db: Db, now: Date): JobRun {
         o.event_type = resolved.event_type;
       } else o.status = 'ersetzt';
   }
+  // Phase 15: nachts nur „Termin in 1 Stunde“; am Morgen kommt Gesammeltes und über Nacht Liegengebliebenes als eine
+  // Nachricht je Person und Kanal
+  const night = isNight(now);
+  const due = (o: OutboxEntry) => !o.send_after || new Date(o.send_after).getTime() <= started;
+  if (!night) {
+    const digests = new Map<string, OutboxEntry[]>();
+    for (const o of db.notification_outbox) {
+      if (o.status !== 'wartet' || o.attempts > 0 || undoable.has(o.id) || held.has(o.id) || !due(o))
+        continue;
+      if (nightExempt(o.dedupe_key)) continue;
+      const overnight = !o.digest && started - new Date(o.created_at).getTime() <= 12 * 3_600_000;
+      if (!o.digest && !(overnight && isNight(new Date(o.created_at)))) continue;
+      const key = `${o.member_id}:${o.channel}`;
+      digests.set(key, [...(digests.get(key) ?? []), o]);
+    }
+    for (const group of digests.values()) {
+      if (group.length < 2) continue;
+      const first = group[0]!;
+      db.notification_outbox.push({
+        id: uuid(),
+        dedupe_key: `sammelnachricht:${first.member_id}:${started}:${first.channel}`,
+        member_id: first.member_id,
+        event_type: 'sammelnachricht',
+        channel: first.channel,
+        text: digestText(
+          group.map((o) => o.text),
+          group.some((o) => !o.digest),
+        ),
+        link: '/agenda',
+        status: 'wartet',
+        attempts: 0,
+        created_at: now.toISOString(),
+        sent_at: null,
+      });
+      for (const o of group) o.status = 'ersetzt';
+    }
+  }
   for (const entry of db.notification_outbox) {
     if (entry.status !== 'wartet' || entry.attempts >= MAX_SEND_ATTEMPTS) continue;
-    if (undoable.has(entry.id) || held.has(entry.id)) continue;
+    if (undoable.has(entry.id) || held.has(entry.id) || !due(entry)) continue;
+    if (night && !nightExempt(entry.dedupe_key)) continue;
     entry.attempts += 1;
     entry.status = 'gesendet';
     entry.sent_at = now.toISOString();
@@ -259,6 +319,12 @@ export function notificationSettings(ctx: Ctx, deviceId: string): NotificationSe
       telegram: g.events.some((e) =>
         channelEnabled(db.notification_preferences, ctx.actor.id, e, 'telegram'),
       ),
+      daily:
+        g.digest.length === 0
+          ? null
+          : g.digest.some((e) =>
+              db.notification_digests.some((d) => d.member_id === ctx.actor.id && d.event_type === e),
+            ),
     })),
     reminder_lead_days: ctx.actor.reminder_lead_days,
   };
@@ -305,6 +371,19 @@ export function setNotificationPreference(
     ctx.db.notification_preferences.push({ member_id: me, event_type, channel, enabled });
   }
   if (!enabled) dropWaiting(ctx.db, me, channel, def.events);
+}
+
+/** Phase 15 (WF-PRO-04): Zeile täglich gesammelt statt einzeln */
+export function setNotificationDigest(ctx: Ctx, group: NotificationGroupKey, daily: boolean): void {
+  const def = NOTIFICATION_GROUPS.find((g) => g.key === group);
+  if (!def || def.digest.length === 0) throw new AppError('validation', 'Diese Einstellung gibt es nicht.');
+  const events: readonly NotificationEvent[] = def.digest;
+  ctx.db.notification_digests = ctx.db.notification_digests.filter(
+    (d) => !(d.member_id === ctx.actor.id && events.includes(d.event_type)),
+  );
+  if (daily)
+    for (const event_type of events)
+      ctx.db.notification_digests.push({ member_id: ctx.actor.id, event_type });
 }
 
 /** WF-PRO-04: Vorlauf für Fristerinnerungen (1, 3 oder 7 Tage) */

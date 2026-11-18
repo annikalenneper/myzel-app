@@ -36,7 +36,7 @@ export interface MockOptions {
   latency?: number;
 }
 
-const DB_KEY = 'myzel:mock:db:v19';
+const DB_KEY = 'myzel:mock:db:v20';
 const DEVICE_KEY = 'myzel:mock:geraet';
 const OUTAGE_KEY = 'myzel:mock:ausfall';
 const SESSION_KEY = 'myzel:mock:session';
@@ -424,6 +424,8 @@ export function createMockApi(options: MockOptions = {}): MyzelApi {
     unlinkTelegram: () => writeOutside((ctx) => notify.unlinkTelegram(ctx)),
     setNotificationPreference: (group, channel, enabled) =>
       writeOutside((ctx) => notify.setNotificationPreference(ctx, group, channel, enabled)),
+    setNotificationDigest: (group, daily) =>
+      writeOutside((ctx) => notify.setNotificationDigest(ctx, group, daily)),
     setReminderLeadDays: (days) => writeOutside((ctx) => notify.setReminderLeadDays(ctx, days)),
     getSystemStatus: () =>
       read((d, n) => notify.systemStatus({ db: d, actor: actor(), now: n, inverse: [] })),

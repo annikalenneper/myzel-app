@@ -78,6 +78,7 @@ import {
   type InboxEntryRow,
   type DocType,
   type PushSubscriptionRow,
+  type NotificationEvent,
   type NotificationPreference,
   type TelegramLink,
   type TelegramLinkCode,
@@ -241,6 +242,8 @@ export interface Db {
   push_subscriptions: PushSubscriptionRow[];
   /** [P6] Schalter-Matrix; fehlende Einträge heißen „an“ */
   notification_preferences: NotificationPreference[];
+  /** Phase 15: tägliche Zusammenfassung je Person und Ereignis */
+  notification_digests: { member_id: string; event_type: NotificationEvent }[];
   telegram_links: TelegramLink[];
   telegram_link_codes: TelegramLinkCode[];
   notification_outbox: OutboxEntry[];
@@ -295,6 +298,7 @@ export function emptyDb(): Db {
     drive_remote: { items: [], changes: [], seq: 0 },
     push_subscriptions: [],
     notification_preferences: [],
+    notification_digests: [],
     telegram_links: [],
     telegram_link_codes: [],
     member_emails: [],

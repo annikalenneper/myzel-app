@@ -368,8 +368,8 @@ export interface NotificationSettings {
   telegram: 'aus' | 'wartet' | 'verbunden';
   /** Link zum Bot mit Einmal-Code, solange die Verknüpfung auf /start wartet */
   telegram_url: string | null;
-  /** [P6] Schalter-Matrix (F-PRO-02): je Zeile Push und Telegram */
-  matrix: { key: NotificationGroupKey; push: boolean; telegram: boolean }[];
+  /** [P6] Schalter-Matrix (F-PRO-02): je Zeile Push und Telegram; daily (Phase 15): täglich gesammelt, null = geht nicht */
+  matrix: { key: NotificationGroupKey; push: boolean; telegram: boolean; daily: boolean | null }[];
   reminder_lead_days: number;
 }
 
@@ -632,6 +632,8 @@ export interface MyzelApi {
     enabled: boolean,
   ): Promise<void>;
   setReminderLeadDays(days: number): Promise<void>;
+  /** Phase 15 (WF-PRO-04): eine Zeile der Matrix einmal am Tag gesammelt statt einzeln */
+  setNotificationDigest(group: NotificationGroupKey, daily: boolean): Promise<void>;
 
   demo?: DemoTools;
 }

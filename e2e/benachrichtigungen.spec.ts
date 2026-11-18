@@ -23,6 +23,18 @@ test('WF-PRO-04: Schalter je Ereignis und Kanal, Vorlauf – gespeichert und sof
   await expect(pushComment).toBeEnabled();
   await expect(pushComment).toHaveAttribute('aria-pressed', 'true');
 
+  // Phase 15: „Eigene Aktionen“ starten aus; Kommentare lassen sich täglich sammeln, Fristen nicht
+  await expect(page.getByRole('button', { name: 'Eigene Aktionen per Telegram' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  const daily = page.getByRole('button', { name: 'Neuer Kommentar täglich gesammelt' });
+  await expect(daily).toHaveAttribute('aria-pressed', 'false');
+  await daily.click();
+  await expect(daily).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Frist täglich gesammelt' })).toHaveCount(0);
+  await expect(matrix).toContainText('Nachtruhe von 22 bis 8 Uhr');
+
   // eigene Statusänderungen werden nie gemeldet – dafür gibt es keinen Schalter
   await expect(page.getByText('Auch eigene Statusänderungen')).toHaveCount(0);
 
@@ -33,6 +45,7 @@ test('WF-PRO-04: Schalter je Ereignis und Kanal, Vorlauf – gespeichert und sof
 
   await page.reload();
   await expect(comment).toHaveAttribute('aria-pressed', 'false');
+  await expect(daily).toHaveAttribute('aria-pressed', 'true');
   await expect(lead.getByRole('button', { name: '7 Tage vorher' })).toHaveAttribute('aria-pressed', 'true');
 });
 

@@ -321,6 +321,12 @@ export interface NotificationPreferencesTable {
   enabled: boolean;
 }
 
+/** Phase 15: Ereignisse, die eine Person einmal am Tag gesammelt bekommt */
+export interface NotificationDigestsTable {
+  member_id: string;
+  event_type: NotificationEvent;
+}
+
 export interface CommentReactionsTable {
   comment_id: string;
   member_id: string;
@@ -490,6 +496,8 @@ export interface NotificationOutboxTable {
   bundle_key: string | null;
   invite_text: string | null;
   send_after: Timestamp | null;
+  /** Phase 15: kommt in der täglichen Zusammenfassung */
+  digest: Generated<boolean>;
 }
 
 export interface JobRunsTable {
@@ -568,6 +576,7 @@ export interface Database {
   drive_sync_state: DriveSyncStateTable;
   app_reports: AppReportsTable;
   notification_preferences: NotificationPreferencesTable;
+  notification_digests: NotificationDigestsTable;
   comment_reactions: CommentReactionsTable;
 }
 

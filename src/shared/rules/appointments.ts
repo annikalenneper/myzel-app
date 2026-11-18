@@ -7,7 +7,7 @@ import type {
   AppointmentStatus,
   NotificationEvent,
 } from '../schema';
-import type { Message } from './notifications';
+import { FAR_APPOINTMENT_DAYS, type Message } from './notifications';
 
 export const FORMAT_LABEL: Record<AppointmentFormat, string> = {
   vor_ort: 'Vor Ort',
@@ -130,6 +130,9 @@ export function changeMessages(
       : kind === 'findet_statt'
         ? `${a.title} findet doch statt: ${whenText(a.starts_at)}.`
         : `${a.title} wurde geändert: jetzt ${whenText(a.starts_at)}.`;
+  const far =
+    kind === 'verschoben' &&
+    new Date(a.starts_at).getTime() - new Date(at).getTime() > FAR_APPOINTMENT_DAYS * 24 * 3_600_000;
   return recipientIds
     .filter((id) => id !== actorId)
     .map((member_id) => ({
@@ -141,6 +144,8 @@ export function changeMessages(
       // Phase 14: ist die Einladung noch nicht raus, geht sie mit dem neuen Stand raus – nach einer Absage gar nichts
       bundle: `termin:${a.id}`,
       invite_text: kind === 'abgesagt' ? '' : invitationText(a),
+      // Phase 15: eine Verschiebung weit in der Zukunft steht nur in der Glocke
+      ...(far ? { inbox_only: true } : {}),
     }));
 }
 

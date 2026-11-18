@@ -119,6 +119,11 @@ describe('Ereignisse und Outbox (6.1, 6.2)', () => {
   });
 
   it('Phase 12: wer handelt, bekommt eine Bestätigung aus eigener Sicht – mit der Zahl der Benachrichtigten', async () => {
+    // Phase 15: „Eigene Aktionen“ sind ohne Einstellung aus
+    const { id: first } = await api.createTask({ title: 'Kabel vorher', topic_id: await topicId() });
+    await api.addAssignee(first, await memberId('Jule'));
+    expect((await api.demo!.myMessages()).filter((m) => m.event_type === 'eigene_aktion')).toEqual([]);
+    await api.setNotificationPreference('eigene', 'telegram', true);
     const { id } = await api.createTask({ title: 'Kabel kaufen', topic_id: await topicId() });
     // ohne Betroffene keine Bestätigung
     await api.setTaskStatus(id, { status: 'geplant', version: 1 });

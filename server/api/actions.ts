@@ -141,6 +141,7 @@ export const WRITE_ACTIONS: Record<string, (ctx: Ctx, args: Args) => Promise<unk
   savePushSubscription: (ctx, [subscription]) => notify.savePushSubscription(ctx, subscription),
   removePushSubscription: (ctx, [endpoint]) => notify.removePushSubscription(ctx, endpoint),
   removeAllPushSubscriptions: (ctx) => notify.removeAllPushSubscriptions(ctx),
+  setNotificationDigest: (ctx, [group, daily]) => notify.setNotificationDigest(ctx, group, daily),
   startTelegramLink: (ctx) => notify.startTelegramLink(ctx, botUsername()),
   unlinkTelegram: (ctx) => notify.unlinkTelegram(ctx),
   // Schalter-Matrix und Vorlauf (F-PRO-02, WF-PRO-04)

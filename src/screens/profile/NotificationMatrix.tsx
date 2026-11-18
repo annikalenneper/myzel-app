@@ -67,6 +67,7 @@ export function NotificationMatrix() {
         <span className="label-mono flex-1">Benachrichtigen bei</span>
         <span className={cx('label-mono w-[58px] text-center', !connected.push && 'opacity-40')}>Push</span>
         <span className={cx('label-mono w-[58px] text-center', !connected.telegram && 'opacity-40')}>TG</span>
+        <span className="label-mono w-[58px] text-center">Tägl.</span>
       </div>
       <div className="flex flex-col overflow-hidden rounded-2xl border border-linie">
         {NOTIFICATION_GROUPS.map((g) => {
@@ -74,7 +75,7 @@ export function NotificationMatrix() {
           return (
             <div
               key={g.key}
-              className="flex min-h-[52px] items-center gap-2 border-b border-erhoeht bg-flaeche py-1 pr-1 pl-3.5"
+              className="flex min-h-[52px] items-center gap-1 border-b border-erhoeht bg-flaeche py-1 pr-1 pl-3.5"
             >
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="text-[14px] font-medium">{g.label}</span>
@@ -89,6 +90,17 @@ export function NotificationMatrix() {
                   onToggle={() => toggle(g.key, c, row[c])}
                 />
               ))}
+              {/* Phase 15: einmal am Tag um 8 Uhr gesammelt statt einzeln – nicht bei Fristen und Zusammenfassung */}
+              {row.daily === null ? (
+                <span className="w-[58px] flex-none" />
+              ) : (
+                <Switch
+                  on={row.daily}
+                  inactive={false}
+                  label={`${g.label} täglich gesammelt`}
+                  onToggle={() => void run(() => api.setNotificationDigest(g.key, !row.daily))}
+                />
+              )}
             </div>
           );
         })}
@@ -124,6 +136,11 @@ export function NotificationMatrix() {
         {missing.length > 0
           ? `${missing.join(' und ')} ${missing.length === 1 ? 'ist' : 'sind'} oben nicht eingeschaltet – die Schalter dafür wirken erst danach.`
           : 'Nachrichten kommen über die Kanäle, die oben eingeschaltet sind.'}
+      </span>
+      <span className="px-1 text-[12px] leading-[1.4] text-leise">
+        Täglich: kommt einmal am Tag um 8 Uhr als eine Zusammenfassung. Nachtruhe von 22 bis 8 Uhr – nur
+        „Termin in 1 Stunde“ kommt auch nachts; was sich sammelt, kommt morgens zusammen. Änderungen an
+        Terminen in mehr als 4 Wochen stehen nur in der Glocke.
       </span>
     </div>
   );

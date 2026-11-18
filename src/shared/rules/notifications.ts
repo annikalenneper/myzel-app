@@ -3,7 +3,7 @@
 import { formatDayMonth } from '../format';
 import { TASK_STATUS_LABEL } from '../labels';
 import type { NotificationEvent, Task, TaskStatus } from '../schema';
-import { daysUntil } from './due';
+import { berlinHour, daysUntil } from './due';
 import { isActiveTaskStatus } from './taskStatus';
 
 export interface Message {
@@ -21,6 +21,48 @@ export interface Message {
   bundle?: string;
   /** Termin-Änderung: Text, falls die Einladung zu diesem Termin noch nicht raus ist; leer = dann gar nichts schicken */
   invite_text?: string;
+  /** Phase 15: nur in die Glocke, nicht per Push/Telegram (z. B. Änderung an einem Termin in mehr als 4 Wochen) */
+  inbox_only?: boolean;
+}
+
+// ── Phase 15: Nachtruhe und tägliche Zusammenfassung (Nutzerin, 12.11.2026) ─────
+
+/** Nachtruhe in Köln: von 22 bis 8 Uhr kein Push und kein Telegram – außer „Termin in 1 Stunde“ */
+export const NIGHT_START_HOUR = 22;
+export const NIGHT_END_HOUR = 8;
+export const isNight = (d: Date) => {
+  const h = berlinHour(d);
+  return h >= NIGHT_START_HOUR || h < NIGHT_END_HOUR;
+};
+/** darf auch nachts raus */
+export const nightExempt = (dedupeKey: string) => dedupeKey.startsWith('termin_erinnerung_stunde:');
+/** Termin-Änderungen weiter weg als 4 Wochen stehen nur in der Glocke */
+export const FAR_APPOINTMENT_DAYS = 28;
+
+/** Nächster Morgen um 8 Uhr in Köln (Ende der Nachtruhe) – dann geht die tägliche Zusammenfassung raus */
+export function nextMorning(now: Date): string {
+  const h = berlinHour(now);
+  let hours = (NIGHT_END_HOUR - h + 24) % 24;
+  if (hours === 0 && (now.getUTCMinutes() > 0 || now.getUTCSeconds() > 0)) hours = 24;
+  const t = new Date(now.getTime() + hours * 3_600_000);
+  t.setUTCMinutes(0, 0, 0);
+  return t.toISOString();
+}
+
+/** In der Zusammenfassung höchstens so viele Zeilen, dann „… und n weitere“ */
+const DIGEST_LINES = 8;
+const DIGEST_LINE_MAX = 140;
+
+/** Eine Nachricht für viele: „Zusammenfassung: 5 Neuigkeiten“ mit einer Zeile je Anlass, Link zur Agenda */
+export function digestText(texts: readonly string[], overnight: boolean): string {
+  const lines = texts
+    .slice(0, DIGEST_LINES)
+    .map((t) => `• ${t.replace(/\s+/g, ' ').slice(0, DIGEST_LINE_MAX)}`);
+  const more = texts.length - lines.length;
+  const head = overnight
+    ? `Seit gestern Abend: ${texts.length} Neuigkeiten`
+    : `Deine Zusammenfassung: ${texts.length} Neuigkeiten`;
+  return [head, ...lines, ...(more > 0 ? [`… und ${more} weitere – alles in der Glocke`] : [])].join('\n');
 }
 
 /**
@@ -70,46 +112,79 @@ export function resolveBundle<T extends BundleRow>(
   return { keep: last, event_type: last.event_type, text: last.text };
 }
 
-/** [P6] Zeilen der Schalter-Matrix im Profil (F-PRO-02) und die Ereignisse dahinter (6.2) */
+/**
+ * [P6] Zeilen der Schalter-Matrix im Profil (F-PRO-02) und die Ereignisse dahinter (6.2). digest (Phase 15): Ereignisse,
+ * die statt einzeln einmal am Tag gesammelt kommen können – Erinnerungen und Fristen nie (sie sind schon täglich bzw.
+ * zeitkritisch).
+ */
 export const NOTIFICATION_GROUPS = [
-  { key: 'zuweisung', label: 'Zuweisung', hint: null, events: ['zuweisung', 'zuweisung_abgelehnt'] },
-  { key: 'kommentar', label: 'Neuer Kommentar', hint: null, events: ['kommentar'] },
-  { key: 'status', label: 'Statusänderung', hint: null, events: ['status'] },
-  { key: 'blockade', label: 'Blockade aufgehoben', hint: null, events: ['blockade_aufgehoben'] },
+  {
+    key: 'zuweisung',
+    label: 'Zuweisung',
+    hint: null,
+    events: ['zuweisung', 'zuweisung_abgelehnt'],
+    digest: ['zuweisung', 'zuweisung_abgelehnt'],
+  },
+  { key: 'kommentar', label: 'Neuer Kommentar', hint: null, events: ['kommentar'], digest: ['kommentar'] },
+  { key: 'status', label: 'Statusänderung', hint: null, events: ['status'], digest: ['status'] },
+  {
+    key: 'blockade',
+    label: 'Blockade aufgehoben',
+    hint: null,
+    events: ['blockade_aufgehoben'],
+    digest: ['blockade_aufgehoben'],
+  },
   {
     key: 'frist',
     label: 'Frist',
     hint: 'Vorher · am Tag · überfällig',
     events: ['frist_naht', 'frist_heute', 'frist_ueberschritten'],
+    digest: [],
   },
   {
     key: 'termine',
     label: 'Termine',
     hint: 'Einladung · 3 Tage und 1 Stunde vorher · Änderung',
     events: ['termin_einladung', 'termin_erinnerung', 'termin_geaendert'],
+    // Erinnerungen bleiben einzeln – „in 1 Stunde“ hilft am nächsten Morgen nicht
+    digest: ['termin_einladung', 'termin_geaendert'],
   },
-  { key: 'zusammenfassung', label: 'Plenum-Zusammenfassung', hint: null, events: ['plenum_zusammenfassung'] },
+  {
+    key: 'zusammenfassung',
+    label: 'Plenum-Zusammenfassung',
+    hint: null,
+    events: ['plenum_zusammenfassung'],
+    digest: [],
+  },
   {
     key: 'eigene',
     label: 'Eigene Aktionen',
     hint: 'Wer über das, was du tust, benachrichtigt wird',
     events: ['eigene_aktion'],
+    digest: ['eigene_aktion'],
   },
   {
     key: 'entscheidungen',
     label: 'Entscheidungen zum Bestätigen',
     hint: 'Neu · letzter Tag der Frist',
     events: ['entscheidung_bestaetigen', 'entscheidung_frist'],
+    digest: ['entscheidung_bestaetigen'],
   },
 ] as const satisfies readonly {
   key: string;
   label: string;
   hint: string | null;
   events: readonly NotificationEvent[];
+  digest: readonly NotificationEvent[];
 }[];
 export type NotificationGroupKey = (typeof NOTIFICATION_GROUPS)[number]['key'];
 
-/** Ist der Kanal für dieses Ereignis an? Ohne Eintrag: ja – alle starten mit allem an (Nutzerin, 27.10.2026). */
+/**
+ * Ist der Kanal für dieses Ereignis an? Ohne Eintrag: ja – alle starten mit allem an (Nutzerin, 27.10.2026). Ausnahme
+ * „Eigene Aktionen“: ohne Eintrag aus (Phase 15, Nutzerin 12.11.2026).
+ */
+export const defaultEnabled = (event: NotificationEvent) => event !== 'eigene_aktion';
+
 export function channelEnabled(
   prefs: readonly { member_id: string; event_type: NotificationEvent; channel: string; enabled: boolean }[],
   memberId: string,
@@ -118,7 +193,7 @@ export function channelEnabled(
 ): boolean {
   return (
     prefs.find((p) => p.member_id === memberId && p.event_type === event && p.channel === channel)?.enabled ??
-    true
+    defaultEnabled(event)
   );
 }
 

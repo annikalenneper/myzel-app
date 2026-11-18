@@ -12,6 +12,11 @@ import {
   DAILY_REMINDER_HOUR,
   dueReminderMessages,
   collapseInbox,
+  defaultEnabled,
+  digestText,
+  isNight,
+  nextMorning,
+  nightExempt,
   ownActionMessage,
   MAX_SEND_ATTEMPTS,
   NOTIFICATION_GROUPS,
@@ -138,21 +143,38 @@ export async function enqueue(
   const hasPush = new Set(recipients.filter((r) => r.push).map((r) => r.id));
   const hasTelegram = new Set(recipients.filter((r) => r.telegram).map((r) => r.id));
   const reachable = new Set([...hasPush, ...hasTelegram]);
-  if (!messages.some((m) => reachable.has(m.member_id))) return 0;
-  // Schalter-Matrix (F-PRO-02): je Ereignis und Kanal; ohne Eintrag an – gespeichert ist, was jemand abschaltet
-  const switchedOff = new Set(
-    (
-      await trx
-        .selectFrom('notification_preferences')
-        .select(['member_id', 'event_type', 'channel'])
-        .where('member_id', 'in', [...reachable])
-        .where('enabled', '=', false)
-        .execute()
-    ).map((p) => `${p.member_id}:${p.event_type}:${p.channel}`),
-  );
+  // Phase 15: nur für die Glocke (Termin-Änderung weit in der Zukunft) – eine noch wartende Einladung bekommt aber den
+  // neuen Stand, sonst ginge sie mit der alten Zeit raus
+  for (const m of messages.filter((x) => x.inbox_only && x.bundle && x.invite_text))
+    await trx
+      .updateTable('notification_outbox')
+      .set({ text: m.invite_text! })
+      .where('member_id', '=', m.member_id)
+      .where('bundle_key', '=', m.bundle!)
+      .where('event_type', '=', 'termin_einladung')
+      .where('status', '=', 'wartet')
+      .execute();
+  if (!messages.some((m) => reachable.has(m.member_id) && !m.inbox_only)) return 0;
+  // Schalter-Matrix (F-PRO-02): je Ereignis und Kanal; ohne Eintrag an (außer „Eigene Aktionen“, Phase 15) –
+  // gespeichert ist, was jemand umschaltet. Dazu die tägliche Zusammenfassung (Phase 15)
+  const [prefs, digests] = await Promise.all([
+    trx
+      .selectFrom('notification_preferences')
+      .select(['member_id', 'event_type', 'channel', 'enabled'])
+      .where('member_id', 'in', [...reachable])
+      .execute(),
+    trx
+      .selectFrom('notification_digests')
+      .select(['member_id', 'event_type'])
+      .where('member_id', 'in', [...reachable])
+      .execute(),
+  ]);
+  const pref = new Map(prefs.map((p) => [`${p.member_id}:${p.event_type}:${p.channel}`, p.enabled]));
+  const daily = new Set(digests.map((d) => `${d.member_id}:${d.event_type}`));
   const on = (m: Message, channel: NotificationChannel) =>
+    !m.inbox_only &&
     (channel === 'push' ? hasPush : hasTelegram).has(m.member_id) &&
-    !switchedOff.has(`${m.member_id}:${m.event_type}:${channel}`);
+    (pref.get(`${m.member_id}:${m.event_type}:${channel}`) ?? defaultEnabled(m.event_type));
   // ohne eingeschalteten Kanal gibt es nichts zu verschicken – auch keine Prüfung auf Doppelte
   const wanted = messages.filter((m) => on(m, 'push') || on(m, 'telegram'));
   if (wanted.length === 0) return 0;
@@ -172,6 +194,8 @@ export async function enqueue(
     if (known.has(m.dedupe_key)) continue;
     known.add(m.dedupe_key);
     const channels = NOTIFICATION_CHANNELS.filter((c) => on(m, c));
+    const digest = daily.has(`${m.member_id}:${m.event_type}`);
+    const held = sendAfter(m, now);
     for (const channel of channels)
       rows.push({
         dedupe_key: `${m.dedupe_key}:${channel}`,
@@ -183,7 +207,9 @@ export async function enqueue(
         created_at: now.toISOString(),
         bundle_key: m.bundle ?? null,
         invite_text: m.invite_text ?? null,
-        send_after: sendAfter(m, now),
+        // tägliche Zusammenfassung: frühestens am nächsten Morgen
+        send_after: digest ? nextMorning(now) : held,
+        digest,
       });
   }
   let added = 0;
@@ -364,6 +390,9 @@ async function claim(db: Db, now: Date) {
       .execute();
     const undoable = recent.flatMap((r) => r.outbox_ids as string[]);
     const held = await resolveBundles(trx, now, new Set(undoable));
+    // Phase 15: nachts geht nur „Termin in 1 Stunde“ raus; am Morgen kommt das Gesammelte als eine Nachricht
+    const night = isNight(now);
+    if (!night) await mergeDigests(trx, now, new Set([...undoable, ...held]));
     const rows = await trx
       .selectFrom('notification_outbox')
       .selectAll()
@@ -372,6 +401,8 @@ async function claim(db: Db, now: Date) {
       .where(free)
       .$if(undoable.length > 0, (q) => q.where('id', 'not in', undoable))
       .$if(held.length > 0, (q) => q.where('id', 'not in', held))
+      .$if(night, (q) => q.where('dedupe_key', 'like', 'termin_erinnerung_stunde:%'))
+      .where((eb) => eb.or([eb('send_after', 'is', null), eb('send_after', '<=', now.toISOString())]))
       .orderBy('created_at')
       .limit(BATCH)
       .forUpdate()
@@ -454,6 +485,67 @@ async function resolveBundles(trx: Trx, now: Date, undoable: ReadonlySet<string>
       .where('id', 'in', part)
       .execute();
   return waiting;
+}
+
+/** so weit zurück zählt eine Nachricht als „über Nacht liegen geblieben“ */
+const OVERNIGHT_MS = 12 * 3_600_000;
+
+/**
+ * Phase 15: Was für die tägliche Zusammenfassung vorgesehen ist oder nachts liegen blieb, geht – sobald es fällig ist –
+ * je Person und Kanal als eine „sammelnachricht“ raus; die einzelnen sind dann „ersetzt“. Eine einzelne bleibt, wie sie
+ * ist. Die Glocke behält alle Einträge einzeln.
+ */
+async function mergeDigests(trx: Trx, now: Date, excluded: ReadonlySet<string>): Promise<void> {
+  const rows = await trx
+    .selectFrom('notification_outbox')
+    .select(['id', 'member_id', 'channel', 'text', 'created_at', 'dedupe_key', 'digest', 'send_after'])
+    .where('status', '=', 'wartet')
+    .where('attempts', '=', 0)
+    .where((eb) =>
+      eb.or([
+        eb('digest', '=', true),
+        eb('created_at', '>=', new Date(now.getTime() - OVERNIGHT_MS).toISOString()),
+      ]),
+    )
+    .where((eb) => eb.or([eb('send_after', 'is', null), eb('send_after', '<=', now.toISOString())]))
+    .orderBy('created_at')
+    .limit(BUNDLE_SCAN)
+    .execute();
+  const groups = new Map<string, typeof rows>();
+  for (const r of rows) {
+    if (excluded.has(r.id) || nightExempt(r.dedupe_key)) continue;
+    if (!r.digest && !isNight(new Date(r.created_at))) continue;
+    const key = `${r.member_id}:${r.channel}`;
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const first = group[0]!;
+    await trx
+      .insertInto('notification_outbox')
+      .values({
+        dedupe_key: `sammelnachricht:${first.member_id}:${now.getTime()}:${first.channel}`,
+        member_id: first.member_id,
+        event_type: 'sammelnachricht',
+        channel: first.channel,
+        text: digestText(
+          group.map((r) => r.text),
+          group.some((r) => !r.digest),
+        ),
+        link: '/agenda',
+        created_at: now.toISOString(),
+      })
+      .execute();
+    await trx
+      .updateTable('notification_outbox')
+      .set({ status: 'ersetzt', last_error: 'In einer Zusammenfassung verschickt.' })
+      .where(
+        'id',
+        'in',
+        group.map((r) => r.id),
+      )
+      .execute();
+  }
 }
 
 type Entry = Awaited<ReturnType<typeof claim>>[number];
@@ -674,7 +766,7 @@ export async function notificationSettings(
   botUsername: string | null,
 ): Promise<NotificationSettings> {
   const me = ctx.actor.id;
-  const [devices, link, code, prefs] = await Promise.all([
+  const [devices, link, code, prefs, digests] = await Promise.all([
     ctx.trx.selectFrom('push_subscriptions').select('endpoint').where('member_id', '=', me).execute(),
     ctx.trx.selectFrom('telegram_links').select('member_id').where('member_id', '=', me).executeTakeFirst(),
     ctx.trx
@@ -687,11 +779,13 @@ export async function notificationSettings(
       .executeTakeFirst(),
     ctx.trx
       .selectFrom('notification_preferences')
-      .select(['event_type', 'channel'])
+      .select(['event_type', 'channel', 'enabled'])
       .where('member_id', '=', me)
-      .where('enabled', '=', false)
       .execute(),
+    ctx.trx.selectFrom('notification_digests').select('event_type').where('member_id', '=', me).execute(),
   ]);
+  const enabled = (e: NotificationEvent, c: NotificationChannel) =>
+    prefs.find((p) => p.event_type === e && p.channel === c)?.enabled ?? defaultEnabled(e);
   return {
     push: !!endpoint && devices.some((d) => d.endpoint === endpoint),
     push_devices: devices.length,
@@ -700,8 +794,9 @@ export async function notificationSettings(
     // eine Zeile gilt als an, solange eines ihrer Ereignisse an ist – gesetzt wird immer die ganze Zeile
     matrix: NOTIFICATION_GROUPS.map((g) => ({
       key: g.key,
-      push: g.events.some((e) => !prefs.some((p) => p.event_type === e && p.channel === 'push')),
-      telegram: g.events.some((e) => !prefs.some((p) => p.event_type === e && p.channel === 'telegram')),
+      push: g.events.some((e) => enabled(e, 'push')),
+      telegram: g.events.some((e) => enabled(e, 'telegram')),
+      daily: g.digest.length === 0 ? null : g.digest.some((e) => digests.some((d) => d.event_type === e)),
     })),
     reminder_lead_days: ctx.actor.reminder_lead_days,
   };
@@ -754,6 +849,23 @@ export async function setNotificationPreference(
     )
     .execute();
   if (!rawEnabled) await dropWaiting(ctx.trx, ctx.actor.id, channel, undefined, def.events);
+}
+
+/** Phase 15 (WF-PRO-04): Zeile täglich gesammelt – wirkt auf neue Nachrichten, schon wartende gehen wie geplant raus */
+export async function setNotificationDigest(ctx: Ctx, rawGroup: unknown, rawDaily: unknown): Promise<void> {
+  const def = NOTIFICATION_GROUPS.find((g) => g.key === rawGroup);
+  if (!def || def.digest.length === 0 || typeof rawDaily !== 'boolean')
+    throw new AppError('validation', 'Diese Einstellung gibt es nicht.');
+  await ctx.trx
+    .deleteFrom('notification_digests')
+    .where('member_id', '=', ctx.actor.id)
+    .where('event_type', 'in', [...def.digest])
+    .execute();
+  if (rawDaily)
+    await ctx.trx
+      .insertInto('notification_digests')
+      .values(def.digest.map((event_type) => ({ member_id: ctx.actor.id, event_type })))
+      .execute();
 }
 
 // ── Glocke (WF-ALL-10) ──────────────────────────────────────────────────────

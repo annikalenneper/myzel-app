@@ -262,6 +262,8 @@ export const NOTIFICATION_EVENTS = [
   'entscheidung_frist',
   // Phase 12: Bestätigung eigener Aktionen – „Du hast … – n Personen werden benachrichtigt.“
   'eigene_aktion',
+  // Phase 15: tägliche Zusammenfassung bzw. was über Nacht liegen blieb – eine Nachricht statt vieler
+  'sammelnachricht',
 ] as const;
 export const notificationEventSchema = z.enum(NOTIFICATION_EVENTS);
 export type NotificationEvent = z.infer<typeof notificationEventSchema>;
@@ -329,6 +331,7 @@ export const outboxSchema = z.object({
   bundle_key: z.string().nullish(),
   invite_text: z.string().nullish(),
   send_after: timestampSchema.nullish(),
+  digest: z.boolean().optional(),
 });
 export type OutboxEntry = z.infer<typeof outboxSchema>;
 

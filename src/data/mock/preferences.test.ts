@@ -51,7 +51,11 @@ describe('Schalter-Matrix (F-PRO-02)', () => {
       'eigene',
       'entscheidungen',
     ]);
-    expect(s.matrix.every((r) => r.push && r.telegram)).toBe(true);
+    // Phase 15: „Eigene Aktionen“ starten aus, alles andere an; täglich gesammelt ist nichts
+    expect(s.matrix.filter((r) => r.key !== 'eigene').every((r) => r.push && r.telegram)).toBe(true);
+    expect(s.matrix.find((r) => r.key === 'eigene')).toMatchObject({ push: false, telegram: false });
+    expect(s.matrix.every((r) => !r.daily)).toBe(true);
+    expect(s.matrix.filter((r) => r.daily === null).map((r) => r.key)).toEqual(['frist', 'zusammenfassung']);
     expect(s).toMatchObject({ reminder_lead_days: 3 });
   });
 
@@ -69,6 +73,7 @@ describe('Schalter-Matrix (F-PRO-02)', () => {
       key: 'kommentar',
       push: true,
       telegram: false,
+      daily: false,
     });
   });
 
@@ -88,7 +93,7 @@ describe('Schalter-Matrix (F-PRO-02)', () => {
     await login('jule');
     await api.setNotificationPreference('frist', 'push', false);
     const row = (await api.getNotificationSettings()).matrix.find((r) => r.key === 'frist')!;
-    expect(row).toEqual({ key: 'frist', push: false, telegram: true });
+    expect(row).toEqual({ key: 'frist', push: false, telegram: true, daily: null });
     await api.setNotificationPreference('frist', 'push', true);
     expect((await api.getNotificationSettings()).matrix.find((r) => r.key === 'frist')!.push).toBe(true);
   });
